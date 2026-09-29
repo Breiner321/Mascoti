@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "mascoti-b27cf",
+    "prod": "mascoti-prod"
+  }
+}
