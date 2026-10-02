@@ -58,7 +58,8 @@ service cloud.firestore {
       // (estado lo cambia solo un administrador con el Admin SDK).
       allow update: if isSelf(uid)
         && resource.data.estado == 'activo'
-        && onlyChanges(['lastLoginAt', 'displayName', 'photoURL', 'telefono', 'ciudad', 'direccion']);
+        && onlyChanges(['lastLoginAt', 'displayName', 'photoURL', 'telefono', 'ciudad', 'direccion', 'onboardingVisto'])
+        && request.resource.data.get('onboardingVisto', false) is bool;
 
       // Tokens FCM (RF-13). Borrar el propio token se permite siempre (logout).
       match /devices/{deviceId} {
@@ -82,6 +83,14 @@ service cloud.firestore {
         allow create, update: if hasRole('clinica') && isClinicOwner(clinicId);
         allow delete: if false; // borrado lógico: activo = false
       }
+    }
+
+    // ---------- pets (home del dueño; registro de mascotas: semana 2) ----------
+    match /pets/{petId} {
+      // Solo el dueño lee sus mascotas. La app consulta con
+      // where('ownerUid', '==', uid), que estas reglas permiten.
+      allow read: if isActive() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false; // TODO(semana 2): crear y editar con validaciones
     }
 
     // ---------- Todo lo demás está cerrado por defecto ----------

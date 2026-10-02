@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/domain/app_user.dart';
 import '../../core/kernel/mascoti_plugin.dart';
+import '../../core/router/navigator_keys.dart';
+import 'mascotas_routes.dart';
+import 'presentation/onboarding_page.dart';
 import 'presentation/owner_home_page.dart';
+import 'presentation/pets_providers.dart';
 
-/// Plugin del dueño: home, mascotas e historial médico (RF-08).
+/// Plugin del dueño: home, onboarding, mascotas e historial médico (RF-08).
 class MascotasPlugin extends MascotiPlugin {
   const MascotasPlugin();
 
@@ -18,8 +24,14 @@ class MascotasPlugin extends MascotiPlugin {
   @override
   List<RouteBase> routes() => [
         GoRoute(
-          path: '/mascotas',
+          path: MascotasRoutes.home,
           builder: (context, state) => const OwnerHomePage(),
+        ),
+        // A pantalla completa, sin encabezado ni barra inferior.
+        GoRoute(
+          path: MascotasRoutes.onboarding,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const OnboardingPage(),
         ),
       ];
 
@@ -29,8 +41,13 @@ class MascotasPlugin extends MascotiPlugin {
           label: 'Principal',
           icon: Icons.home_outlined,
           selectedIcon: Icons.home,
-          path: '/mascotas',
+          path: MascotasRoutes.home,
           order: 0,
         ),
       ];
+
+  /// RF-01 paso 14: la primera vez, el dueño pasa por el onboarding.
+  @override
+  ProviderListenable<AsyncValue<String?>>? requiredStep(AppUser user) =>
+      ownerOnboardingStepProvider(user.onboardingVisto);
 }

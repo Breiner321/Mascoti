@@ -11,7 +11,10 @@ abstract final class AppColors {
   static const border = Color(0xFFEDE4F7); // borde de tarjetas
   static const textPrimary = Color(0xFF1E1530); // títulos
   static const onPrimary = Color(0xFFFFFFFF); // texto sobre morado o rojo
+  static const onPrimaryTranslucent = Color(0x29FFFFFF); // botones del encabezado
   static const sos = Color(0xFFDC2626); // botón SOS / emergencia
+  static const sosContainer = Color(0xFFFEF2F2); // tarjeta "Emergencia"
+  static const sosBorder = Color(0xFFFECACA);
   static const success = Color(0xFF16A34A); // snackbar "Perfil actualizado"
   static const textMuted = Color(0xFF81778C);
 }

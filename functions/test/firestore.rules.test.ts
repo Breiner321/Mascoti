@@ -12,7 +12,17 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 const conEmulador = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
@@ -43,6 +53,8 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       await setDoc(doc(db, "users/susp"), { uid: "susp", role: "clinica", estado: "suspendido", clinicId: "c3" });
       await setDoc(doc(db, "clinics/c3"), { ownerUid: "susp", nombre: "Suspendida", estado: "activo" });
       await setDoc(doc(db, "users/susp/devices/d1"), { fcmToken: "t" });
+      await setDoc(doc(db, "pets/p1"), { ownerUid: "ana", nombre: "Luna" });
+      await setDoc(doc(db, "pets/p2"), { ownerUid: "otro", nombre: "Max" });
     });
   });
 
@@ -108,6 +120,23 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
     await assertSucceeds(updateDoc(doc(vet, "clinics/c1"), { estado: "activo" }));
     await assertFails(updateDoc(doc(vet, "clinics/c1"), { estado: "verificada" }));
     await assertFails(updateDoc(doc(vet, "clinics/c1"), { createdAt: new Date() }));
+  });
+
+  it("el dueño marca el onboarding como visto (RF-01 paso 14)", async () => {
+    const ana = env.authenticatedContext("ana").firestore();
+    const vet = env.authenticatedContext("vet").firestore();
+    await assertSucceeds(updateDoc(doc(ana, "users/ana"), { onboardingVisto: true }));
+    await assertFails(updateDoc(doc(ana, "users/ana"), { onboardingVisto: "si" }));
+    await assertFails(updateDoc(doc(vet, "users/ana"), { onboardingVisto: true }));
+  });
+
+  it("un dueño lee solo sus mascotas", async () => {
+    const ana = env.authenticatedContext("ana").firestore();
+    await assertSucceeds(getDoc(doc(ana, "pets/p1")));
+    await assertFails(getDoc(doc(ana, "pets/p2")));
+    await assertSucceeds(getDocs(query(collection(ana, "pets"), where("ownerUid", "==", "ana"))));
+    await assertFails(getDocs(collection(ana, "pets")));
+    await assertFails(setDoc(doc(ana, "pets/p3"), { ownerUid: "ana", nombre: "Nueva" }));
   });
 
   it("sin sesión no se lee nada", async () => {

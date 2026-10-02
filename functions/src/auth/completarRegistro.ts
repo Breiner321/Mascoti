@@ -57,6 +57,7 @@ export const completarRegistro = onCall({ region: REGION }, async (request) => {
       role: datos.role,
       estado: "activo",
       clinicId: nuevoClinicId,
+      onboardingVisto: false,
       createdAt: FieldValue.serverTimestamp(),
       lastLoginAt: FieldValue.serverTimestamp(),
     });

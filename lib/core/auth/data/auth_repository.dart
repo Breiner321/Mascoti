@@ -109,6 +109,21 @@ class AuthRepository {
     await _auth.signOut();
   }
 
+  /// RF-01 paso 14: el dueño terminó (o saltó) el onboarding. Como con
+  /// lastLoginAt, no se espera al servidor: la caché local refleja el cambio
+  /// al instante (también sin conexión) y Firestore lo sincroniza después.
+  void markOnboardingSeen() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    unawaited(
+      _firestore
+          .collection('users')
+          .doc(uid)
+          .update({'onboardingVisto': true})
+          .catchError((Object _) {}),
+    );
+  }
+
   /// No se espera la confirmación del servidor: con red inestable el login no
   /// debe quedarse cargando por un dato informativo. Si users/{uid} aún no
   /// existe (usuario nuevo), la escritura falla y se ignora.

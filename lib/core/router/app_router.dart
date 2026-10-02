@@ -30,6 +30,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     (_, next) => pendingStep.value = next,
   );
 
+  // Las rutas de plugins con parentNavigatorKey = rootNavigatorKey son de
+  // pantalla completa: go_router no permite declararlas dentro del ShellRoute,
+  // así que se montan al primer nivel (sin encabezado ni barra inferior).
+  bool isFullScreen(RouteBase route) =>
+      route is GoRoute && route.parentNavigatorKey == rootNavigatorKey;
+  final pluginRoutes = registry.routes;
+
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: CoreRoutes.splash,
@@ -58,6 +65,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: CoreRoutes.suspended,
         builder: (context, state) => const SuspendedPage(),
       ),
+      ...pluginRoutes.where(isFullScreen),
       ShellRoute(
         builder: (context, state, child) =>
             AppShell(location: state.uri.path, child: child),
@@ -73,7 +81,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: CoreRoutes.profile,
             builder: (context, state) => const ProfilePage(),
           ),
-          ...registry.routes,
+          ...pluginRoutes.where((route) => !isFullScreen(route)),
         ],
       ),
     ],

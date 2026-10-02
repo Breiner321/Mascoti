@@ -14,6 +14,7 @@ Convenciones: nombres de campos en español como en los RF; fechas como `Timesta
 | estado | `'activo' \| 'suspendido'` | solo lo cambia un administrador (Admin SDK). Al pasar a `suspendido`, la Function `sincronizarSuspension` deshabilita la cuenta en Firebase Auth y revoca sus tokens; al volver a `activo` la habilita. Una cuenta suspendida solo puede leer su propio perfil |
 | clinicId | string? | solo si role = clinica |
 | telefono, ciudad, direccion | string? | perfil del dueño (RF-10, RF-12) |
+| onboardingVisto | bool | RF-01 paso 14. `false` al registrarse; el dueño lo pone en `true` al terminar o saltar el onboarding (las reglas solo aceptan un `bool`). Si falta, la app lo trata como `false` |
 | createdAt, lastLoginAt | Timestamp | |
 
 Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13) · `cart/{productId}` `{clinicId, cantidad, addedAt}` (RF-12) · `favoriteClinics/{clinicId}` (RF-10).
@@ -39,6 +40,8 @@ Subcolecciones:
 - `products/{productId}` — RF-07: `{nombre, categoria, descripcion, precio, stock, fotoUrl, estado:'activo'|'agotado'|'inactivo', createdAt}`.
 
 ## `pets/{petId}` — soporte para RF-08, RF-14, RF-17, RF-18
+
+Reglas actuales: **solo lectura del dueño** (`ownerUid == uid`), para la tarjeta "Mi mascota" del home. Crear y editar llega en la semana 2. La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
 
 `{ownerUid, nombre, especie, raza, fechaNacimiento, sexo, fotoUrl, alergias:string[], condiciones:string[], contactoEmergencia:{nombre, telefono}, createdAt}`
 
