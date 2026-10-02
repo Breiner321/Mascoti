@@ -4,3 +4,4 @@ initializeApp();
 
 // Exporta aquí cada Function nueva (una carpeta por módulo).
 export { completarRegistro } from "./auth/completarRegistro";
+export { sincronizarSuspension } from "./auth/sincronizarSuspension";

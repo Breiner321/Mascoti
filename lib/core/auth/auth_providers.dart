@@ -7,14 +7,21 @@ import 'domain/session_state.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository());
 
+/// Riverpod 3 reintenta solo los providers que fallan y, mientras tanto, los
+/// deja en "cargando". En la sesión eso escondería el error: se desactiva para
+/// que la SplashPage muestre el mensaje con "Reintentar".
+Duration? _noRetry(int retryCount, Object error) => null;
+
 final firebaseUserProvider = StreamProvider<User?>(
   (ref) => ref.watch(authRepositoryProvider).authStateChanges(),
+  retry: _noRetry,
 );
 
 /// autoDispose: al cerrar sesión deja de observarse y el listener se cancela.
 final userProfileProvider =
     StreamProvider.autoDispose.family<AppUser?, String>(
   (ref, uid) => ref.watch(authRepositoryProvider).watchUserProfile(uid),
+  retry: _noRetry,
 );
 
 /// Estado de sesión combinado: Firebase Auth + documento users/{uid}.

@@ -36,6 +36,14 @@ service cloud.firestore {
       return changedKeys().hasOnly(fields);
     }
 
+    // Usuario con sesión y cuenta no suspendida (RF-02). Una cuenta
+    // suspendida solo puede leer su propio perfil, para ver el aviso.
+    function isActive() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userData().estado == 'activo';
+    }
+
     function isClinicOwner(clinicId) {
       return signedIn()
         && get(/databases/$(database)/documents/clinics/$(clinicId)).data.ownerUid == request.auth.uid;
@@ -46,13 +54,16 @@ service cloud.firestore {
       allow read: if isSelf(uid);
       // Se crea solo desde la Function completarRegistro (Admin SDK).
       allow create, delete: if false;
-      // role, estado, clinicId y uid son inmutables desde la app.
+      // role, estado, clinicId y uid son inmutables desde la app
+      // (estado lo cambia solo un administrador con el Admin SDK).
       allow update: if isSelf(uid)
+        && resource.data.estado == 'activo'
         && onlyChanges(['lastLoginAt', 'displayName', 'photoURL', 'telefono', 'ciudad', 'direccion']);
 
-      // Tokens FCM (RF-13)
+      // Tokens FCM (RF-13). Borrar el propio token se permite siempre (logout).
       match /devices/{deviceId} {
-        allow read, write: if isSelf(uid);
+        allow read, delete: if isSelf(uid);
+        allow create, update: if isSelf(uid) && isActive();
       }
     }
 
@@ -60,14 +71,15 @@ service cloud.firestore {
     match /clinics/{clinicId} {
       allow read: if signedIn();
       allow create, delete: if false;
-      allow update: if signedIn()
+      allow update: if hasRole('clinica')
         && resource.data.ownerUid == request.auth.uid
-        && !changedKeys().hasAny(['ownerUid', 'createdAt']);
+        && !changedKeys().hasAny(['ownerUid', 'createdAt'])
+        && request.resource.data.estado in ['incompleto', 'activo'];
 
       // Catálogo de servicios (RF-05). Validaciones de campos: semana 2.
       match /services/{serviceId} {
         allow read: if signedIn();
-        allow create, update: if isClinicOwner(clinicId);
+        allow create, update: if hasRole('clinica') && isClinicOwner(clinicId);
         allow delete: if false; // borrado lógico: activo = false
       }
     }

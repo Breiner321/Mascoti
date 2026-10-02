@@ -23,4 +23,13 @@ describe("validarRegistro (RF-01)", () => {
     expect(() => validarRegistro({ role: "clinica", clinica: { ...base, direccion: " " } })).toThrow();
     expect(() => validarRegistro({ role: "clinica" })).toThrow();
   });
+
+  it("acepta coordenadas válidas y rechaza las fuera de rango", () => {
+    const base = { nombre: "Vet Norte", telefono: "3001234567", direccion: "Calle 1" };
+    expect(validarRegistro({ role: "clinica", clinica: { ...base, lat: 4.7, lng: -74 } }).clinica)
+      .toMatchObject({ lat: 4.7, lng: -74 });
+    expect(() => validarRegistro({ role: "clinica", clinica: { ...base, lat: 91, lng: 0 } })).toThrow();
+    expect(() => validarRegistro({ role: "clinica", clinica: { ...base, lat: 0, lng: -181 } })).toThrow();
+    expect(() => validarRegistro({ role: "clinica", clinica: { ...base, lat: "4.7", lng: 0 } })).toThrow();
+  });
 });

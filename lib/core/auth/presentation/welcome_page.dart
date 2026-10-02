@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../theme/app_theme.dart';
 import '../auth_providers.dart';
+import '../domain/auth_failure.dart';
 
 /// Pantalla de bienvenida (mockup LOGIN). Un solo botón "Continuar con Google"
 /// sirve para registrarse (RF-01) y para iniciar sesión (RF-02): si la cuenta
@@ -24,21 +25,23 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
     try {
       // Si el usuario cierra el selector, devuelve false y no pasa nada.
       await ref.read(authRepositoryProvider).signInWithGoogle();
-    } on TimeoutException {
-      _showError('No se pudo completar el inicio de sesión. Verifica tu conexión');
+    } on AuthFailure catch (e) {
+      _showError(e.message, retry: e.canRetry);
     } catch (_) {
-      _showError('No se pudo iniciar sesión con Google. Intenta de nuevo');
+      _showError(const AuthFailure(AuthFailureKind.unknown).message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _showError(String message) {
+  void _showError(String message, {bool retry = true}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        action: SnackBarAction(label: 'Reintentar', onPressed: _continueWithGoogle),
+        action: retry
+            ? SnackBarAction(label: 'Reintentar', onPressed: _continueWithGoogle)
+            : null,
       ),
     );
   }

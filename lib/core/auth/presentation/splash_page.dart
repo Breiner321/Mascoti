@@ -34,7 +34,9 @@ class SplashPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: () => ref.invalidate(firebaseUserProvider),
+                    onPressed: () => ref
+                      ..invalidate(firebaseUserProvider)
+                      ..invalidate(userProfileProvider),
                     child: const Text('Reintentar'),
                   ),
                   TextButton(

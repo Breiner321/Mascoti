@@ -4,7 +4,13 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: ['**']
+  workflow_dispatch:
+
+# Si llega un push nuevo a la misma rama, se cancela la ejecución anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   flutter:
@@ -21,7 +27,7 @@ jobs:
       - run: flutter test
 
   functions:
-    name: Functions (build + test + reglas)
+    name: Functions (build + lint + test + reglas)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -31,11 +37,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
       - uses: actions/setup-java@v4 # el emulador de Firestore necesita Java
         with:
           distribution: temurin
           java-version: 21
-      - run: npm install
+      - run: npm ci
       - run: npm install -g firebase-tools
       - run: npm run build
+      - run: npm run lint
+      # Ejecuta todas las pruebas (unitarias + reglas) contra el emulador de
+      # Firestore, con el proyecto ficticio demo-mascoti: no necesita login.
       - run: npm run test:rules

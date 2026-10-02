@@ -11,7 +11,7 @@ Convenciones: nombres de campos en español como en los RF; fechas como `Timesta
 | uid | string | = id de Firebase Auth |
 | email, displayName, photoURL | string | de Google |
 | role | `'dueno' \| 'clinica'` | inmutable (las reglas lo leen con `hasRole()`) |
-| estado | `'activo' \| 'suspendido'` | |
+| estado | `'activo' \| 'suspendido'` | solo lo cambia un administrador (Admin SDK). Al pasar a `suspendido`, la Function `sincronizarSuspension` deshabilita la cuenta en Firebase Auth y revoca sus tokens; al volver a `activo` la habilita. Una cuenta suspendida solo puede leer su propio perfil |
 | clinicId | string? | solo si role = clinica |
 | telefono, ciudad, direccion | string? | perfil del dueño (RF-10, RF-12) |
 | createdAt, lastLoginAt | Timestamp | |
@@ -25,7 +25,7 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 | ownerUid | string | uid del usuario clínica |
 | nombre, telefono, direccion | string | teléfono de 10 dígitos |
 | lat, lng | number | desde Google Places |
-| geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09) |
+| geo | map `{geohash, geopoint}` \| null | para `geoflutterfire_plus` (RF-09). Lo calcula `completarRegistro` con `geofire-common` (geohash de 10 caracteres); `null` si faltan lat/lng |
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
 | atencionEmergencias | bool | RF-10 |
 | horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06 |

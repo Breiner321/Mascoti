@@ -21,9 +21,11 @@ function invalido(mensaje: string): never {
   throw new HttpsError("invalid-argument", mensaje);
 }
 
-function numeroONulo(valor: unknown, campo: string): number | null {
+function numeroONulo(valor: unknown, campo: string, limite: number): number | null {
   if (valor === null || valor === undefined) return null;
-  if (typeof valor !== "number" || !Number.isFinite(valor)) invalido(`${campo} inválido`);
+  if (typeof valor !== "number" || !Number.isFinite(valor) || Math.abs(valor) > limite) {
+    invalido(`${campo} inválido`);
+  }
   return valor;
 }
 
@@ -48,8 +50,8 @@ export function validarRegistro(data: unknown): DatosRegistro {
   if (direccion.length === 0) invalido("Selecciona una dirección válida de la lista");
 
   // TODO(RF-01): exigir lat/lng cuando la app use Google Places.
-  const lat = numeroONulo(c.lat, "lat");
-  const lng = numeroONulo(c.lng, "lng");
+  const lat = numeroONulo(c.lat, "lat", 90);
+  const lng = numeroONulo(c.lng, "lng", 180);
 
   return { role: "clinica", clinica: { nombre, telefono, direccion, lat, lng } };
 }
