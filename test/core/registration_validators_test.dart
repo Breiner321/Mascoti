@@ -16,15 +16,19 @@ void main() {
       expect(RegistrationValidators.phone('3001234567'), isNull);
     });
 
-    test('dirección obligatoria', () {
-      expect(RegistrationValidators.address(' '), isNotNull);
-      expect(RegistrationValidators.address('Cra 7 # 10-20'), isNull);
-    });
+    // La dirección ya no se valida como texto: debe escogerse de Google
+    // Places con lat/lng. Ver test/core/widgets/address_autocomplete_field_test.dart.
   });
 
   test('payload de registro de clínica', () {
     const request = RegistrationRequest.clinic(
-      ClinicRegistration(nombre: ' Vet Norte ', telefono: '3001234567', direccion: 'Calle 1'),
+      ClinicRegistration(
+        nombre: ' Vet Norte ',
+        telefono: '3001234567',
+        direccion: 'Calle 1',
+        lat: 4.711,
+        lng: -74.0721,
+      ),
     );
     expect(request.toMap(), {
       'role': 'clinica',
@@ -32,8 +36,8 @@ void main() {
         'nombre': 'Vet Norte',
         'telefono': '3001234567',
         'direccion': 'Calle 1',
-        'lat': null,
-        'lng': null,
+        'lat': 4.711,
+        'lng': -74.0721,
       },
     });
     expect(const RegistrationRequest.owner().toMap(), {'role': 'dueno'});

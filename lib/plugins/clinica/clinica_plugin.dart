@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/domain/app_user.dart';
 import '../../core/kernel/mascoti_plugin.dart';
+import '../../core/router/navigator_keys.dart';
+import 'clinica_routes.dart';
 import 'presentation/clinic_agenda_page.dart';
+import 'presentation/clinic_providers.dart';
 import 'presentation/clinic_services_page.dart';
+import 'presentation/clinic_setup_page.dart';
 
 /// Plugin de la clínica: perfil de atención (RF-04), servicios (RF-05),
 /// agenda (RF-06) y registros médicos.
@@ -20,12 +26,18 @@ class ClinicaPlugin extends MascotiPlugin {
   @override
   List<RouteBase> routes() => [
         GoRoute(
-          path: '/clinica',
+          path: ClinicaRoutes.agenda,
           builder: (context, state) => const ClinicAgendaPage(),
         ),
         GoRoute(
-          path: '/clinica/servicios',
+          path: ClinicaRoutes.services,
           builder: (context, state) => const ClinicServicesPage(),
+        ),
+        // A pantalla completa: sin barra inferior mientras sea obligatoria.
+        GoRoute(
+          path: ClinicaRoutes.setup,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const ClinicSetupPage(),
         ),
       ];
 
@@ -35,15 +47,21 @@ class ClinicaPlugin extends MascotiPlugin {
           label: 'Agenda',
           icon: Icons.calendar_today_outlined,
           selectedIcon: Icons.calendar_today,
-          path: '/clinica',
+          path: ClinicaRoutes.agenda,
           order: 0,
         ),
         PluginDestination(
           label: 'Servicios',
           icon: Icons.medical_services_outlined,
           selectedIcon: Icons.medical_services,
-          path: '/clinica/servicios',
+          path: ClinicaRoutes.services,
           order: 20,
         ),
       ];
+
+  @override
+  ProviderListenable<AsyncValue<String?>>? requiredStep(AppUser user) {
+    final clinicId = user.clinicId;
+    return clinicId == null ? null : clinicSetupStepProvider(clinicId);
+  }
 }

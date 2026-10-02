@@ -24,13 +24,13 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 |---|---|---|
 | ownerUid | string | uid del usuario clínica |
 | nombre, telefono, direccion | string | teléfono de 10 dígitos |
-| lat, lng | number | desde Google Places |
-| geo | map `{geohash, geopoint}` \| null | para `geoflutterfire_plus` (RF-09). Lo calcula `completarRegistro` con `geofire-common` (geohash de 10 caracteres); `null` si faltan lat/lng |
+| lat, lng | number | desde Google Places; obligatorios (los valida `completarRegistro`) |
+| geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09). Lo calcula `completarRegistro` con `geofire-common` (geohash de 10 caracteres) |
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
 | atencionEmergencias | bool | RF-10 |
 | horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06 |
 | calificacion | number? | promedio (futuro) |
-| estado | `'incompleto' \| 'activo'` | pasa a activo en RF-04 |
+| estado | `'incompleto' \| 'activo'` | pasa a activo en RF-04. Mientras sea `incompleto`, la app obliga a la clínica a ir a `/clinica/perfil-atencion` |
 | createdAt | Timestamp | |
 
 Subcolecciones:

@@ -6,8 +6,8 @@ export interface DatosClinica {
   nombre: string;
   telefono: string;
   direccion: string;
-  lat: number | null;
-  lng: number | null;
+  lat: number;
+  lng: number;
 }
 
 export interface DatosRegistro {
@@ -21,10 +21,10 @@ function invalido(mensaje: string): never {
   throw new HttpsError("invalid-argument", mensaje);
 }
 
-function numeroONulo(valor: unknown, campo: string, limite: number): number | null {
-  if (valor === null || valor === undefined) return null;
+/** lat/lng vienen de Google Places: obligatorios, finitos y en rango. */
+function coordenada(valor: unknown, limite: number): number {
   if (typeof valor !== "number" || !Number.isFinite(valor) || Math.abs(valor) > limite) {
-    invalido(`${campo} inválido`);
+    invalido("Selecciona una dirección válida de la lista");
   }
   return valor;
 }
@@ -49,9 +49,8 @@ export function validarRegistro(data: unknown): DatosRegistro {
   if (!TELEFONO.test(telefono)) invalido("El teléfono debe tener 10 dígitos numéricos");
   if (direccion.length === 0) invalido("Selecciona una dirección válida de la lista");
 
-  // TODO(RF-01): exigir lat/lng cuando la app use Google Places.
-  const lat = numeroONulo(c.lat, "lat", 90);
-  const lng = numeroONulo(c.lng, "lng", 180);
+  const lat = coordenada(c.lat, 90);
+  const lng = coordenada(c.lng, 180);
 
   return { role: "clinica", clinica: { nombre, telefono, direccion, lat, lng } };
 }

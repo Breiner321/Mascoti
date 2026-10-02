@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -14,30 +13,33 @@ import '../kernel/plugin_registry.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/module_placeholder.dart';
 import 'core_routes.dart';
+import 'navigator_keys.dart';
+import 'pending_step_provider.dart';
 import 'redirect.dart';
-
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
-
-/// Navegador raíz: los plugins lo usan con `parentNavigatorKey` para abrir
-/// pantallas a pantalla completa (sin barra inferior), p. ej. un chat.
-GlobalKey<NavigatorState> get rootNavigatorKey => _rootNavigatorKey;
 
 final routerProvider = Provider<GoRouter>((ref) {
   final registry = ref.watch(pluginRegistryProvider);
 
-  // go_router vuelve a evaluar `redirect` cada vez que cambia la sesión.
+  // go_router vuelve a evaluar `redirect` cada vez que cambia la sesión o el
+  // paso obligatorio pendiente.
   final session = ValueNotifier<SessionState>(ref.read(sessionProvider));
+  final pendingStep = ValueNotifier<AsyncValue<String?>>(ref.read(pendingStepProvider));
   ref.listen<SessionState>(sessionProvider, (_, next) => session.value = next);
+  ref.listen<AsyncValue<String?>>(
+    pendingStepProvider,
+    (_, next) => pendingStep.value = next,
+  );
 
   final router = GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation: CoreRoutes.splash,
     debugLogDiagnostics: kDebugMode,
-    refreshListenable: session,
+    refreshListenable: Listenable.merge([session, pendingStep]),
     redirect: (context, state) => resolveRedirect(
       session: session.value,
       location: state.matchedLocation,
       registry: registry,
+      pendingStep: pendingStep.value,
     ),
     routes: [
       GoRoute(
@@ -80,6 +82,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(() {
     router.dispose();
     session.dispose();
+    pendingStep.dispose();
   });
   return router;
 });

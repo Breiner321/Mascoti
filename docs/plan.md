@@ -54,7 +54,7 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 
 | RF | Estado | PR |
 |---|---|---|
-| RF-01 | 🟨 | backend listo (completarRegistro + geo); falta interfaz |
+| RF-01 | 🟨 | backend + interfaz de registro (mockup LOGIN, Places, paso obligatorio de la clínica); falta onboarding del dueño |
 | RF-02 | 🟨 | errores tipados, suspensión (reglas + Function) y pruebas |
 | RF-03 | 🟨 | logout local sin red; falta borrar token FCM (RF-13) |
 | RF-04 | ⬜ | |

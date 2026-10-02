@@ -7,9 +7,8 @@ export interface GeoClinica {
   geopoint: GeoPoint;
 }
 
-/** Calcula `geo` a partir de lat/lng. Devuelve null si falta alguna coordenada. */
-export function geoClinica(lat: number | null, lng: number | null): GeoClinica | null {
-  if (lat === null || lng === null) return null;
+/** Calcula `geo` a partir de lat/lng (ya validados por validarRegistro). */
+export function geoClinica(lat: number, lng: number): GeoClinica {
   return {
     geohash: geohashForLocation([lat, lng]),
     geopoint: new GeoPoint(lat, lng),

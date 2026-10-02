@@ -1,4 +1,6 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:go_router/go_router.dart';
 
 import '../auth/domain/app_user.dart';
@@ -47,6 +49,12 @@ abstract class MascotiPlugin {
 
   /// Pestañas de la barra inferior que el plugin aporta para [role].
   List<PluginDestination> destinations(UserRole role) => const [];
+
+  /// Paso obligatorio para [user] (onboarding, perfil incompleto…): una ruta
+  /// del plugin a la que el router lo lleva sí o sí hasta que el valor vuelva
+  /// a ser null. Debe devolver siempre el mismo provider para el mismo usuario
+  /// (p. ej. un `family`). Por defecto el plugin no exige nada.
+  ProviderListenable<AsyncValue<String?>>? requiredStep(AppUser user) => null;
 
   /// Configuración opcional al arrancar la app (se ejecuta una vez).
   Future<void> initialize() async {}

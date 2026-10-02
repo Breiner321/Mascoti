@@ -12,17 +12,12 @@ describe("geoClinica (RF-09)", () => {
   });
 
   it("queda dentro de una búsqueda de 10 km alrededor de un punto cercano", () => {
-    const geo = geoClinica(4.711, -74.0721)!;
+    const geo = geoClinica(4.711, -74.0721);
     const centro: [number, number] = [4.65, -74.06]; // ~7 km al sur
     expect(distanceBetween([4.711, -74.0721], centro)).toBeLessThan(10);
     const dentro = geohashQueryBounds(centro, 10_000).some(
       ([inicio, fin]) => geo.geohash >= inicio && geo.geohash <= fin,
     );
     expect(dentro).toBe(true);
-  });
-
-  it("devuelve null si falta alguna coordenada", () => {
-    expect(geoClinica(null, -74)).toBeNull();
-    expect(geoClinica(4.7, null)).toBeNull();
   });
 });

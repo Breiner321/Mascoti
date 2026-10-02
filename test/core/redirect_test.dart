@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/auth/domain/session_state.dart';
@@ -55,5 +56,42 @@ void main() {
   test('con sesión: rutas propias y del core permitidas', () {
     expect(go(const SignedIn(owner), '/mascotas'), isNull);
     expect(go(const SignedIn(owner), CoreRoutes.profile), isNull);
+  });
+
+  group('paso obligatorio de un plugin (RF-01 paso 14)', () {
+    const clinic = AppUser(
+      uid: 'v1',
+      email: 'v@b.co',
+      displayName: 'Vet',
+      role: UserRole.clinica,
+      clinicId: 'c1',
+    );
+    const setup = '/clinica/perfil-atencion';
+
+    String? goStep(String location, AsyncValue<String?> step) => resolveRedirect(
+          session: const SignedIn(clinic),
+          location: location,
+          registry: registry,
+          pendingStep: step,
+        );
+
+    test('mientras el plugin decide → splash', () {
+      expect(goStep(CoreRoutes.registration, const AsyncLoading()), CoreRoutes.splash);
+      expect(goStep(CoreRoutes.splash, const AsyncLoading()), isNull);
+    });
+
+    test('con paso pendiente solo se permite ese paso y /perfil', () {
+      expect(goStep(CoreRoutes.registration, const AsyncData(setup)), setup);
+      expect(goStep(CoreRoutes.splash, const AsyncData(setup)), setup);
+      expect(goStep('/clinica', const AsyncData(setup)), setup);
+      expect(goStep(setup, const AsyncData(setup)), isNull);
+      expect(goStep(CoreRoutes.profile, const AsyncData(setup)), isNull);
+    });
+
+    test('sin paso pendiente → comportamiento normal', () {
+      expect(goStep(setup, const AsyncData(null)), isNull);
+      expect(goStep(CoreRoutes.splash, const AsyncData(null)), '/clinica');
+      expect(goStep('/mascotas', const AsyncData(null)), '/clinica');
+    });
   });
 }
