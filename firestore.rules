@@ -1,0 +1,80 @@
+rules_version = '2';
+
+// Reglas de seguridad de Firestore. Reemplazan las validaciones de
+// "backend" del documento original (p. ej. "el clinicId pertenece al usuario").
+// Todo PR que agregue colecciones o campos debe actualizar este archivo,
+// docs/modelo-datos.md y las pruebas en functions/test/firestore.rules.test.ts.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Utilidades ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userData().role == role
+        && userData().estado == 'activo';
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function onlyChanges(fields) {
+      return changedKeys().hasOnly(fields);
+    }
+
+    function isClinicOwner(clinicId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/clinics/$(clinicId)).data.ownerUid == request.auth.uid;
+    }
+
+    // ---------- users (RF-01, RF-02) ----------
+    match /users/{uid} {
+      allow read: if isSelf(uid);
+      // Se crea solo desde la Function completarRegistro (Admin SDK).
+      allow create, delete: if false;
+      // role, estado, clinicId y uid son inmutables desde la app.
+      allow update: if isSelf(uid)
+        && onlyChanges(['lastLoginAt', 'displayName', 'photoURL', 'telefono', 'ciudad', 'direccion']);
+
+      // Tokens FCM (RF-13)
+      match /devices/{deviceId} {
+        allow read, write: if isSelf(uid);
+      }
+    }
+
+    // ---------- clinics (RF-01, RF-04, RF-09) ----------
+    match /clinics/{clinicId} {
+      allow read: if signedIn();
+      allow create, delete: if false;
+      allow update: if signedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && !changedKeys().hasAny(['ownerUid', 'createdAt']);
+
+      // Catálogo de servicios (RF-05). Validaciones de campos: semana 2.
+      match /services/{serviceId} {
+        allow read: if signedIn();
+        allow create, update: if isClinicOwner(clinicId);
+        allow delete: if false; // borrado lógico: activo = false
+      }
+    }
+
+    // ---------- Todo lo demás está cerrado por defecto ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
