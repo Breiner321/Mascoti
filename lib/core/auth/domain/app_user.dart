@@ -32,6 +32,7 @@ class AppUser {
     this.photoUrl,
     this.estado = UserStatus.activo,
     this.clinicId,
+    this.onboardingVisto = false,
   });
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
@@ -49,6 +50,7 @@ class AppUser {
           ? UserStatus.suspendido
           : UserStatus.activo,
       clinicId: map['clinicId'] as String?,
+      onboardingVisto: map['onboardingVisto'] == true,
     );
   }
 
@@ -59,4 +61,7 @@ class AppUser {
   final UserRole role;
   final UserStatus estado;
   final String? clinicId;
+
+  /// El dueño ya vio el onboarding de 3 pasos (RF-01 paso 14).
+  final bool onboardingVisto;
 }

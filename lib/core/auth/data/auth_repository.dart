@@ -7,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../config/env.dart';
 import '../domain/app_user.dart';
+import '../domain/auth_failure.dart';
 import '../domain/registration.dart';
 
 /// Única clase que habla con Firebase Auth / Google Sign-In (RF-01..03).
@@ -28,14 +29,21 @@ class AuthRepository {
   final GoogleSignIn _googleSignIn;
 
   static const _timeout = Duration(seconds: 10);
+  static const _signOutTimeout = Duration(seconds: 5);
 
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
   /// Perfil `users/{uid}` en tiempo real. Emite null si aún no existe.
+  ///
+  /// Un documento vacío que viene de la caché local no prueba que el usuario
+  /// no esté registrado (p. ej. primer arranque sin conexión): se ignora hasta
+  /// que responda el servidor, para no enviar a un usuario registrado al
+  /// flujo de registro.
   Stream<AppUser?> watchUserProfile(String uid) => _firestore
       .collection('users')
       .doc(uid)
-      .snapshots()
+      .snapshots(includeMetadataChanges: true)
+      .where((snap) => snap.exists || !snap.metadata.isFromCache)
       .map((snap) {
         final data = snap.data();
         return data == null ? null : AppUser.fromMap(snap.id, data);
@@ -43,24 +51,34 @@ class AuthRepository {
 
   /// Abre el selector de cuentas de Google e inicia sesión en Firebase.
   /// Devuelve false si el usuario cerró el selector (RF-01, flujo alterno).
+  /// Lanza [AuthFailure] si la cuenta está suspendida, no hay red u otro error.
   Future<bool> signInWithGoogle() async {
     final GoogleSignInAccount account;
     try {
       account = await _googleSignIn.authenticate();
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) return false;
-      rethrow;
+      throw const AuthFailure(AuthFailureKind.unknown);
     }
 
     final idToken = account.authentication.idToken;
-    if (idToken == null) {
-      throw StateError('Google no devolvió un idToken');
-    }
+    if (idToken == null) throw const AuthFailure(AuthFailureKind.unknown);
 
-    await _auth
-        .signInWithCredential(GoogleAuthProvider.credential(idToken: idToken))
-        .timeout(_timeout);
-    await _touchLastLogin();
+    try {
+      await _auth
+          .signInWithCredential(GoogleAuthProvider.credential(idToken: idToken))
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw const AuthFailure(AuthFailureKind.network);
+    } on FirebaseAuthException catch (e) {
+      throw AuthFailure(switch (e.code) {
+        // La Function sincronizarSuspension deshabilita la cuenta (RF-02).
+        'user-disabled' => AuthFailureKind.suspended,
+        'network-request-failed' => AuthFailureKind.network,
+        _ => AuthFailureKind.unknown,
+      });
+    }
+    _touchLastLogin();
     return true;
   }
 
@@ -78,25 +96,46 @@ class AuthRepository {
 
   /// RF-03: cierra la sesión local. Los listeners de Firestore se cancelan
   /// solos porque los providers dependen de la sesión.
+  ///
+  /// Sin conexión, Google puede fallar o no responder: igual se cierra la
+  /// sesión de Firebase (el logout local tiene prioridad).
+  // TODO(RF-13): borrar el token FCM de users/{uid}/devices antes de salir.
   Future<void> signOut() async {
     try {
-      await _googleSignIn.signOut();
+      await _googleSignIn.signOut().timeout(_signOutTimeout);
     } catch (_) {
-      // Si Google falla (sin red), igual se cierra la sesión de Firebase.
+      // Se ignora: Google se desconecta en el próximo inicio de sesión.
     }
     await _auth.signOut();
   }
 
-  Future<void> _touchLastLogin() async {
+  /// RF-01 paso 14: el dueño terminó (o saltó) el onboarding. Como con
+  /// lastLoginAt, no se espera al servidor: la caché local refleja el cambio
+  /// al instante (también sin conexión) y Firestore lo sincroniza después.
+  void markOnboardingSeen() {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
-    try {
-      await _firestore
+    unawaited(
+      _firestore
           .collection('users')
           .doc(uid)
-          .update({'lastLoginAt': FieldValue.serverTimestamp()});
-    } on FirebaseException {
-      // Usuario nuevo: users/{uid} todavía no existe. No es un error.
-    }
+          .update({'onboardingVisto': true})
+          .catchError((Object _) {}),
+    );
+  }
+
+  /// No se espera la confirmación del servidor: con red inestable el login no
+  /// debe quedarse cargando por un dato informativo. Si users/{uid} aún no
+  /// existe (usuario nuevo), la escritura falla y se ignora.
+  void _touchLastLogin() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    unawaited(
+      _firestore
+          .collection('users')
+          .doc(uid)
+          .update({'lastLoginAt': FieldValue.serverTimestamp()})
+          .catchError((Object _) {}),
+    );
   }
 }

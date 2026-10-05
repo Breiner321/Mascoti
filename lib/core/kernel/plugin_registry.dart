@@ -72,6 +72,38 @@ class PluginRegistry {
     return null;
   }
 
+  /// true si algún plugin habilitado declara una ruta para [location]
+  /// (se ignoran query y fragmento; `:param` acepta cualquier segmento).
+  /// Sirve para mostrar como "Próximamente" los accesos a pantallas que
+  /// todavía no existen, sin importar el plugin que las aporta.
+  bool hasRoute(String location) {
+    final target = Uri.parse(location).pathSegments;
+    bool matches(String pattern) {
+      final parts = Uri.parse(pattern).pathSegments;
+      if (parts.length != target.length) return false;
+      for (var i = 0; i < parts.length; i++) {
+        if (!parts[i].startsWith(':') && parts[i] != target[i]) return false;
+      }
+      return true;
+    }
+
+    bool visit(List<RouteBase> routes, String parent) {
+      for (final route in routes) {
+        var base = parent;
+        if (route is GoRoute) {
+          base = route.path.startsWith('/')
+              ? route.path
+              : '${parent == '/' ? '' : parent}/${route.path}';
+          if (matches(base)) return true;
+        }
+        if (visit(route.routes, base)) return true;
+      }
+      return false;
+    }
+
+    return _plugins.any((plugin) => visit(plugin.routes(), '/'));
+  }
+
   /// Pantalla inicial de un rol: su primera pestaña, o /inicio si no hay.
   String homeFor(UserRole role) {
     final destinations = destinationsFor(role);

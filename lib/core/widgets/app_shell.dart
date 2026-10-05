@@ -8,6 +8,7 @@ import '../kernel/mascoti_plugin.dart';
 import '../kernel/plugin_registry.dart';
 import '../router/core_routes.dart';
 import '../theme/app_theme.dart';
+import 'brand_logo.dart';
 import 'sos_button.dart';
 
 /// Estructura común de la app con sesión: encabezado morado + barra inferior
@@ -31,24 +32,10 @@ class AppShell extends ConsumerWidget {
     final isOwner = user.role == UserRole.dueno;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        title: const Text('Mascoti', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          if (isOwner && registry.isEnabled('tienda'))
-            IconButton(
-              tooltip: 'Carrito',
-              icon: const Icon(Icons.shopping_cart_outlined),
-              onPressed: () => context.push('/tienda/carrito'),
-            ),
-          if (isOwner && registry.isEnabled('sos')) const SosButton(),
-          IconButton(
-            tooltip: 'Perfil',
-            icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => context.go(CoreRoutes.profile),
-          ),
-        ],
+      appBar: _ShellHeader(
+        // Carrito y SOS solo para el dueño y solo si su plugin está activo.
+        showCart: isOwner && registry.isEnabled('tienda'),
+        showSos: isOwner && registry.isEnabled('sos'),
       ),
       body: SafeArea(child: child),
       // NavigationBar necesita al menos 2 pestañas.
@@ -81,5 +68,86 @@ class AppShell extends ConsumerWidget {
       }
     }
     return best;
+  }
+}
+
+/// Encabezado morado de los mockups: logo a la izquierda; carrito, SOS y
+/// perfil a la derecha. El perfil no está en el mockup, pero es el único
+/// camino a "Cerrar sesión" (RF-03).
+class _ShellHeader extends StatelessWidget implements PreferredSizeWidget {
+  const _ShellHeader({required this.showCart, required this.showSos});
+
+  final bool showCart;
+  final bool showSos;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(72);
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: preferredSize.height,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                const BrandLogo.wordmark(),
+                const Spacer(),
+                if (showCart)
+                  _HeaderButton(
+                    tooltip: 'Carrito',
+                    icon: Icons.shopping_cart_outlined,
+                    onPressed: () => context.push('/tienda/carrito'),
+                  ),
+                if (showSos) const SosButton(),
+                _HeaderButton(
+                  tooltip: 'Perfil',
+                  icon: Icons.account_circle_outlined,
+                  onPressed: () => context.go(CoreRoutes.profile),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Botón cuadrado translúcido del encabezado (carrito, perfil).
+class _HeaderButton extends StatelessWidget {
+  const _HeaderButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon),
+        style: IconButton.styleFrom(
+          backgroundColor: AppColors.onPrimaryTranslucent,
+          foregroundColor: AppColors.onPrimary,
+          fixedSize: const Size(40, 40),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
   }
 }

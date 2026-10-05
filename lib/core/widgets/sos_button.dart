@@ -10,14 +10,14 @@ class SosButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.only(left: 8),
       child: FilledButton.icon(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.sos,
-          foregroundColor: Colors.white,
-          minimumSize: const Size(0, 36),
+          foregroundColor: AppColors.onPrimary,
+          minimumSize: const Size(0, 40),
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         onPressed: () => context.push('/sos'),
         icon: const Icon(Icons.warning_amber_rounded, size: 18),

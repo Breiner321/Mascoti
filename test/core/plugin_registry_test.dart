@@ -62,5 +62,17 @@ void main() {
       expect(registry.isEnabled('chat'), isTrue);
       expect(registry.isEnabled('tienda'), isFalse);
     });
+
+    test('hasRoute reconoce rutas declaradas, parámetros y query', () {
+      final registry = PluginRegistry([
+        FakePlugin('reservas',
+            roles: {UserRole.dueno}, paths: ['/reservas', '/reservas/:id']),
+      ]);
+      expect(registry.hasRoute('/reservas'), isTrue);
+      expect(registry.hasRoute('/reservas/abc'), isTrue);
+      expect(registry.hasRoute('/reservas?categoria=consulta'), isTrue);
+      expect(registry.hasRoute('/reservas/abc/editar'), isFalse);
+      expect(registry.hasRoute('/tienda'), isFalse);
+    });
   });
 }

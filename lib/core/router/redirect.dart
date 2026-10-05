@@ -1,13 +1,17 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../auth/domain/session_state.dart';
 import '../kernel/plugin_registry.dart';
 import 'core_routes.dart';
 
-/// Decide a dónde debe ir el usuario según su sesión.
+/// Decide a dónde debe ir el usuario según su sesión y su paso obligatorio
+/// pendiente ([pendingStep], ver pending_step_provider.dart).
 /// Devuelve null si puede quedarse en [location]. Función pura: ver test/core/redirect_test.dart.
 String? resolveRedirect({
   required SessionState session,
   required String location,
   required PluginRegistry registry,
+  AsyncValue<String?> pendingStep = const AsyncData(null),
 }) {
   String? goTo(String target) => location == target ? null : target;
 
@@ -22,6 +26,19 @@ String? resolveRedirect({
     case Suspended():
       return goTo(CoreRoutes.suspended);
     case SignedIn(:final user):
+      // Mientras un plugin decide si hay un paso obligatorio, se espera en el
+      // splash para no mostrar un instante pantallas que luego se bloquean.
+      if (pendingStep.isLoading && !pendingStep.hasValue) {
+        return goTo(CoreRoutes.splash);
+      }
+      final step = pendingStep.hasValue ? pendingStep.value : null;
+      if (step != null) {
+        // Se permite /perfil para que siempre pueda cerrar sesión (RF-03).
+        final allowed = PluginRegistry.isUnder(location, step) ||
+            location == CoreRoutes.profile;
+        return allowed ? null : goTo(step);
+      }
+
       final home = registry.homeFor(user.role);
       if (CoreRoutes.outsideShell.contains(location)) return goTo(home);
       if (CoreRoutes.insideShell.contains(location)) return null;
