@@ -11,9 +11,10 @@ Convenciones: nombres de campos en español como en los RF; fechas como `Timesta
 | uid | string | = id de Firebase Auth |
 | email, displayName, photoURL | string | de Google |
 | role | `'dueno' \| 'clinica'` | inmutable (las reglas lo leen con `hasRole()`) |
-| estado | `'activo' \| 'suspendido'` | |
+| estado | `'activo' \| 'suspendido'` | solo lo cambia un administrador (Admin SDK). Al pasar a `suspendido`, la Function `sincronizarSuspension` deshabilita la cuenta en Firebase Auth y revoca sus tokens; al volver a `activo` la habilita. Una cuenta suspendida solo puede leer su propio perfil |
 | clinicId | string? | solo si role = clinica |
 | telefono, ciudad, direccion | string? | perfil del dueño (RF-10, RF-12) |
+| onboardingVisto | bool | RF-01 paso 14. `false` al registrarse; el dueño lo pone en `true` al terminar o saltar el onboarding (las reglas solo aceptan un `bool`). Si falta, la app lo trata como `false` |
 | createdAt, lastLoginAt | Timestamp | |
 
 Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13) · `cart/{productId}` `{clinicId, cantidad, addedAt}` (RF-12) · `favoriteClinics/{clinicId}` (RF-10).
@@ -24,13 +25,13 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 |---|---|---|
 | ownerUid | string | uid del usuario clínica |
 | nombre, telefono, direccion | string | teléfono de 10 dígitos |
-| lat, lng | number | desde Google Places |
-| geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09) |
+| lat, lng | number | desde Google Places; obligatorios (los valida `completarRegistro`) |
+| geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09). Lo calcula `completarRegistro` con `geofire-common` (geohash de 10 caracteres) |
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
 | atencionEmergencias | bool | RF-10 |
 | horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06 |
 | calificacion | number? | promedio (futuro) |
-| estado | `'incompleto' \| 'activo'` | pasa a activo en RF-04 |
+| estado | `'incompleto' \| 'activo'` | pasa a activo en RF-04. Mientras sea `incompleto`, la app obliga a la clínica a ir a `/clinica/perfil-atencion` |
 | createdAt | Timestamp | |
 
 Subcolecciones:
@@ -39,6 +40,8 @@ Subcolecciones:
 - `products/{productId}` — RF-07: `{nombre, categoria, descripcion, precio, stock, fotoUrl, estado:'activo'|'agotado'|'inactivo', createdAt}`.
 
 ## `pets/{petId}` — soporte para RF-08, RF-14, RF-17, RF-18
+
+Reglas actuales: **solo lectura del dueño** (`ownerUid == uid`), para la tarjeta "Mi mascota" del home. Crear y editar llega en la semana 2. La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
 
 `{ownerUid, nombre, especie, raza, fechaNacimiento, sexo, fotoUrl, alergias:string[], condiciones:string[], contactoEmergencia:{nombre, telefono}, createdAt}`
 

@@ -5,8 +5,16 @@ abstract final class AppColors {
   static const primary = Color(0xFF7E22CE); // morado principal (encabezado, botones)
   static const primaryLight = Color(0xFF9346D6);
   static const primaryContainer = Color(0xFFF3E8FF); // tarjetas y chips
+  static const primarySoft = Color(0xFFE9D5FF); // botón deshabilitado ("Continuar")
   static const background = Color(0xFFFAF5FF); // fondo general
+  static const surface = Color(0xFFFFFFFF); // tarjetas y botones blancos
+  static const border = Color(0xFFEDE4F7); // borde de tarjetas
+  static const textPrimary = Color(0xFF1E1530); // títulos
+  static const onPrimary = Color(0xFFFFFFFF); // texto sobre morado o rojo
+  static const onPrimaryTranslucent = Color(0x29FFFFFF); // botones del encabezado
   static const sos = Color(0xFFDC2626); // botón SOS / emergencia
+  static const sosContainer = Color(0xFFFEF2F2); // tarjeta "Emergencia"
+  static const sosBorder = Color(0xFFFECACA);
   static const success = Color(0xFF16A34A); // snackbar "Perfil actualizado"
   static const textMuted = Color(0xFF81778C);
 }
@@ -18,7 +26,9 @@ abstract final class AppTheme {
       primary: AppColors.primary,
       primaryContainer: AppColors.primaryContainer,
       error: AppColors.sos,
-      surface: Colors.white,
+      surface: AppColors.surface,
+      onPrimary: AppColors.onPrimary,
+      onSurface: AppColors.textPrimary,
     );
 
     return ThemeData(
@@ -28,13 +38,26 @@ abstract final class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(48),
+          foregroundColor: AppColors.onPrimary,
+          // Mockup LOGIN: deshabilitado = morado claro con texto morado.
+          disabledBackgroundColor: AppColors.primarySoft,
+          disabledForegroundColor: AppColors.primary,
+          minimumSize: const Size.fromHeight(52),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+      ),
       navigationBarTheme: const NavigationBarThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         indicatorColor: AppColors.primaryContainer,
       ),
     );

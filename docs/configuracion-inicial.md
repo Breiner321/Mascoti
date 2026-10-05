@@ -56,12 +56,32 @@ cd android
 
 Copia el `SHA1` de la variante `debug` y agrégalo en Firebase → Configuración del proyecto → tu app Android → **Agregar huella digital**. Luego el Dev A vuelve a descargar `google-services.json` (o ejecuta `flutterfire configure` otra vez) y lo sube al repo.
 
+## C2. API key de Google Maps / Places (RF-01, RF-09)
+
+La dirección de la clínica se escoge con Google Places (RF-01) y el mapa usa Google Maps (RF-09). Se usa **una sola API key**, restringida, que **nunca se sube al repo**.
+
+**Dev A (una vez), en [Google Cloud Console](https://console.cloud.google.com) → proyecto `mascoti-b27cf`:**
+1. **APIs y servicios → Biblioteca:** habilita **Places API (New)** y **Maps SDK for Android**.
+2. **APIs y servicios → Credenciales → Crear credenciales → Clave de API.**
+3. En la clave: **Restricciones de aplicación → Apps para Android** → agrega el paquete `co.mascoti.mascoti` con el SHA-1 de cada computador del equipo (y el de la llave de *release* cuando exista).
+4. **Restricciones de API:** solo *Places API (New)* y *Maps SDK for Android*.
+5. Comparte la clave con el equipo por un canal privado (no por el repo ni el chat del grupo).
+
+**Todos, en su computador:**
+1. Copia `env/dev.example.json` como `env/dev.json` y pon la clave en `MAPS_API_KEY` (lo usa Places desde Dart).
+2. Agrega `MAPS_API_KEY=<la clave>` al final de `android/local.properties` (lo usa el mapa de RF-09 vía `AndroidManifest.xml`).
+3. Corre la app con `flutter run --dart-define-from-file=env/dev.json`.
+
+`env/dev.json` y `android/local.properties` están en `.gitignore`. Sin clave la app compila igual (y el CI pasa): el campo de dirección muestra "El buscador de direcciones no está disponible".
+
+> Cualquier clave que use un SDK de Android termina dentro del APK: lo que la protege son las **restricciones por paquete + SHA-1 y por API**, no esconderla.
+
 ## D. Todos: correr la app
 
 ```powershell
 git pull
 flutter pub get
-flutter run                                         # contra Firebase mascoti-dev
+flutter run --dart-define-from-file=env/dev.json    # contra Firebase mascoti-b27cf (ver C2)
 ```
 
 Con emuladores locales (recomendado para desarrollar sin tocar datos reales):
@@ -86,4 +106,6 @@ La interfaz de los emuladores (usuarios, datos, logs) queda en http://localhost:
 | `minSdkVersion 21 cannot be smaller than 23` | En `android/app/build.gradle.kts`, pon `minSdk = 23`. |
 | La app no conecta con los emuladores | Revisa `EMULATOR_HOST` y que el firewall de Windows permita los puertos 8080, 9099 y 5001. |
 | `completarRegistro` responde `NOT_FOUND` | La Function no está desplegada (paso B.8) o la región no coincide (`us-east1` en `env.dart` y en `functions/src/config.ts`). |
+| "El buscador de direcciones no está disponible" | Falta `env/dev.json` o no corriste con `--dart-define-from-file=env/dev.json` (sección C2). |
+| Places responde `REQUEST_DENIED` | La API key no tiene tu SHA-1 o no tiene habilitada *Places API (New)* (sección C2). |
 | google_sign_in pide `serverClientId` | Pásalo con `--dart-define=GOOGLE_SERVER_CLIENT_ID=<client ID web>` (Firebase → Authentication → Google → Configuración del SDK web). |
