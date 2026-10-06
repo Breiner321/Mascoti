@@ -3,12 +3,8 @@
 // Cloud Functions. La lógica está en ../_shared/registro.ts (con pruebas).
 import { ErrorRegistro } from "../_shared/errores.ts";
 import { nuevoIdFirestore } from "../_shared/firestore.ts";
-import {
-  commitFirestore,
-  habilitarEnSupabase,
-  leerCuentaServicio,
-  verificarTokenFirebase,
-} from "../_shared/google.ts";
+import { leerCuentaServicio } from "../_shared/cuenta_servicio.ts";
+import { commitFirestore, habilitarEnSupabase, verificarTokenFirebase } from "../_shared/google.ts";
 import { completarRegistro } from "../_shared/registro.ts";
 
 /** Proyecto de Firebase cuyos usuarios se aceptan (mismo de firebase_options.dart). */

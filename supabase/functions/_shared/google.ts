@@ -2,24 +2,9 @@
 // servicio de Firebase guardada en el secreto FIREBASE_SERVICE_ACCOUNT.
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.9.6";
 
+import type { CuentaServicio } from "./cuenta_servicio.ts";
 import type { EscrituraFirestore } from "./firestore.ts";
 import type { UsuarioFirebase } from "./registro.ts";
-
-interface CuentaServicio {
-  project_id: string;
-  client_email: string;
-  private_key: string;
-  token_uri?: string;
-}
-
-export function leerCuentaServicio(json: string | undefined): CuentaServicio {
-  if (!json) throw new Error("Falta el secreto FIREBASE_SERVICE_ACCOUNT");
-  const cuenta = JSON.parse(json) as CuentaServicio;
-  if (!cuenta.project_id || !cuenta.client_email || !cuenta.private_key) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT no es una cuenta de servicio válida");
-  }
-  return cuenta;
-}
 
 const JWKS_FIREBASE = createRemoteJWKSet(
   new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"),

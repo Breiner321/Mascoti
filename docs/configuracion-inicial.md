@@ -62,10 +62,10 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
 **Dev A (una vez), en https://supabase.com — proyecto `mascoti` (ref `tahnazumbqsupzpusrba`, North Virginia):**
 1. **Authentication → Sign In / Providers → Third-party Auth → Add provider → Firebase**, con el Project ID `mascoti-b27cf`.
 2. **Storage y políticas:** en **SQL Editor**, pega y ejecuta `supabase/migrations/20261005000000_storage_mascoti.sql` (crea el bucket privado `mascoti` y sus políticas). Alternativa: `supabase link --project-ref tahnazumbqsupzpusrba` y `supabase db push`.
-3. **Cuenta de servicio de Firebase** (la Edge Function la usa para escribir en Firestore): Firebase → Configuración del proyecto → Cuentas de servicio → **Generar nueva clave privada**. Guarda el JSON **fuera del repositorio** y cárgalo como secreto (PowerShell):
+3. **Cuenta de servicio de Firebase** (la Edge Function la usa para escribir en Firestore): Firebase → Configuración del proyecto → Cuentas de servicio → **Generar nueva clave privada**. Guarda el JSON **fuera del repositorio** y cárgalo como secreto. Se pasa en **Base64** porque PowerShell rompe el JSON al enviarlo como argumento (error `Invalid secret pair`):
    ```powershell
-   $json = Get-Content C:\Users\<tu-usuario>\secretos\cuenta-servicio.json -Raw
-   supabase secrets set --project-ref tahnazumbqsupzpusrba FIREBASE_SERVICE_ACCOUNT="$json"
+   $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\Users\<tu-usuario>\secretos\cuenta-servicio.json"))
+   supabase secrets set --project-ref tahnazumbqsupzpusrba FIREBASE_SERVICE_ACCOUNT=$b64
    ```
 4. Despliega las Edge Functions:
    ```powershell

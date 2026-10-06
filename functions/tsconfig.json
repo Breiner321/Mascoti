@@ -12,5 +12,5 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["test", "../supabase/functions/_shared/errores.ts", "../supabase/functions/_shared/firestore.ts", "../supabase/functions/_shared/geohash.ts", "../supabase/functions/_shared/registro.ts", "../supabase/functions/_shared/validacion.ts"]
+  "include": ["test", "../supabase/functions/_shared/cuenta_servicio.ts", "../supabase/functions/_shared/errores.ts", "../supabase/functions/_shared/firestore.ts", "../supabase/functions/_shared/geohash.ts", "../supabase/functions/_shared/registro.ts", "../supabase/functions/_shared/validacion.ts"]
 }
