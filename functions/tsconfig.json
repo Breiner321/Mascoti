@@ -2,16 +2,15 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "esModuleInterop": true,
-    "noImplicitReturns": true,
-    "noUnusedLocals": true,
-    "outDir": "lib",
-    "rootDir": "src",
-    "sourceMap": true,
-    "strict": true,
     "target": "es2022",
-    "skipLibCheck": true
+    "strict": true,
+    "noUnusedLocals": true,
+    "noImplicitReturns": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
   },
-  "compileOnSave": true,
-  "include": ["src"]
+  "include": ["test", "../supabase/functions/_shared/errores.ts", "../supabase/functions/_shared/firestore.ts", "../supabase/functions/_shared/geohash.ts", "../supabase/functions/_shared/registro.ts", "../supabase/functions/_shared/validacion.ts"]
 }

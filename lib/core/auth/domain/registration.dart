@@ -17,7 +17,7 @@ class ClinicRegistration {
   final String telefono;
   final String direccion;
 
-  /// Coordenadas de la dirección escogida en Google Places (obligatorias).
+  /// Coordenadas de la dirección escogida en OpenStreetMap (obligatorias).
   final double lat;
   final double lng;
 

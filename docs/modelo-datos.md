@@ -4,18 +4,19 @@ Fuente única de verdad del esquema. **Todo PR que agregue o cambie colecciones 
 
 Convenciones: nombres de campos en español como en los RF; fechas como `Timestamp`; dinero en COP como `number` entero (sin decimales) salvo que el RF diga otra cosa; ids generados por Firestore salvo que se indique.
 
-## `users/{uid}`  — RF-01, RF-02 · *se crea solo con la Function `completarRegistro`*
+## `users/{uid}`  — RF-01, RF-02 · *se crea solo con la Edge Function `completar-registro` (Supabase)*
 
 | Campo | Tipo | Notas |
 |---|---|---|
 | uid | string | = id de Firebase Auth |
 | email, displayName, photoURL | string | de Google |
 | role | `'dueno' \| 'clinica'` | inmutable (las reglas lo leen con `hasRole()`) |
-| estado | `'activo' \| 'suspendido'` | solo lo cambia un administrador (Admin SDK). Al pasar a `suspendido`, la Function `sincronizarSuspension` deshabilita la cuenta en Firebase Auth y revoca sus tokens; al volver a `activo` la habilita. Una cuenta suspendida solo puede leer su propio perfil |
+| estado | `'activo' \| 'suspendido'` | solo lo cambia un administrador (Admin SDK). Se cambia con el script `npm run suspender -- <uid> [--reactivar]` (`functions/admin/`), que además deshabilita la cuenta en Firebase Auth y revoca sus sesiones (o la habilita al reactivar). Una cuenta suspendida solo puede leer su propio perfil |
 | clinicId | string? | solo si role = clinica |
 | telefono, ciudad, direccion | string? | perfil del dueño (RF-10, RF-12) |
 | onboardingVisto | bool | RF-01 paso 14. `false` al registrarse; el dueño lo pone en `true` al terminar o saltar el onboarding (las reglas solo aceptan un `bool`). Si falta, la app lo trata como `false` |
 | createdAt, lastLoginAt | Timestamp | |
+| estadoActualizadoEn | Timestamp? | lo pone el script de suspensión |
 
 Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13) · `cart/{productId}` `{clinicId, cantidad, addedAt}` (RF-12) · `favoriteClinics/{clinicId}` (RF-10).
 
@@ -25,8 +26,8 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 |---|---|---|
 | ownerUid | string | uid del usuario clínica |
 | nombre, telefono, direccion | string | teléfono de 10 dígitos |
-| lat, lng | number | desde Google Places; obligatorios (los valida `completarRegistro`) |
-| geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09). Lo calcula `completarRegistro` con `geofire-common` (geohash de 10 caracteres) |
+| lat, lng | number | desde OpenStreetMap (buscador de direcciones); obligatorios (los valida `completar-registro`) |
+| geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09). Lo calcula `completar-registro` (geohash de 10 caracteres, igual a `geofire-common`) |
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
 | atencionEmergencias | bool | RF-10 |
 | horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06 |
@@ -73,6 +74,18 @@ Subcolección `messages/{messageId}`: `{senderUid, tipo:'texto'|'adjunto', texto
 ## `auditEvents/{id}` — RF-10
 
 `{tipo:'emergencyTriggered', uid, lat?, lng?, createdAt}`
+
+## Archivos (Supabase Storage, bucket privado `mascoti`)
+
+Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_mascoti.sql`.
+
+| Ruta | Quién escribe/lee | Uso |
+|---|---|---|
+| `usuarios/{uidFirebase}/...` | solo ese usuario | lo que sube cada persona, p. ej. `usuarios/{uid}/mascotas/{petId}/foto.jpg` |
+
+- Máximo 10 MB por archivo; solo `image/jpeg`, `image/png`, `image/webp` y `application/pdf`.
+- En Firestore se guarda la **ruta** (p. ej. `fotoPath`), no una URL: para mostrar el archivo se pide un enlace firmado temporal con `StorageRepository.signedUrl`.
+- Para compartir con otra persona (chat, historial) se entrega un enlace firmado; si hay que validar permisos, lo genera una Edge Function.
 
 ## Índices compuestos previstos (`firestore.indexes.json`)
 

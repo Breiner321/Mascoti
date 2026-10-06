@@ -6,7 +6,7 @@ Fechas sugeridas (ajustar al calendario real): **Semana 0** del 29 sep al 2 oct 
 
 | Rol | Persona | Responsable de |
 |---|---|---|
-| **Dev A: Core y Backend** (líder técnico) | _nombre_ | Kernel, auth, reglas de seguridad, Cloud Functions, notificaciones, pagos, PDF, CI. Revisa todos los PR que tocan `core/`, `firestore.rules` o `functions/`. |
+| **Dev A: Core y Backend** (líder técnico) | _nombre_ | Kernel, auth, reglas de seguridad, Edge Functions (Supabase), notificaciones, pagos, PDF, CI. Revisa todos los PR que tocan `core/`, `firestore.rules` o `functions/`. |
 | **Dev B: Módulo Clínica** | _nombre_ | Perfil de atención, servicios, agenda, registros médicos, bandeja de solicitudes, inventario. |
 | **Dev C: Módulo Dueño** | _nombre_ | Mascotas, historial, directorio/mapa, reservas (lado dueño), tienda, SOS, QR. |
 
@@ -17,7 +17,9 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 - [x] `CLAUDE.md`, documentación y RF en Markdown en el repo
 - [x] Esqueleto Flutter con kernel microkernel, reglas y Functions base
 - [x] **Dev A:** crear el proyecto Firebase de desarrollo (ID real: `mascoti-b27cf`, en `.firebaserc`), app Android `co.mascoti.mascoti` registrada con `flutterfire configure` y Auth con Google habilitado
-- [ ] **Dev A:** crear `mascoti-prod`; activar plan Blaze con alerta de presupuesto; crear Firestore y Storage; desplegar reglas y `completarRegistro` (paso B.8 de `docs/configuracion-inicial.md`)
+- [x] **Dev A:** crear Firestore en `mascoti-b27cf` (plan gratuito)
+- [x] **Decisión:** Firebase gratuito + Supabase (Storage y Edge Functions) + OpenStreetMap, en lugar de Blaze y Google Maps
+- [ ] **Dev A:** desplegar reglas de Firestore; en Supabase: Third-party Auth con Firebase, migración de Storage, secreto `FIREBASE_SERVICE_ACCOUNT` (sección C2 de `docs/configuracion-inicial.md`); crear `mascoti-prod` más adelante
 - [x] `scripts/setup.ps1` ejecutado: plataforma Android, paquetes, `flutter analyze` sin issues, `flutter test` y pruebas de Functions/reglas en verde
 - [ ] **Todos:** instalar Flutter, Android Studio, Node 22, Firebase CLI, FlutterFire CLI y Claude Code y correr la app en un emulador Android (✔ Breiner, 29 sep 2026)
 - [ ] **Todos:** registrar el SHA-1 de su llave de depuración en Firebase — necesario para el login con Google (✔ Breiner, 29 sep 2026: login con Google probado hasta la pantalla de registro)
@@ -27,7 +29,7 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 
 | Sem. | Dev A: Core y Backend | Dev B: Clínica | Dev C: Dueño | Entregable demostrable |
 |---|---|---|---|---|
-| **1** | Desplegar `completarRegistro` y reglas; pruebas de reglas en CI; revisar RF-02/03 contra el esqueleto (suspensión, errores, pruebas del `AuthRepository`) | RF-01: autocompletado Google Places en el formulario de clínica; UI de bienvenida/registro igual al mockup LOGIN | Home del dueño según el mockup (tarjeta de mascota, próxima cita, accesos) + onboarding de 3 pasos (RF-01) | Registrarse como dueño o clínica, entrar al home de su rol y cerrar sesión |
+| **1** | Desplegar `completar-registro` (Supabase) y reglas; pruebas de reglas en CI; revisar RF-02/03 contra el esqueleto (suspensión, errores, pruebas del `AuthRepository`) | RF-01: autocompletado Google Places en el formulario de clínica; UI de bienvenida/registro igual al mockup LOGIN | Home del dueño según el mockup (tarjeta de mascota, próxima cita, accesos) + onboarding de 3 pasos (RF-01) | Registrarse como dueño o clínica, entrar al home de su rol y cerrar sesión |
 | **2** | Reglas + pruebas de reglas para `services`/`slots`; emuladores en CI | RF-04 perfil de atención · RF-05 catálogo de servicios · RF-06 agenda | Registro/edición de **mascotas** (sin RF, necesario) + subida de foto a Storage | La clínica configura servicios y horarios; el dueño registra mascotas |
 | **3** | Índices y reglas de `pets`/`medicalRecords`; geohash en `clinics` | **Registro médico** (clínica crea consultas y vacunas) | RF-08 historial (timeline) · RF-09 directorio con mapa | El dueño ve clínicas cercanas y el historial de su mascota |
 | **4** | RF-13: FCM, `devices`, triggers de push, jobs programados (recordatorios, no-show) | RF-14 lado clínica: bandeja de solicitudes, aprobar/rechazar | RF-14 lado dueño: agendar (mockup "Agendar cita"), "Mis citas", cancelar | Ciclo completo de una cita con notificación push |
@@ -54,7 +56,7 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 
 | RF | Estado | PR |
 |---|---|---|
-| RF-01 | 🟨 | backend, interfaz de registro (LOGIN + Places), paso obligatorio de la clínica, home y onboarding del dueño. Falta: API key de Places, deploy y prueba de punta a punta |
+| RF-01 | 🟨 | backend, interfaz de registro (LOGIN + Places), paso obligatorio de la clínica, home y onboarding del dueño. Direcciones con OpenStreetMap; registro con la Edge Function `completar-registro`. Falta: secreto de Supabase y prueba de punta a punta |
 | RF-02 | 🟨 | errores tipados, suspensión (reglas + Function) y pruebas |
 | RF-03 | 🟨 | logout local sin red; falta borrar token FCM (RF-13) |
 | RF-04 | ⬜ | |

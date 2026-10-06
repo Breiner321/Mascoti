@@ -1,16 +1,17 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mascoti/core/auth/data/auth_repository.dart';
+import 'package:mascoti/core/auth/data/registration_api.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/auth/domain/auth_failure.dart';
 import 'package:mascoti/core/auth/domain/registration.dart';
+import 'package:mascoti/core/auth/domain/registration_failure.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockAuth extends Mock implements FirebaseAuth {}
@@ -23,11 +24,7 @@ class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
 
 class _MockAccount extends Mock implements GoogleSignInAccount {}
 
-class _MockFunctions extends Mock implements FirebaseFunctions {}
-
-class _MockCallable extends Mock implements HttpsCallable {}
-
-class _MockCallableResult extends Mock implements HttpsCallableResult<dynamic> {}
+class _MockRegistrationApi extends Mock implements RegistrationApi {}
 
 // Las clases de cloud_firestore están marcadas @sealed, pero simularlas es la
 // única forma de producir un snapshot "desde caché" en una prueba.
@@ -50,23 +47,24 @@ class _MockMetadata extends Mock implements SnapshotMetadata {}
 void main() {
   late _MockAuth auth;
   late _MockGoogleSignIn google;
-  late _MockFunctions functions;
+  late _MockRegistrationApi registrationApi;
   late FakeFirebaseFirestore firestore;
   late AuthRepository repository;
 
   setUpAll(() {
     registerFallbackValue(GoogleAuthProvider.credential(idToken: 'x'));
+    registerFallbackValue(const RegistrationRequest.owner());
   });
 
   setUp(() {
     auth = _MockAuth();
     google = _MockGoogleSignIn();
-    functions = _MockFunctions();
+    registrationApi = _MockRegistrationApi();
     firestore = FakeFirebaseFirestore();
     repository = AuthRepository(
       auth: auth,
       firestore: firestore,
-      functions: functions,
+      registrationApi: registrationApi,
       googleSignIn: google,
     );
   });
@@ -259,7 +257,7 @@ void main() {
       final emitted = await AuthRepository(
         auth: auth,
         firestore: mockFirestore,
-        functions: functions,
+        registrationApi: registrationApi,
         googleSignIn: google,
       ).watchUserProfile('u1').toList();
 
@@ -268,18 +266,31 @@ void main() {
     });
   });
 
-  test('completeRegistration llama a completarRegistro con el payload',
+  test('completeRegistration llama a la Edge Function y renueva el token',
       () async {
-    final callable = _MockCallable();
-    when(() => functions.httpsCallable(
-          'completarRegistro',
-          options: any(named: 'options'),
-        )).thenReturn(callable);
-    when(() => callable.call<dynamic>(any()))
-        .thenAnswer((_) async => _MockCallableResult());
+    final user = _MockUser();
+    when(() => auth.currentUser).thenReturn(user);
+    when(() => user.getIdToken(true)).thenAnswer((_) async => 'nuevo-token');
+    when(() => registrationApi.complete(any())).thenAnswer((_) async {});
 
     await repository.completeRegistration(const RegistrationRequest.owner());
 
-    verify(() => callable.call<dynamic>({'role': 'dueno'})).called(1);
+    verify(() => registrationApi.complete(any())).called(1);
+    verify(() => user.getIdToken(true)).called(1);
+  });
+
+  test('completeRegistration no renueva el token si el registro falla',
+      () async {
+    final user = _MockUser();
+    when(() => auth.currentUser).thenReturn(user);
+    when(() => registrationApi.complete(any())).thenThrow(
+      const RegistrationFailure(RegistrationFailureKind.alreadyExists),
+    );
+
+    await expectLater(
+      repository.completeRegistration(const RegistrationRequest.owner()),
+      throwsA(isA<RegistrationFailure>()),
+    );
+    verifyNever(() => user.getIdToken(any()));
   });
 }

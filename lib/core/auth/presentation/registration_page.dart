@@ -1,4 +1,3 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,11 +7,12 @@ import '../../widgets/address_autocomplete_field.dart';
 import '../auth_providers.dart';
 import '../domain/app_user.dart';
 import '../domain/registration.dart';
+import '../domain/registration_failure.dart';
 import '../domain/session_state.dart';
 import 'widgets/role_card.dart';
 
 /// RF-01: selección de rol (parte inferior del mockup LOGIN) y, si es Clínica,
-/// datos del negocio con dirección de Google Places.
+/// datos del negocio con dirección de OpenStreetMap.
 ///
 /// Al terminar, el router lleva al dueño a su home (con onboarding) y a la
 /// clínica a /clinica/perfil-atencion (paso obligatorio del plugin clinica).
@@ -66,20 +66,13 @@ class _RegistrationPageState extends ConsumerState<RegistrationPage> {
     try {
       await ref.read(authRepositoryProvider).completeRegistration(request);
       // Al crearse users/{uid}, sessionProvider cambia y el router redirige.
-    } on FirebaseFunctionsException catch (e) {
-      switch (e.code) {
-        case 'already-exists':
-          _showMessage('Esta cuenta ya está registrada. Iniciando sesión...');
-        case 'deadline-exceeded' || 'unavailable' || 'internal':
-          _showMessage(
-            'No se pudo completar el registro. Verifica tu conexión',
-            retry: true,
-          );
-        default:
-          _showMessage(e.message ?? 'No se pudo completar el registro', retry: true);
-      }
+    } on RegistrationFailure catch (e) {
+      _showMessage(e.message, retry: e.canRetry);
     } catch (_) {
-      _showMessage('No se pudo completar el registro. Verifica tu conexión', retry: true);
+      _showMessage(
+        const RegistrationFailure(RegistrationFailureKind.network).message,
+        retry: true,
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
