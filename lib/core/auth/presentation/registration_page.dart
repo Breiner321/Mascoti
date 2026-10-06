@@ -2,17 +2,20 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../places/place_address.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/address_autocomplete_field.dart';
 import '../auth_providers.dart';
 import '../domain/app_user.dart';
 import '../domain/registration.dart';
 import '../domain/session_state.dart';
+import 'widgets/role_card.dart';
 
-/// RF-01: selección de rol y, si es Clínica, datos del negocio.
+/// RF-01: selección de rol (parte inferior del mockup LOGIN) y, si es Clínica,
+/// datos del negocio con dirección de Google Places.
 ///
-/// Pendiente de la semana 1 (RF-01):
-/// - Autocompletado de dirección con Google Places (lat/lng obligatorios).
-/// - Onboarding de 3 pasos para el dueño tras registrarse.
+/// Al terminar, el router lleva al dueño a su home (con onboarding) y a la
+/// clínica a /clinica/perfil-atencion (paso obligatorio del plugin clinica).
 class RegistrationPage extends ConsumerStatefulWidget {
   const RegistrationPage({super.key});
 
@@ -24,16 +27,15 @@ class _RegistrationPageState extends ConsumerState<RegistrationPage> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _phone = TextEditingController();
-  final _address = TextEditingController();
 
   UserRole? _role;
+  PlaceAddress? _address;
   bool _submitting = false;
 
   @override
   void dispose() {
     _name.dispose();
     _phone.dispose();
-    _address.dispose();
     super.dispose();
   }
 
@@ -44,13 +46,19 @@ class _RegistrationPageState extends ConsumerState<RegistrationPage> {
       return;
     }
 
-    final request = role == UserRole.dueno
+    final address = _address;
+    // El validador del campo ya lo impide; se repite por seguridad.
+    if (role == UserRole.clinica && address == null) return;
+
+    final request = address == null || role == UserRole.dueno
         ? const RegistrationRequest.owner()
         : RegistrationRequest.clinic(
             ClinicRegistration(
               nombre: _name.text,
               telefono: _phone.text,
-              direccion: _address.text,
+              direccion: address.direccion,
+              lat: address.lat,
+              lng: address.lng,
             ),
           );
 
@@ -62,7 +70,7 @@ class _RegistrationPageState extends ConsumerState<RegistrationPage> {
       switch (e.code) {
         case 'already-exists':
           _showMessage('Esta cuenta ya está registrada. Iniciando sesión...');
-        case 'deadline-exceeded' || 'unavailable':
+        case 'deadline-exceeded' || 'unavailable' || 'internal':
           _showMessage(
             'No se pudo completar el registro. Verifica tu conexión',
             retry: true,
@@ -87,6 +95,8 @@ class _RegistrationPageState extends ConsumerState<RegistrationPage> {
     );
   }
 
+  void _selectRole(UserRole role) => setState(() => _role = role);
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
@@ -94,140 +104,123 @@ class _RegistrationPageState extends ConsumerState<RegistrationPage> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Crear cuenta'),
-        actions: [
-          TextButton(
-            onPressed: _submitting ? null : () => ref.read(authRepositoryProvider).signOut(),
-            child: const Text('Usar otra cuenta'),
-          ),
-        ],
-      ),
       body: SafeArea(
         child: Form(
           key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(24),
+          child: Column(
             children: [
-              if (email.isNotEmpty)
-                Text(email, style: textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
-              const SizedBox(height: 8),
-              Text(
-                '¿Cómo usarás Mascoti?',
-                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              _RoleCard(
-                role: UserRole.dueno,
-                icon: Icons.pets,
-                description: 'Agenda citas, guarda su historial y compra productos.',
-                selected: _role == UserRole.dueno,
-                onTap: () => setState(() => _role = UserRole.dueno),
-              ),
-              const SizedBox(height: 12),
-              _RoleCard(
-                role: UserRole.clinica,
-                icon: Icons.local_hospital_outlined,
-                description: 'Controla tu agenda, solicitudes e inventario.',
-                selected: _role == UserRole.clinica,
-                onTap: () => setState(() => _role = UserRole.clinica),
-              ),
-              if (_role == UserRole.clinica) ...[
-                const SizedBox(height: 24),
-                TextFormField(
-                  controller: _name,
-                  decoration: const InputDecoration(labelText: 'Nombre comercial'),
-                  textCapitalization: TextCapitalization.words,
-                  validator: RegistrationValidators.clinicName,
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phone,
-                  decoration: const InputDecoration(labelText: 'Teléfono (10 dígitos)'),
-                  keyboardType: TextInputType.phone,
-                  maxLength: 10,
-                  validator: RegistrationValidators.phone,
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                ),
-                const SizedBox(height: 12),
-                // TODO(RF-01): reemplazar por autocompletado de Google Places.
-                TextFormField(
-                  controller: _address,
-                  decoration: const InputDecoration(labelText: 'Dirección'),
-                  validator: RegistrationValidators.address,
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                ),
-              ],
-              const SizedBox(height: 32),
-              FilledButton(
-                // RF-01 paso 8: deshabilitado hasta escoger exactamente un rol.
-                onPressed: _role == null || _submitting ? null : _submit,
-                child: _submitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Finalizar Registro'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RoleCard extends StatelessWidget {
-  const _RoleCard({
-    required this.role,
-    required this.icon,
-    required this.description,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final UserRole role;
-  final IconData icon;
-  final String description;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.primaryContainer : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: selected ? AppColors.primary : Colors.black12,
-          width: selected ? 2 : 1,
-        ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(icon, color: AppColors.primary, size: 32),
-              const SizedBox(width: 16),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                   children: [
-                    Text(
-                      role == UserRole.dueno ? 'Soy Dueño de Mascota' : 'Soy Clínica Veterinaria',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            email,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _submitting
+                              ? null
+                              : () => ref.read(authRepositoryProvider).signOut(),
+                          child: const Text('Usar otra cuenta'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(description, style: const TextStyle(color: AppColors.textMuted)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Crea tu cuenta',
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      '¿CÓMO USARÁS MASCOTI?',
+                      style: textTheme.labelMedium?.copyWith(
+                        color: AppColors.textMuted,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    RoleCard(
+                      role: UserRole.dueno,
+                      selected: _role == UserRole.dueno,
+                      onTap: _submitting ? null : () => _selectRole(UserRole.dueno),
+                    ),
+                    const SizedBox(height: 12),
+                    RoleCard(
+                      role: UserRole.clinica,
+                      selected: _role == UserRole.clinica,
+                      onTap: _submitting ? null : () => _selectRole(UserRole.clinica),
+                    ),
+                    if (_role == UserRole.clinica) ...[
+                      const SizedBox(height: 24),
+                      Text(
+                        'DATOS DE LA CLÍNICA',
+                        style: textTheme.labelMedium?.copyWith(
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _name,
+                        enabled: !_submitting,
+                        decoration: const InputDecoration(labelText: 'Nombre comercial'),
+                        textCapitalization: TextCapitalization.words,
+                        validator: RegistrationValidators.clinicName,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _phone,
+                        enabled: !_submitting,
+                        decoration: const InputDecoration(labelText: 'Teléfono (10 dígitos)'),
+                        keyboardType: TextInputType.phone,
+                        maxLength: 10,
+                        validator: RegistrationValidators.phone,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                      ),
+                      const SizedBox(height: 4),
+                      AddressAutocompleteField(
+                        enabled: !_submitting,
+                        onChanged: (value) => _address = value,
+                      ),
+                    ],
                   ],
                 ),
               ),
-              if (selected) const Icon(Icons.check_circle, color: AppColors.primary),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                child: Column(
+                  children: [
+                    FilledButton(
+                      // RF-01 paso 8: deshabilitado hasta escoger exactamente un rol.
+                      onPressed: _role == null || _submitting ? null : _submit,
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Finalizar Registro'),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Al continuar aceptas los Términos y la Política de privacidad.',
+                      style: textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

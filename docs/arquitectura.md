@@ -39,8 +39,12 @@ abstract class MascotiPlugin {
   List<RouteBase> routes();               // rutas go_router con prefijo /<id>
   List<PluginDestination> destinations(UserRole role); // pestañas inferiores
   Future<void> initialize() async {}      // opcional: configuración al arrancar
+  // opcional: ruta obligatoria para el usuario (onboarding, perfil incompleto…)
+  ProviderListenable<AsyncValue<String?>>? requiredStep(AppUser user) => null;
 }
 ```
+
+**Pasos obligatorios sin que el core conozca los plugins.** Un plugin puede exigir que el usuario pase por una de sus rutas antes de usar la app (p. ej. `clinica` exige `/clinica/perfil-atencion` mientras `clinics/{id}.estado == 'incompleto'`). El plugin devuelve un provider desde `requiredStep`; el core (`pendingStepProvider`) solo combina esos valores y el `redirect` lleva al usuario a esa ruta (permite además `/perfil` para cerrar sesión). Mientras el plugin responde, el usuario espera en el splash.
 
 `lib/core/kernel/plugin_manifest.dart` es la **única** lista de plugins activos:
 
@@ -98,9 +102,9 @@ plugins/clinica/
 1. `authStateChanges()` de Firebase → `sessionProvider` (Riverpod) produce un `SessionState`:
    - `SessionLoading` → pantalla de carga
    - `SignedOut` → `/bienvenida`
-   - `NeedsRegistration` (logueado en Google pero sin `users/{uid}`) → `/registro/rol`
-   - `Suspended` → cerrar sesión y mostrar el mensaje de RF-02
-   - `SignedIn(AppUser)` → primera pestaña del rol (según el orden `order` de las `PluginDestination`)
+   - `NeedsRegistration` (logueado en Google pero sin `users/{uid}`) → `/registro`
+   - `Suspended` → `/cuenta-suspendida` con el mensaje de RF-02 (y el botón para salir)
+   - `SignedIn(AppUser)` → el paso obligatorio pendiente (`requiredStep` de algún plugin) o, si no hay, la primera pestaña del rol (según el orden `order` de las `PluginDestination`)
 2. `go_router` usa `redirect` + `refreshListenable` para mover al usuario según ese estado.
 3. Todos los providers de datos dependen de la sesión, así que al cerrar sesión (RF-03) los listeners se cancelan automáticamente.
 

@@ -9,17 +9,17 @@ class ClinicRegistration {
     required this.nombre,
     required this.telefono,
     required this.direccion,
-    this.lat,
-    this.lng,
+    required this.lat,
+    required this.lng,
   });
 
   final String nombre;
   final String telefono;
   final String direccion;
 
-  // TODO(RF-01): obligatorios cuando se integre Google Places.
-  final double? lat;
-  final double? lng;
+  /// Coordenadas de la dirección escogida en Google Places (obligatorias).
+  final double lat;
+  final double lng;
 
   Map<String, dynamic> toMap() => {
         'nombre': nombre.trim(),
@@ -71,10 +71,4 @@ abstract final class RegistrationValidators {
     return null;
   }
 
-  static String? address(String? value) {
-    if ((value?.trim() ?? '').isEmpty) {
-      return 'Selecciona una dirección válida de la lista';
-    }
-    return null;
-  }
 }

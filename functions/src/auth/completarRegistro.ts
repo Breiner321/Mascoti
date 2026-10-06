@@ -1,6 +1,7 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
+import { geoClinica } from "../clinicas/geo";
 import { REGION } from "../config";
 import { validarRegistro } from "./validacion";
 
@@ -39,6 +40,7 @@ export const completarRegistro = onCall({ region: REGION }, async (request) => {
         direccion: datos.clinica.direccion,
         lat: datos.clinica.lat,
         lng: datos.clinica.lng,
+        geo: geoClinica(datos.clinica.lat, datos.clinica.lng),
         telefono: datos.clinica.telefono,
         tiposAnimales: [],
         atencionEmergencias: false,
@@ -55,6 +57,7 @@ export const completarRegistro = onCall({ region: REGION }, async (request) => {
       role: datos.role,
       estado: "activo",
       clinicId: nuevoClinicId,
+      onboardingVisto: false,
       createdAt: FieldValue.serverTimestamp(),
       lastLoginAt: FieldValue.serverTimestamp(),
     });

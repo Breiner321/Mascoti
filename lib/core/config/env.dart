@@ -14,6 +14,12 @@ abstract final class Env {
 
   /// Opcional: client ID OAuth de tipo "Web" del proyecto Firebase.
   /// Normalmente google_sign_in lo lee de google-services.json.
+  /// API key de Google Maps/Places (restringida a la app Android). Nunca va en el
+  /// código: se pasa con `--dart-define-from-file=env/dev.json` (ver
+  /// docs/configuracion-inicial.md). Vacía = el buscador de direcciones se
+  /// muestra como no disponible.
+  static const String mapsApiKey = String.fromEnvironment('MAPS_API_KEY');
+
   static const String googleServerClientId =
       String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
 }

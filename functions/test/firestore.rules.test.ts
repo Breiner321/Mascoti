@@ -12,7 +12,17 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 const conEmulador = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
@@ -38,6 +48,13 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       await setDoc(doc(db, "users/ana"), { uid: "ana", role: "dueno", estado: "activo" });
       await setDoc(doc(db, "users/vet"), { uid: "vet", role: "clinica", estado: "activo", clinicId: "c1" });
       await setDoc(doc(db, "clinics/c1"), { ownerUid: "vet", nombre: "Vet", estado: "incompleto" });
+      await setDoc(doc(db, "users/vet2"), { uid: "vet2", role: "clinica", estado: "activo", clinicId: "c2" });
+      await setDoc(doc(db, "clinics/c2"), { ownerUid: "vet2", nombre: "Vet 2", estado: "activo" });
+      await setDoc(doc(db, "users/susp"), { uid: "susp", role: "clinica", estado: "suspendido", clinicId: "c3" });
+      await setDoc(doc(db, "clinics/c3"), { ownerUid: "susp", nombre: "Suspendida", estado: "activo" });
+      await setDoc(doc(db, "users/susp/devices/d1"), { fcmToken: "t" });
+      await setDoc(doc(db, "pets/p1"), { ownerUid: "ana", nombre: "Luna" });
+      await setDoc(doc(db, "pets/p2"), { ownerUid: "otro", nombre: "Max" });
     });
   });
 
@@ -64,6 +81,62 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
     await assertSucceeds(updateDoc(doc(vet, "clinics/c1"), { tiposAnimales: ["perros"] }));
     await assertFails(updateDoc(doc(ana, "clinics/c1"), { tiposAnimales: ["gatos"] }));
     await assertFails(updateDoc(doc(vet, "clinics/c1"), { ownerUid: "ana" }));
+  });
+
+  it("una cuenta suspendida solo lee su perfil (RF-02)", async () => {
+    const susp = env.authenticatedContext("susp").firestore();
+    await assertSucceeds(getDoc(doc(susp, "users/susp")));
+    await assertFails(updateDoc(doc(susp, "users/susp"), { lastLoginAt: new Date() }));
+    await assertFails(updateDoc(doc(susp, "users/susp"), { displayName: "Otra" }));
+    await assertFails(updateDoc(doc(susp, "clinics/c3"), { tiposAnimales: ["perros"] }));
+    await assertFails(setDoc(doc(susp, "clinics/c3/services/s1"), { nombre: "Consulta" }));
+    await assertFails(setDoc(doc(susp, "users/susp/devices/d2"), { fcmToken: "t2" }));
+    // Al cerrar sesión puede borrar su token FCM.
+    await assertSucceeds(deleteDoc(doc(susp, "users/susp/devices/d1")));
+  });
+
+  it("una clínica no edita otra clínica ni sus servicios", async () => {
+    const vet2 = env.authenticatedContext("vet2").firestore();
+    await assertFails(updateDoc(doc(vet2, "clinics/c1"), { nombre: "Robada" }));
+    await assertFails(setDoc(doc(vet2, "clinics/c1/services/s1"), { nombre: "Consulta" }));
+    await assertSucceeds(updateDoc(doc(vet2, "clinics/c2"), { nombre: "Vet 2 Norte" }));
+    await assertSucceeds(setDoc(doc(vet2, "clinics/c2/services/s1"), { nombre: "Consulta" }));
+  });
+
+  it("nadie cambia role, estado ni clinicId", async () => {
+    const ana = env.authenticatedContext("ana").firestore();
+    const vet = env.authenticatedContext("vet").firestore();
+    for (const cambio of [{ role: "clinica" }, { estado: "suspendido" }, { clinicId: "c1" }]) {
+      await assertFails(updateDoc(doc(ana, "users/ana"), cambio));
+    }
+    await assertFails(updateDoc(doc(vet, "users/vet"), { clinicId: "c2" }));
+    await assertFails(updateDoc(doc(vet, "users/vet"), { estado: "activo", role: "dueno" }));
+    // Tampoco sobre el perfil de otra persona.
+    await assertFails(updateDoc(doc(vet, "users/ana"), { estado: "suspendido" }));
+  });
+
+  it("la clínica solo usa estados válidos y no cambia su dueño", async () => {
+    const vet = env.authenticatedContext("vet").firestore();
+    await assertSucceeds(updateDoc(doc(vet, "clinics/c1"), { estado: "activo" }));
+    await assertFails(updateDoc(doc(vet, "clinics/c1"), { estado: "verificada" }));
+    await assertFails(updateDoc(doc(vet, "clinics/c1"), { createdAt: new Date() }));
+  });
+
+  it("el dueño marca el onboarding como visto (RF-01 paso 14)", async () => {
+    const ana = env.authenticatedContext("ana").firestore();
+    const vet = env.authenticatedContext("vet").firestore();
+    await assertSucceeds(updateDoc(doc(ana, "users/ana"), { onboardingVisto: true }));
+    await assertFails(updateDoc(doc(ana, "users/ana"), { onboardingVisto: "si" }));
+    await assertFails(updateDoc(doc(vet, "users/ana"), { onboardingVisto: true }));
+  });
+
+  it("un dueño lee solo sus mascotas", async () => {
+    const ana = env.authenticatedContext("ana").firestore();
+    await assertSucceeds(getDoc(doc(ana, "pets/p1")));
+    await assertFails(getDoc(doc(ana, "pets/p2")));
+    await assertSucceeds(getDocs(query(collection(ana, "pets"), where("ownerUid", "==", "ana"))));
+    await assertFails(getDocs(collection(ana, "pets")));
+    await assertFails(setDoc(doc(ana, "pets/p3"), { ownerUid: "ana", nombre: "Nueva" }));
   });
 
   it("sin sesión no se lee nada", async () => {
