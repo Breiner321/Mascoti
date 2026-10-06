@@ -11,7 +11,7 @@
     "build:watch": "tsc --watch",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "test:rules": "firebase emulators:exec --only firestore \"vitest run\"",
+    "test:rules": "firebase emulators:exec --only firestore \"node ./node_modules/vitest/vitest.mjs run\"",
     "serve": "npm run build && firebase emulators:start",
     "deploy": "firebase deploy --only functions"
   },
