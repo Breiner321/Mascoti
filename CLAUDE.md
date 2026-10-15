@@ -24,6 +24,7 @@ App móvil (**solo APK Android** por ahora) que conecta **dueños de mascotas** 
 lib/
   core/            ← el KERNEL: nada de lógica de negocio de módulos
     kernel/        MascotiPlugin, PluginRegistry, manifiesto de plugins
+    domain/        modelos que usan varios plugins (Clinic, ClinicService, Slot, Pet)
     auth/          sesión, login/logout Google, roles (RF-01..03)
     router/        GoRouter construido con las rutas de los plugins
     theme/         colores y tipografía de los mockups

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
-import '../../domain/pet.dart';
+import '../../../../core/domain/pet.dart';
+import '../pets_providers.dart';
 import 'coming_soon_badge.dart';
 
 /// Tarjeta "Mi mascota" del home: cargando, vacío, error y datos.
@@ -41,14 +42,17 @@ class PetSummaryCard extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar({this.photoUrl});
+class _Avatar extends ConsumerWidget {
+  const _Avatar({this.photoPath});
 
-  final String? photoUrl;
+  /// Ruta en Storage; se convierte en un enlace temporal para mostrarla.
+  final String? photoPath;
 
   @override
-  Widget build(BuildContext context) {
-    final url = photoUrl;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final path = photoPath;
+    // Mientras carga o si falla, se muestra la huella.
+    final url = path == null ? null : ref.watch(petPhotoUrlProvider(path)).value;
     return Container(
       width: 64,
       height: 64,
@@ -79,7 +83,7 @@ class _PetInfo extends StatelessWidget {
     final summary = pet.summary(DateTime.now());
     return Row(
       children: [
-        _Avatar(photoUrl: pet.fotoUrl),
+        _Avatar(photoPath: pet.fotoPath),
         const SizedBox(width: 16),
         Expanded(
           child: Column(

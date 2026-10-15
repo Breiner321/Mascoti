@@ -1,8 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/storage/storage_providers.dart';
 import '../data/pets_repository.dart';
-import '../domain/pet.dart';
+import '../../../core/domain/pet.dart';
 import '../mascotas_routes.dart';
 
 final petsRepositoryProvider = Provider<PetsRepository>(
@@ -28,4 +29,11 @@ final ownerOnboardingStepProvider =
     Provider.family<AsyncValue<String?>, bool>(
   (ref, onboardingVisto) =>
       AsyncData(onboardingVisto ? null : MascotasRoutes.onboarding),
+);
+
+/// Enlace temporal (1 h) para mostrar la foto de una mascota guardada en
+/// Supabase Storage. Se cachea mientras la pantalla lo use.
+final petPhotoUrlProvider = FutureProvider.autoDispose.family<String, String>(
+  (ref, path) => ref.watch(storageRepositoryProvider).signedUrl(path),
+  retry: (_, __) => null,
 );
