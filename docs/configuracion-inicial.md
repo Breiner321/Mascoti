@@ -61,7 +61,13 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
 
 **Dev A (una vez), en https://supabase.com — proyecto `mascoti` (ref `tahnazumbqsupzpusrba`, North Virginia):**
 1. **Authentication → Sign In / Providers → Third-party Auth → Add provider → Firebase**, con el Project ID `mascoti-b27cf`.
-2. **Storage y políticas:** en **SQL Editor**, pega y ejecuta `supabase/migrations/20261005000000_storage_mascoti.sql` (crea el bucket privado `mascoti` y sus políticas). Alternativa: `supabase link --project-ref tahnazumbqsupzpusrba` y `supabase db push`.
+2. **Storage y políticas:** aplica los archivos de `supabase/migrations/` en orden (crean los buckets privados `mascoti` y `mascotas` con sus políticas). Desde la terminal:
+   ```powershell
+   supabase link --project-ref tahnazumbqsupzpusrba
+   supabase db query --linked -f supabase/migrations/20261005000000_storage_mascoti.sql
+   supabase db query --linked -f supabase/migrations/20261015000000_storage_mascotas.sql
+   ```
+   O pega cada archivo en **SQL Editor** del panel. Se pueden ejecutar varias veces sin problema.
 3. **Cuenta de servicio de Firebase** (la Edge Function la usa para escribir en Firestore): Firebase → Configuración del proyecto → Cuentas de servicio → **Generar nueva clave privada**. Guarda el JSON **fuera del repositorio** y cárgalo como secreto. Se pasa en **Base64** porque PowerShell rompe el JSON al enviarlo como argumento (error `Invalid secret pair`):
    ```powershell
    $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\Users\<tu-usuario>\secretos\cuenta-servicio.json"))
@@ -113,5 +119,6 @@ La interfaz de los emuladores (usuarios, datos, logs) queda en http://localhost:
 | "El registro no está disponible en esta versión de la app" | Falta `env/dev.json` o no corriste con `--dart-define-from-file=env/dev.json` (sección C2). |
 | "No se pudo completar el registro" al finalizar | Falta el secreto `FIREBASE_SERVICE_ACCOUNT` o la función no está desplegada (sección C2). Mira los logs en Supabase → Edge Functions → completar-registro. |
 | La app se queda en "Estamos tardando en conectar" | Firestore no está creado o las reglas no están desplegadas (paso B.3 y B.8). |
+| `project is paused` / el registro dejó de funcionar | El plan gratuito de Supabase pausa el proyecto tras 7 días sin uso: reactívalo en el panel de Supabase (**Restore project**). |
 | "El buscador de direcciones no está disponible" | Photon (OpenStreetMap) no respondió o limitó el uso; espera un momento y toca Reintentar. |
 | google_sign_in pide `serverClientId` | Pásalo con `--dart-define=GOOGLE_SERVER_CLIENT_ID=<client ID web>` (Firebase → Authentication → Google → Configuración del SDK web). |

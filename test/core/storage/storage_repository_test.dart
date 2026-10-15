@@ -61,6 +61,41 @@ void main() {
     expect(await repository.signedUrl('usuarios/u1/foto.jpg'), 'https://firmado');
   });
 
+  test('foto de mascota: bucket mascotas, ruta {dueño}/{mascota}/foto y tipo', () async {
+    final petFiles = _MockFiles();
+    when(() => storage.from('mascotas')).thenReturn(petFiles);
+    when(() => petFiles.uploadBinary(any(), any(), fileOptions: any(named: 'fileOptions')))
+        .thenAnswer((_) async => 'mascotas/ana/p1/foto.png');
+
+    final path = await repository.uploadPetPhoto(
+      ownerUid: 'ana',
+      petId: 'p1',
+      bytes: Uint8List.fromList([1]),
+      png: true,
+    );
+
+    expect(path, 'ana/p1/foto.png');
+    final options = verify(() => petFiles.uploadBinary(
+          'ana/p1/foto.png',
+          any(),
+          fileOptions: captureAny(named: 'fileOptions'),
+        )).captured.single as FileOptions;
+    expect(options.contentType, 'image/png');
+    expect(StorageRepository.petPhotoPath('ana', 'p1'), 'ana/p1/foto.jpg');
+    expect(() => StorageRepository.petPhotoPath('ana', '../p1'), throwsArgumentError);
+  });
+
+  test('signedUrl en otro bucket', () async {
+    final petFiles = _MockFiles();
+    when(() => storage.from('mascotas')).thenReturn(petFiles);
+    when(() => petFiles.createSignedUrl('ana/p1/foto.jpg', 3600))
+        .thenAnswer((_) async => 'https://foto');
+    expect(
+      await repository.signedUrl('ana/p1/foto.jpg', bucketId: StorageRepository.petsBucket),
+      'https://foto',
+    );
+  });
+
   test('sin Supabase configurado avisa con un error claro', () {
     expect(() => StorageRepository(null).signedUrl('x'), throwsStateError);
   });

@@ -44,13 +44,13 @@ Subcolecciones:
 
 ## `pets/{petId}` — soporte para RF-08, RF-14, RF-17, RF-18
 
-Reglas actuales: **solo lectura del dueño** (`ownerUid == uid`), para la tarjeta "Mi mascota" del home. Crear y editar llega en la semana 2. La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
+Reglas: el **dueño** (rol `dueno`, activo) crea, lee, edita y borra sus mascotas; obligatorios `nombre` (1–40) y `especie`; `ownerUid` no cambia. Las clínicas podrán leerlas en la semana 3 (RF-08). La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
 
 `{ownerUid, nombre, especie, raza?, fechaNacimiento?, sexo?, fotoPath?, alergias:string[], condiciones:string[], contactoEmergencia?:{nombre, telefono}, createdAt}`
 
 - `especie ∈ perro, gato, ave, roedor, reptil, granja, exotico` (singular). Cada una corresponde a un valor de `clinics.tiposAnimales` (`PetSpecies.animalType`), para mostrar solo clínicas que atienden esa especie.
 - `sexo ∈ macho, hembra`.
-- `fotoPath` (antes `fotoUrl`): **ruta** en Supabase Storage, `usuarios/{ownerUid}/mascotas/{petId}/foto.jpg`. El bucket es privado, así que no hay una URL fija: la app pide un enlace temporal con `StorageRepository.signedUrl`.
+- `fotoPath` (antes `fotoUrl`): **ruta** en el bucket `mascotas` de Supabase Storage, `{ownerUid}/{petId}/foto.jpg|png` (`StorageRepository.petPhotoPath`). El bucket es privado, así que no hay una URL fija: la app pide un enlace temporal con `StorageRepository.signedUrl`. Las reglas exigen que la ruta sea de la carpeta del dueño y de esa mascota.
 
 Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**):
 `{clinicId, clinicNombre, appointmentId?, fecha, diagnostico, tratamiento, vacunas:[{nombre, lote, fechaAplicacion, fechaProximaDosis}], adjuntos:[{url, tipo:'imagen'|'pdf', nombre}], createdAt}`
@@ -87,9 +87,17 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 
 | Ruta | Quién escribe/lee | Uso |
 |---|---|---|
-| `usuarios/{uidFirebase}/...` | solo ese usuario | lo que sube cada persona, p. ej. `usuarios/{uid}/mascotas/{petId}/foto.jpg` |
+| `usuarios/{uidFirebase}/...` | solo ese usuario | adjuntos del chat, PDF y demás archivos de cada persona |
 
-- Máximo 10 MB por archivo; solo `image/jpeg`, `image/png`, `image/webp` y `application/pdf`.
+### Bucket `mascotas` (fotos de mascotas)
+
+Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
+
+| Ruta | Escribe | Lee | Límites |
+|---|---|---|---|
+| `{ownerUid}/{petId}/foto.jpg\|png` | solo el dueño (su carpeta) | cualquier usuario con sesión (enlace firmado) | JPG/PNG, máximo 5 MB |
+
+- Bucket `mascoti`: máximo 10 MB por archivo; solo `image/jpeg`, `image/png`, `image/webp` y `application/pdf`.
 - En Firestore se guarda la **ruta** (p. ej. `fotoPath`), no una URL: para mostrar el archivo se pide un enlace firmado temporal con `StorageRepository.signedUrl`.
 - Para compartir con otra persona (chat, historial) se entrega un enlace firmado; si hay que validar permisos, lo genera una Edge Function.
 

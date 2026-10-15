@@ -117,9 +117,9 @@ class Pet {
   final PetSex? sexo;
   final DateTime? fechaNacimiento;
 
-  /// Ruta de la foto en Supabase Storage
-  /// (`usuarios/{ownerUid}/mascotas/{petId}/foto.jpg`). Para mostrarla se pide
-  /// un enlace temporal con StorageRepository.signedUrl.
+  /// Ruta de la foto en el bucket `mascotas` de Supabase Storage:
+  /// `{ownerUid}/{petId}/foto.jpg|png` (ver StorageRepository.petPhotoPath).
+  /// Para mostrarla se pide un enlace temporal con StorageRepository.signedUrl.
   final String? fotoPath;
   final List<String> alergias;
   final List<String> condiciones;

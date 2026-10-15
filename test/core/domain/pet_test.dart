@@ -11,7 +11,7 @@ void main() {
     'raza': 'Criolla',
     'sexo': 'hembra',
     'fechaNacimiento': Timestamp.fromDate(DateTime(2023, 9, 1)),
-    'fotoPath': 'usuarios/ana/mascotas/p1/foto.jpg',
+    'fotoPath': 'ana/p1/foto.jpg',
     'alergias': ['pollo', 3],
     'condiciones': <String>[],
     'contactoEmergencia': {'nombre': 'Ana', 'telefono': '3001234567'},
@@ -23,7 +23,7 @@ void main() {
     expect(pet.especie, PetSpecies.perro);
     expect(pet.sexo, PetSex.hembra);
     expect(pet.fechaNacimiento, DateTime(2023, 9, 1));
-    expect(pet.fotoPath, 'usuarios/ana/mascotas/p1/foto.jpg');
+    expect(pet.fotoPath, 'ana/p1/foto.jpg');
     expect(pet.alergias, ['pollo']); // se descartan valores que no son texto
     expect(pet.contactoEmergencia,
         const EmergencyContact(nombre: 'Ana', telefono: '3001234567'));
