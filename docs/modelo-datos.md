@@ -2,20 +2,23 @@
 
 Fuente única de verdad del esquema. **Todo PR que agregue o cambie colecciones o campos debe actualizar este archivo y `firestore.rules`.**
 
+Modelos en Dart: `lib/core/domain/` (`Clinic`, `ClinicService`, `Slot`, `Pet`), compartidos por todos los plugins. Los enums guardan en Firestore el valor en español de esta página.
+
 Convenciones: nombres de campos en español como en los RF; fechas como `Timestamp`; dinero en COP como `number` entero (sin decimales) salvo que el RF diga otra cosa; ids generados por Firestore salvo que se indique.
 
-## `users/{uid}`  — RF-01, RF-02 · *se crea solo con la Function `completarRegistro`*
+## `users/{uid}`  — RF-01, RF-02 · *se crea solo con la Edge Function `completar-registro` (Supabase)*
 
 | Campo | Tipo | Notas |
 |---|---|---|
 | uid | string | = id de Firebase Auth |
 | email, displayName, photoURL | string | de Google |
 | role | `'dueno' \| 'clinica'` | inmutable (las reglas lo leen con `hasRole()`) |
-| estado | `'activo' \| 'suspendido'` | solo lo cambia un administrador (Admin SDK). Al pasar a `suspendido`, la Function `sincronizarSuspension` deshabilita la cuenta en Firebase Auth y revoca sus tokens; al volver a `activo` la habilita. Una cuenta suspendida solo puede leer su propio perfil |
+| estado | `'activo' \| 'suspendido'` | solo lo cambia un administrador (Admin SDK). Se cambia con el script `npm run suspender -- <uid> [--reactivar]` (`functions/admin/`), que además deshabilita la cuenta en Firebase Auth y revoca sus sesiones (o la habilita al reactivar). Una cuenta suspendida solo puede leer su propio perfil |
 | clinicId | string? | solo si role = clinica |
 | telefono, ciudad, direccion | string? | perfil del dueño (RF-10, RF-12) |
 | onboardingVisto | bool | RF-01 paso 14. `false` al registrarse; el dueño lo pone en `true` al terminar o saltar el onboarding (las reglas solo aceptan un `bool`). Si falta, la app lo trata como `false` |
 | createdAt, lastLoginAt | Timestamp | |
+| estadoActualizadoEn | Timestamp? | lo pone el script de suspensión |
 
 Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13) · `cart/{productId}` `{clinicId, cantidad, addedAt}` (RF-12) · `favoriteClinics/{clinicId}` (RF-10).
 
@@ -25,25 +28,29 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 |---|---|---|
 | ownerUid | string | uid del usuario clínica |
 | nombre, telefono, direccion | string | teléfono de 10 dígitos |
-| lat, lng | number | desde Google Places; obligatorios (los valida `completarRegistro`) |
-| geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09). Lo calcula `completarRegistro` con `geofire-common` (geohash de 10 caracteres) |
+| lat, lng | number | desde OpenStreetMap (buscador de direcciones); obligatorios (los valida `completar-registro`) |
+| geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09). Lo calcula `completar-registro` (geohash de 10 caracteres, igual a `geofire-common`) |
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
 | atencionEmergencias | bool | RF-10 |
-| horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06 |
+| horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06. Horas `HH:mm` (24 h); duración entera 5–480. `OpeningHours.slotTimes()` genera las franjas del día |
 | calificacion | number? | promedio (futuro) |
 | estado | `'incompleto' \| 'activo'` | pasa a activo en RF-04. Mientras sea `incompleto`, la app obliga a la clínica a ir a `/clinica/perfil-atencion` |
 | createdAt | Timestamp | |
 
 Subcolecciones:
-- `services/{serviceId}` — RF-05: `{nombre, categoria, descripcion, precio, duracionMin, activo, createdAt, updatedAt}`; `categoria ∈ vacunacion, peluqueria, bano, cirugia, consulta_general, otro`.
-- `slots/{slotId}` — RF-06: `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados.
+- `services/{serviceId}` — RF-05: `{nombre, categoria, descripcion, precio, duracionMin, activo, createdAt, updatedAt}`; `precio` admite hasta 2 decimales (RF-05, excepción a la regla de enteros); `categoria ∈ vacunacion, peluqueria, bano, cirugia, consulta_general, otro`.
+- `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — RF-06: `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados.
 - `products/{productId}` — RF-07: `{nombre, categoria, descripcion, precio, stock, fotoUrl, estado:'activo'|'agotado'|'inactivo', createdAt}`.
 
 ## `pets/{petId}` — soporte para RF-08, RF-14, RF-17, RF-18
 
-Reglas actuales: **solo lectura del dueño** (`ownerUid == uid`), para la tarjeta "Mi mascota" del home. Crear y editar llega en la semana 2. La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
+Reglas: el **dueño** (rol `dueno`, activo) crea, lee, edita y borra sus mascotas; obligatorios `nombre` (1–40) y `especie`; `ownerUid` no cambia. Las clínicas podrán leerlas en la semana 3 (RF-08). La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
 
-`{ownerUid, nombre, especie, raza, fechaNacimiento, sexo, fotoUrl, alergias:string[], condiciones:string[], contactoEmergencia:{nombre, telefono}, createdAt}`
+`{ownerUid, nombre, especie, raza?, fechaNacimiento?, sexo?, fotoPath?, alergias:string[], condiciones:string[], contactoEmergencia?:{nombre, telefono}, createdAt}`
+
+- `especie ∈ perro, gato, ave, roedor, reptil, granja, exotico` (singular). Cada una corresponde a un valor de `clinics.tiposAnimales` (`PetSpecies.animalType`), para mostrar solo clínicas que atienden esa especie.
+- `sexo ∈ macho, hembra`.
+- `fotoPath` (antes `fotoUrl`): **ruta** en el bucket `mascotas` de Supabase Storage, `{ownerUid}/{petId}/foto.jpg|png` (`StorageRepository.petPhotoPath`). El bucket es privado, así que no hay una URL fija: la app pide un enlace temporal con `StorageRepository.signedUrl`. Las reglas exigen que la ruta sea de la carpeta del dueño y de esa mascota.
 
 Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**):
 `{clinicId, clinicNombre, appointmentId?, fecha, diagnostico, tratamiento, vacunas:[{nombre, lote, fechaAplicacion, fechaProximaDosis}], adjuntos:[{url, tipo:'imagen'|'pdf', nombre}], createdAt}`
@@ -73,6 +80,26 @@ Subcolección `messages/{messageId}`: `{senderUid, tipo:'texto'|'adjunto', texto
 ## `auditEvents/{id}` — RF-10
 
 `{tipo:'emergencyTriggered', uid, lat?, lng?, createdAt}`
+
+## Archivos (Supabase Storage, bucket privado `mascoti`)
+
+Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_mascoti.sql`.
+
+| Ruta | Quién escribe/lee | Uso |
+|---|---|---|
+| `usuarios/{uidFirebase}/...` | solo ese usuario | adjuntos del chat, PDF y demás archivos de cada persona |
+
+### Bucket `mascotas` (fotos de mascotas)
+
+Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
+
+| Ruta | Escribe | Lee | Límites |
+|---|---|---|---|
+| `{ownerUid}/{petId}/foto.jpg\|png` | solo el dueño (su carpeta) | cualquier usuario con sesión (enlace firmado) | JPG/PNG, máximo 5 MB |
+
+- Bucket `mascoti`: máximo 10 MB por archivo; solo `image/jpeg`, `image/png`, `image/webp` y `application/pdf`.
+- En Firestore se guarda la **ruta** (p. ej. `fotoPath`), no una URL: para mostrar el archivo se pide un enlace firmado temporal con `StorageRepository.signedUrl`.
+- Para compartir con otra persona (chat, historial) se entrega un enlace firmado; si hay que validar permisos, lo genera una Edge Function.
 
 ## Índices compuestos previstos (`firestore.indexes.json`)
 

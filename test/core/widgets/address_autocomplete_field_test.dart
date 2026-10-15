@@ -48,10 +48,12 @@ void main() {
     await type(tester, 'Calle 100');
 
     expect(find.text('Calle 100 # 15-20'), findsOneWidget);
+    expect(find.text('Datos © colaboradores de OpenStreetMap'), findsOneWidget);
     await tester.tap(find.text('Calle 100 # 15-20'));
     await tester.pumpAndSettle();
 
     expect(selected?.lat, bogotaAddress.lat);
+    expect(find.text('Datos © colaboradores de OpenStreetMap'), findsNothing);
     expect(validate(), isTrue);
     expect(find.text(AddressAutocompleteField.invalidMessage), findsNothing);
   });
@@ -111,9 +113,9 @@ void main() {
     expect(places.queries, ['Calle 100', 'Calle 100']);
   });
 
-  testWidgets('sin API key avisa que el buscador no está disponible',
+  testWidgets('si el proveedor está caído avisa que no está disponible',
       (tester) async {
-    places.error = const AddressSearchUnavailable();
+    places.error = const AddressSearchUnavailable('HTTP 503');
     await pumpField(tester);
     await type(tester, 'Calle 100');
     expect(find.textContaining('no está disponible'), findsOneWidget);

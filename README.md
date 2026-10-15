@@ -2,7 +2,7 @@
 
 App veterinaria móvil (APK Android) con **arquitectura microkernel** para la gestión de clínicas veterinarias y la atención de mascotas en tiempo real: agenda, directorio con GPS, e-commerce, carnet QR, chat y módulo de emergencias SOS.
 
-**Stack:** Flutter (Dart) · Riverpod · go_router · Firebase (Auth con Google, Firestore, Storage, Cloud Messaging, Cloud Functions en TypeScript).
+**Stack:** Flutter (Dart) · Riverpod · go_router · Firebase (Auth con Google, Firestore, Cloud Messaging) · Supabase (Storage, Edge Functions en TypeScript) · OpenStreetMap.
 
 ## Documentación
 
@@ -24,8 +24,9 @@ App veterinaria móvil (APK Android) con **arquitectura microkernel** para la ge
 lib/
   core/        kernel: plugins, auth, router, tema, widgets comunes
   plugins/     un módulo funcional por carpeta (mascotas, clinica, reservas, …)
-functions/     Cloud Functions (TypeScript)
-firestore.rules · storage.rules · firebase.json
+supabase/      Edge Functions (TypeScript) y políticas de Storage (SQL)
+functions/     pruebas de firestore.rules y de las Edge Functions; scripts de administración
+firestore.rules · firebase.json
 docs/          documentación y requerimientos
 .claude/       comando /rf y permisos de Claude Code
 ```

@@ -9,17 +9,19 @@ abstract final class Env {
   static const String emulatorHost =
       String.fromEnvironment('EMULATOR_HOST', defaultValue: '10.0.2.2');
 
-  /// Región de Cloud Functions. Debe coincidir con functions/src/config.ts.
-  static const String functionsRegion = 'us-east1';
+  /// Proyecto de Supabase (Storage + Edge Functions). Se pasan con
+  /// `--dart-define-from-file=env/dev.json` (ver docs/configuracion-inicial.md).
+  /// La publishable key (`sb_publishable_...`) es pública: la protegen las
+  /// políticas de Supabase. Nunca usar aquí la secret/service_role key.
+  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String supabasePublishableKey =
+      String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+
+  static bool get hasSupabase =>
+      supabaseUrl.isNotEmpty && supabasePublishableKey.isNotEmpty;
 
   /// Opcional: client ID OAuth de tipo "Web" del proyecto Firebase.
   /// Normalmente google_sign_in lo lee de google-services.json.
-  /// API key de Google Maps/Places (restringida a la app Android). Nunca va en el
-  /// código: se pasa con `--dart-define-from-file=env/dev.json` (ver
-  /// docs/configuracion-inicial.md). Vacía = el buscador de direcciones se
-  /// muestra como no disponible.
-  static const String mapsApiKey = String.fromEnvironment('MAPS_API_KEY');
-
   static const String googleServerClientId =
       String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
 }

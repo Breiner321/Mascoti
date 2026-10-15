@@ -1,3 +1,4 @@
 {
-  "MAPS_API_KEY": ""
+  "SUPABASE_URL": "https://tahnazumbqsupzpusrba.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_..."
 }

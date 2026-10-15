@@ -8,7 +8,7 @@ import '../places/place_address.dart';
 import '../places/places_providers.dart';
 import '../theme/app_theme.dart';
 
-/// Campo de dirección con autocompletado de Google Places (RF-01, pasos 9-10).
+/// Campo de dirección con autocompletado de OpenStreetMap (RF-01, pasos 9-10).
 ///
 /// Solo es válido si la dirección se escoge de la lista y tiene coordenadas:
 /// el texto libre o un lugar sin lat/lng muestran
@@ -87,7 +87,7 @@ class _AddressAutocompleteFieldState
         _status = results.isEmpty ? _Status.empty : _Status.results;
       });
     } on AddressSearchUnavailable {
-      _showError('El buscador de direcciones no está disponible.');
+      _showError('El buscador de direcciones no está disponible. Intenta en un momento');
     } catch (_) {
       if (id == _searchId) {
         _showError('No se pudieron cargar las direcciones. Verifica tu conexión');
@@ -216,6 +216,20 @@ class _AddressAutocompleteFieldState
                         s.secondaryText.isEmpty ? null : Text(s.secondaryText),
                     onTap: () => _select(s),
                   ),
+                // Atribución exigida por la licencia de los datos (ODbL).
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'Datos © colaboradores de OpenStreetMap',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(color: AppColors.textMuted),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../domain/pet.dart';
+import '../../../core/domain/pet.dart';
 
 /// Acceso a `pets` desde el plugin mascotas.
 class PetsRepository {

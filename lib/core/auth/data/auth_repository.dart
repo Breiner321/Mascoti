@@ -1,31 +1,29 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../../config/env.dart';
 import '../domain/app_user.dart';
 import '../domain/auth_failure.dart';
 import '../domain/registration.dart';
+import 'registration_api.dart';
 
 /// Única clase que habla con Firebase Auth / Google Sign-In (RF-01..03).
 class AuthRepository {
   AuthRepository({
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
-    FirebaseFunctions? functions,
+    required RegistrationApi registrationApi,
     GoogleSignIn? googleSignIn,
   })  : _auth = auth ?? FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
-        _functions =
-            functions ?? FirebaseFunctions.instanceFor(region: Env.functionsRegion),
+        _registrationApi = registrationApi,
         _googleSignIn = googleSignIn ?? GoogleSignIn.instance;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
+  final RegistrationApi _registrationApi;
   final GoogleSignIn _googleSignIn;
 
   static const _timeout = Duration(seconds: 10);
@@ -82,16 +80,20 @@ class AuthRepository {
     return true;
   }
 
-  /// Crea `users/{uid}` (y `clinics/{id}` si es clínica) en una transacción
-  /// del servidor. Lanza [FirebaseFunctionsException]:
-  /// - `already-exists` si la cuenta ya estaba registrada;
-  /// - `deadline-exceeded` si no hubo respuesta en 10 s.
+  /// Crea `users/{uid}` (y `clinics/{id}` si es clínica) de forma atómica
+  /// con la Edge Function `completar-registro` de Supabase. Lanza
+  /// [RegistrationFailure] (cuenta ya registrada, sin red en 10 s, datos
+  /// inválidos…).
+  ///
+  /// Después renueva el token de Firebase: la Edge Function le agrega el dato
+  /// que Supabase exige para aceptar al usuario (Storage).
   Future<void> completeRegistration(RegistrationRequest request) async {
-    final callable = _functions.httpsCallable(
-      'completarRegistro',
-      options: HttpsCallableOptions(timeout: _timeout),
-    );
-    await callable.call(request.toMap());
+    await _registrationApi.complete(request);
+    try {
+      await _auth.currentUser?.getIdToken(true);
+    } catch (_) {
+      // Sin red: el token se renueva solo en menos de una hora.
+    }
   }
 
   /// RF-03: cierra la sesión local. Los listeners de Firestore se cancelan

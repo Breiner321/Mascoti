@@ -21,11 +21,13 @@ La app se divide en un **núcleo (kernel)** mínimo y estable y en **plugins** i
 │   │ clinica  │ │mascotas │ │reservas│ │ tienda │ │  chat  │… │
 │   └──────────┘ └─────────┘ └────────┘ └────────┘ └────────┘  │
 └───────────────┬──────────────────────────────────────────────┘
-                │ SDK Firebase (Auth, Firestore, Storage, FCM, Functions)
-┌───────────────▼──────────────────────────────────────────────┐
-│ Firebase: Auth · Firestore (+rules) · Storage (+rules) ·     │
-│ Cloud Functions (TypeScript) · Cloud Messaging · Hosting(QR) │
-└──────────────────────────────────────────────────────────────┘
+                │ SDK Firebase (Auth, Firestore, FCM) · supabase_flutter (Storage, Functions)
+┌───────────────▼─────────────────────┐ ┌──────────────────────────────────────┐
+│ Firebase (Spark): Auth con Google · │ │ Supabase: Storage (bucket mascoti +  │
+│ Firestore (+firestore.rules) · FCM  │◄┤ políticas) · Edge Functions (TS/Deno)│
+└─────────────────────────────────────┘ └──────────────────────────────────────┘
+   Las Edge Functions escriben en Firestore (API REST + cuenta de servicio).
+   Supabase acepta el ID token de Firebase (Third-party Auth): un solo login.
 ```
 
 ## El contrato del plugin
@@ -113,7 +115,11 @@ plugins/clinica/
 | Tipo de operación | Dónde | Ejemplo |
 |---|---|---|
 | CRUD de datos propios | App → Firestore, protegido con `firestore.rules` | Servicios de la clínica (RF-05) |
-| Transacciones entre colecciones o datos de confianza | **Callable Function** | `completarRegistro` (RF-01), `solicitarCita` (RF-14) |
-| Reacciones a cambios | **Trigger de Firestore** | stock 0 → `agotado` (RF-07); push al aprobar cita |
-| Tareas programadas | **onSchedule** | recordatorios (RF-13), no-show (RF-14) |
-| Integraciones externas con secretos | **Function HTTPS** | webhook Wompi (RF-12), PDF (RF-18), página pública del QR (RF-17) |
+| Transacciones entre colecciones o datos de confianza | **Edge Function** de Supabase (`supabase/functions/`) | `completar-registro` (RF-01), `solicitar-cita` (RF-14) |
+| Reacciones a cambios | Dentro de la Edge Function que hace el cambio (no hay triggers de Firestore en el plan gratuito) | stock 0 → `agotado` en la función de pago (RF-07); push al aprobar cita |
+| Tareas programadas | **pg_cron** de Supabase que llama a una Edge Function | recordatorios (RF-13), no-show (RF-14) |
+| Integraciones externas con secretos | **Edge Function** con secretos de Supabase (`supabase secrets set`) | webhook Wompi (RF-12), PDF (RF-18), página pública del QR (RF-17) |
+| Archivos | App → **Supabase Storage** con `StorageRepository` (`core/storage`) | fotos de mascotas, adjuntos del chat |
+| Tareas de administración | Scripts en `functions/admin/` con la cuenta de servicio | suspender una cuenta (RF-02) |
+
+La lógica de cada Edge Function va en `supabase/functions/_shared/` como TypeScript **sin dependencias** (se prueba con vitest desde `functions/`); el `index.ts` de la función solo la conecta con Google y Supabase.

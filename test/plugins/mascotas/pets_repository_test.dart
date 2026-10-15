@@ -3,7 +3,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/plugins/mascotas/data/pets_repository.dart';
-import 'package:mascoti/plugins/mascotas/domain/pet.dart';
+import 'package:mascoti/core/domain/pet.dart';
 
 void main() {
   group('PetsRepository', () {
@@ -47,7 +47,7 @@ void main() {
           id: 'p',
           ownerUid: 'ana',
           nombre: 'Luna',
-          especie: 'perro',
+          especie: PetSpecies.perro,
           fechaNacimiento: date,
         );
 
@@ -70,14 +70,14 @@ void main() {
         id: 'p1',
         ownerUid: 'ana',
         nombre: 'Luna',
-        especie: 'perro',
-        sexo: 'hembra',
+        especie: PetSpecies.perro,
+        sexo: PetSex.hembra,
         fechaNacimiento: DateTime(2023, 9, 1),
       );
       final copy = Pet.fromMap('p1', pet.toMap());
       expect(copy.nombre, 'Luna');
       expect(copy.fechaNacimiento, DateTime(2023, 9, 1));
-      expect(copy.sexo, 'hembra');
+      expect(copy.sexo, PetSex.hembra);
     });
   });
 

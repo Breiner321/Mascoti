@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validarRegistro } from "../src/auth/validacion";
+import { validarRegistro } from "../../supabase/functions/_shared/validacion.ts";
 
 describe("validarRegistro (RF-01)", () => {
   it("acepta un dueño", () => {
