@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/kernel/plugin_registry.dart';
+import '../mascotas_routes.dart';
 import 'home_shortcuts.dart';
 import 'pets_providers.dart';
 import 'widgets/health_card_tile.dart';
@@ -35,9 +36,11 @@ class OwnerHomePage extends ConsumerWidget {
         children: [
           PetSummaryCard(
             pets: pets,
+            selectedPetId: ref.watch(selectedPetIdProvider),
             onRetry: () => ref.invalidate(myPetsProvider),
             onAddPet: open(HomeShortcuts.newPet),
-            onOpenList: open(HomeShortcuts.petList),
+            onOpenPet: (pet) => context.push(MascotasRoutes.profile(pet.id)),
+            onSelectPet: (id) => ref.read(selectedPetIdProvider.notifier).select(id),
           ),
           const SizedBox(height: 16),
           IntrinsicHeight(

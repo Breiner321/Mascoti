@@ -1,14 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/domain/pet.dart';
 import '../../../core/storage/storage_providers.dart';
 import '../../../core/storage/storage_repository.dart';
+import '../data/pet_photo_service.dart';
 import '../data/pets_repository.dart';
-import '../../../core/domain/pet.dart';
 import '../mascotas_routes.dart';
 
 final petsRepositoryProvider = Provider<PetsRepository>(
-  (ref) => PetsRepository(),
+  (ref) => PetsRepository(storage: ref.watch(storageRepositoryProvider)),
+);
+
+final petPhotoPickerProvider = Provider<PetPhotoPicker>(
+  (ref) => DevicePetPhotoPicker(),
 );
 
 /// Mascotas del dueño con sesión. autoDispose: al cerrar sesión se cancela
@@ -22,6 +27,24 @@ final myPetsProvider = StreamProvider.autoDispose<List<Pet>>(
   },
   retry: (_, __) => null,
 );
+
+/// Una mascota por id (perfil y edición); null si no existe.
+final petProvider = StreamProvider.autoDispose.family<Pet?, String>(
+  (ref, petId) => ref.watch(petsRepositoryProvider).watchPet(petId),
+  retry: (_, __) => null,
+);
+
+/// Mascota que el dueño eligió en el home. null = la más reciente.
+final selectedPetIdProvider = NotifierProvider<SelectedPetId, String?>(
+  SelectedPetId.new,
+);
+
+class SelectedPetId extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void select(String petId) => state = petId;
+}
 
 /// Paso obligatorio del dueño: el onboarding de 3 pasos, hasta que
 /// `users/{uid}.onboardingVisto` sea true. Lo consume el core a través de

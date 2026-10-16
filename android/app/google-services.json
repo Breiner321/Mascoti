@@ -31,6 +31,14 @@
           }
         },
         {
+          "client_id": "387449002729-lmomi3ul6kqh35bg230ikccoashqttgm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "co.mascoti.mascoti",
+            "certificate_hash": "dd83f9929e9a0f34617a5aefcaee5504f6009311"
+          }
+        },
+        {
           "client_id": "387449002729-9436vrf51hcrnqehkm0ri9bvnealrhsv.apps.googleusercontent.com",
           "client_type": 3
         }
