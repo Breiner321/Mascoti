@@ -1,10 +1,10 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/auth/auth_providers.dart';
 import 'package:mascoti/core/auth/data/auth_repository.dart';
 import 'package:mascoti/core/auth/domain/registration.dart';
+import 'package:mascoti/core/auth/domain/registration_failure.dart';
 import 'package:mascoti/core/auth/domain/session_state.dart';
 import 'package:mascoti/core/auth/presentation/registration_page.dart';
 import 'package:mascoti/core/places/places_providers.dart';
@@ -136,7 +136,7 @@ void main() {
     verifyNever(() => repository.completeRegistration(any()));
   });
 
-  testWidgets('la clínica se registra con lat/lng de Google Places',
+  testWidgets('la clínica se registra con lat/lng de OpenStreetMap',
       (tester) async {
     await pumpPage(tester);
     await chooseRole(tester, 'Clínica Veterinaria');
@@ -157,7 +157,7 @@ void main() {
 
   testWidgets('error de red muestra el mensaje con "Reintentar"', (tester) async {
     when(() => repository.completeRegistration(any())).thenThrow(
-      FirebaseFunctionsException(code: 'deadline-exceeded', message: 'timeout'),
+      const RegistrationFailure(RegistrationFailureKind.network),
     );
     await pumpPage(tester);
     await chooseRole(tester, 'Dueño de Mascota');
@@ -178,7 +178,7 @@ void main() {
 
   testWidgets('una cuenta ya registrada muestra el aviso del RF', (tester) async {
     when(() => repository.completeRegistration(any())).thenThrow(
-      FirebaseFunctionsException(code: 'already-exists', message: 'x'),
+      const RegistrationFailure(RegistrationFailureKind.alreadyExists),
     );
     await pumpPage(tester);
     await chooseRole(tester, 'Dueño de Mascota');

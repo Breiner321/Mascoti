@@ -20,8 +20,7 @@ Verifica con `flutter doctor`: todo debe salir en verde menos Chrome, iOS y Visu
    > **ID real del proyecto de desarrollo: `mascoti-b27cf`** (ya está en `.firebaserc`). Úsalo en lugar de `mascoti-dev` en los comandos de abajo.
 2. **Authentication → Método de acceso → Google → Habilitar.** Correo de soporte: el del equipo.
 3. **Firestore Database → Crear** en modo producción, ubicación `us-east1` (o `nam5`).
-4. **Storage → Comenzar** (misma región).
-5. **Uso y facturación → plan Blaze** + **alerta de presupuesto** de USD 5 (lo exigen Cloud Functions y Cloud Scheduler).
+4. **No hace falta** Storage ni el plan Blaze de Firebase: los archivos y la lógica de servidor van en Supabase (sección C2).
 6. Ejecuta el script de configuración desde la raíz del repo:
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
@@ -33,7 +32,7 @@ Verifica con `flutter doctor`: todo debe salir en verde menos Chrome, iOS y Visu
    Esto genera `lib/firebase_options.dart` y `android/app/google-services.json`. **Súbelos al repo**: no son secretos (la seguridad está en las reglas) y todo el equipo y el CI los necesitan.
 8. Publica las reglas y la Function:
    ```powershell
-   firebase deploy --only firestore:rules,firestore:indexes,storage,functions
+   firebase deploy --only firestore:rules,firestore:indexes
    ```
 9. Verifica y haz commit:
    ```powershell
@@ -56,39 +55,49 @@ cd android
 
 Copia el `SHA1` de la variante `debug` y agrégalo en Firebase → Configuración del proyecto → tu app Android → **Agregar huella digital**. Luego el Dev A vuelve a descargar `google-services.json` (o ejecuta `flutterfire configure` otra vez) y lo sube al repo.
 
-## C2. API key de Google Maps / Places (RF-01, RF-09)
+## C2. Supabase: archivos y Edge Functions
 
-La dirección de la clínica se escoge con Google Places (RF-01) y el mapa usa Google Maps (RF-09). Se usa **una sola API key**, restringida, que **nunca se sube al repo**.
+Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** aporta Storage y las Edge Functions (`supabase/functions/`). Supabase acepta el login de Firebase, así que no hay un segundo inicio de sesión.
 
-**Dev A (una vez), en [Google Cloud Console](https://console.cloud.google.com) → proyecto `mascoti-b27cf`:**
-1. **APIs y servicios → Biblioteca:** habilita **Places API (New)** y **Maps SDK for Android**.
-2. **APIs y servicios → Credenciales → Crear credenciales → Clave de API.**
-3. En la clave: **Restricciones de aplicación → Apps para Android** → agrega el paquete `co.mascoti.mascoti` con el SHA-1 de cada computador del equipo (y el de la llave de *release* cuando exista).
-4. **Restricciones de API:** solo *Places API (New)* y *Maps SDK for Android*.
-5. Comparte la clave con el equipo por un canal privado (no por el repo ni el chat del grupo).
+**Dev A (una vez), en https://supabase.com — proyecto `mascoti` (ref `tahnazumbqsupzpusrba`, North Virginia):**
+1. **Authentication → Sign In / Providers → Third-party Auth → Add provider → Firebase**, con el Project ID `mascoti-b27cf`.
+2. **Storage y políticas:** aplica los archivos de `supabase/migrations/` en orden (crean los buckets privados `mascoti` y `mascotas` con sus políticas). Desde la terminal:
+   ```powershell
+   supabase link --project-ref tahnazumbqsupzpusrba
+   supabase db query --linked -f supabase/migrations/20261005000000_storage_mascoti.sql
+   supabase db query --linked -f supabase/migrations/20261015000000_storage_mascotas.sql
+   ```
+   O pega cada archivo en **SQL Editor** del panel. Se pueden ejecutar varias veces sin problema.
+3. **Cuenta de servicio de Firebase** (la Edge Function la usa para escribir en Firestore): Firebase → Configuración del proyecto → Cuentas de servicio → **Generar nueva clave privada**. Guarda el JSON **fuera del repositorio** y cárgalo como secreto. Se pasa en **Base64** porque PowerShell rompe el JSON al enviarlo como argumento (error `Invalid secret pair`):
+   ```powershell
+   $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\Users\<tu-usuario>\secretos\cuenta-servicio.json"))
+   supabase secrets set --project-ref tahnazumbqsupzpusrba FIREBASE_SERVICE_ACCOUNT=$b64
+   ```
+4. Despliega las Edge Functions:
+   ```powershell
+   supabase functions deploy completar-registro --project-ref tahnazumbqsupzpusrba --use-api
+   ```
 
 **Todos, en su computador:**
-1. Copia `env/dev.example.json` como `env/dev.json` y pon la clave en `MAPS_API_KEY` (lo usa Places desde Dart).
-2. Agrega `MAPS_API_KEY=<la clave>` al final de `android/local.properties` (lo usa el mapa de RF-09 vía `AndroidManifest.xml`).
-3. Corre la app con `flutter run --dart-define-from-file=env/dev.json`.
+1. Copia `env/dev.example.json` como `env/dev.json` y pon la **publishable key** (`sb_publishable_...`, en Supabase → Project Settings → API Keys). Es pública; **nunca** pongas ahí la *secret* / *service_role* key.
+2. Corre la app con `flutter run --dart-define-from-file=env/dev.json`.
 
-`env/dev.json` y `android/local.properties` están en `.gitignore`. Sin clave la app compila igual (y el CI pasa): el campo de dirección muestra "El buscador de direcciones no está disponible".
+`env/dev.json` está en `.gitignore`. Sin él la app abre igual, pero "Finalizar Registro" muestra "El registro no está disponible en esta versión de la app".
 
-> Cualquier clave que use un SDK de Android termina dentro del APK: lo que la protege son las **restricciones por paquete + SHA-1 y por API**, no esconderla.
+**Direcciones y mapas:** OpenStreetMap (Photon), gratis y **sin API key**. La UI muestra la atribución "Datos © colaboradores de OpenStreetMap", que exige la licencia de los datos.
 
 ## D. Todos: correr la app
 
 ```powershell
 git pull
 flutter pub get
-flutter run --dart-define-from-file=env/dev.json    # contra Firebase mascoti-b27cf (ver C2)
+flutter run --dart-define-from-file=env/dev.json    # Firebase mascoti-b27cf + Supabase (ver C2)
 ```
 
 Con emuladores locales (recomendado para desarrollar sin tocar datos reales):
 
 ```powershell
 # Terminal 1
-cd functions ; npm install ; npm run build ; cd ..
 firebase emulators:start
 # Terminal 2
 flutter run --dart-define=USE_EMULATORS=true
@@ -98,14 +107,18 @@ flutter run --dart-define=USE_EMULATORS=true --dart-define=EMULATOR_HOST=192.168
 
 La interfaz de los emuladores (usuarios, datos, logs) queda en http://localhost:4000.
 
+> Con emuladores, el registro (Edge Function en la nube) no acepta los usuarios del emulador de Auth. Para probar el registro usa Firebase real; los emuladores sirven para el resto de pantallas y para las pruebas de reglas.
+
 ## E. Problemas comunes
 
 | Síntoma | Solución |
 |---|---|
 | Error `ApiException: 10` o `DEVELOPER_ERROR` al iniciar sesión | Falta el SHA-1 de tu PC en Firebase (sección C). |
 | `minSdkVersion 21 cannot be smaller than 23` | En `android/app/build.gradle.kts`, pon `minSdk = 23`. |
-| La app no conecta con los emuladores | Revisa `EMULATOR_HOST` y que el firewall de Windows permita los puertos 8080, 9099 y 5001. |
-| `completarRegistro` responde `NOT_FOUND` | La Function no está desplegada (paso B.8) o la región no coincide (`us-east1` en `env.dart` y en `functions/src/config.ts`). |
-| "El buscador de direcciones no está disponible" | Falta `env/dev.json` o no corriste con `--dart-define-from-file=env/dev.json` (sección C2). |
-| Places responde `REQUEST_DENIED` | La API key no tiene tu SHA-1 o no tiene habilitada *Places API (New)* (sección C2). |
+| La app no conecta con los emuladores | Revisa `EMULATOR_HOST` y que el firewall de Windows permita los puertos 8080 y 9099. |
+| "El registro no está disponible en esta versión de la app" | Falta `env/dev.json` o no corriste con `--dart-define-from-file=env/dev.json` (sección C2). |
+| "No se pudo completar el registro" al finalizar | Falta el secreto `FIREBASE_SERVICE_ACCOUNT` o la función no está desplegada (sección C2). Mira los logs en Supabase → Edge Functions → completar-registro. |
+| La app se queda en "Estamos tardando en conectar" | Firestore no está creado o las reglas no están desplegadas (paso B.3 y B.8). |
+| `project is paused` / el registro dejó de funcionar | El plan gratuito de Supabase pausa el proyecto tras 7 días sin uso: reactívalo en el panel de Supabase (**Restore project**). |
+| "El buscador de direcciones no está disponible" | Photon (OpenStreetMap) no respondió o limitó el uso; espera un momento y toca Reintentar. |
 | google_sign_in pide `serverClientId` | Pásalo con `--dart-define=GOOGLE_SERVER_CLIENT_ID=<client ID web>` (Firebase → Authentication → Google → Configuración del SDK web). |

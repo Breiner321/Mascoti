@@ -27,7 +27,6 @@ class ProfilePage extends ConsumerWidget {
       ),
     );
     if (confirmed ?? false) {
-      // TODO(RF-13): borrar el token FCM de users/{uid}/devices antes de salir.
       await ref.read(authRepositoryProvider).signOut();
     }
   }

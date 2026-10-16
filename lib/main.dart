@@ -5,10 +5,12 @@ import 'app.dart';
 import 'core/firebase/firebase_bootstrap.dart';
 import 'core/kernel/plugin_manifest.dart';
 import 'core/kernel/plugin_registry.dart';
+import 'core/supabase/supabase_bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FirebaseBootstrap.initialize();
+  await SupabaseBootstrap.initialize();
 
   // Kernel: registra y arranca los plugins habilitados en plugin_manifest.dart.
   final registry = PluginRegistry(enabledPlugins);

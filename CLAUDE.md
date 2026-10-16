@@ -13,9 +13,10 @@ App móvil (**solo APK Android** por ahora) que conecta **dueños de mascotas** 
 ## Stack (no cambiar sin aprobación del equipo)
 
 - **App:** Flutter (Dart 3) · Material 3 · `flutter_riverpod` (estado + inyección de dependencias) · `go_router` (navegación).
-- **Backend:** Firebase — Auth (proveedor Google), Cloud Firestore, Cloud Storage, Cloud Messaging, **Cloud Functions en TypeScript** (`functions/`, Node 22).
+- **Backend:** Firebase plan gratuito — Auth (proveedor Google), Cloud Firestore, Cloud Messaging. **Supabase** — Storage (bucket `mascoti`) y **Edge Functions en TypeScript** (`supabase/functions/`, Deno), que escriben en Firestore con una cuenta de servicio. Supabase acepta el login de Firebase (Third-party Auth).
+- **Mapas y direcciones:** OpenStreetMap (búsqueda con Photon en `core/places`; mapa con `flutter_map`). Sin API key.
 - **Sin generación de código:** no usar `freezed`, `json_serializable` ni `riverpod_generator`. Los modelos son clases inmutables escritas a mano con `fromMap`/`toMap`/`copyWith`.
-- **No hay backend REST propio ni JWT propio.** Las URLs tipo `POST /auth/login` o `PATCH /clinics/{id}` del documento original se traducen a: escritura directa a Firestore protegida por `firestore.rules`, **o** una Callable Function cuando se necesita lógica de confianza (transacciones entre colecciones, pagos, PDF, envío de push).
+- **No hay backend REST propio ni JWT propio.** Las URLs tipo `POST /auth/login` o `PATCH /clinics/{id}` del documento original se traducen a: escritura directa a Firestore protegida por `firestore.rules`, **o** una Edge Function de Supabase cuando se necesita lógica de confianza (transacciones entre colecciones, pagos, PDF, envío de push). Su lógica va en `supabase/functions/_shared/` sin dependencias, con pruebas en `functions/test/`.
 
 ## Arquitectura microkernel (reglas obligatorias)
 
@@ -23,6 +24,7 @@ App móvil (**solo APK Android** por ahora) que conecta **dueños de mascotas** 
 lib/
   core/            ← el KERNEL: nada de lógica de negocio de módulos
     kernel/        MascotiPlugin, PluginRegistry, manifiesto de plugins
+    domain/        modelos que usan varios plugins (Clinic, ClinicService, Slot, Pet)
     auth/          sesión, login/logout Google, roles (RF-01..03)
     router/        GoRouter construido con las rutas de los plugins
     theme/         colores y tipografía de los mockups
@@ -31,7 +33,7 @@ lib/
   plugins/
     <modulo>/      un plugin por módulo funcional
       <modulo>_plugin.dart   ← implementa MascotiPlugin
-      data/        repositorios (acceso a Firestore/Storage/Functions)
+      data/        repositorios (acceso a Firestore, Storage y Edge Functions)
       domain/      modelos
       presentation/ páginas, widgets y providers de UI
 ```
@@ -54,10 +56,10 @@ lib/
 
 ## Seguridad (obligatorio en cada PR que toque datos)
 
-- Toda colección nueva o campo nuevo → actualizar `firestore.rules` (y `storage.rules` si hay archivos) **y** `docs/modelo-datos.md`.
-- El rol se lee en las reglas desde `users/{uid}.role` (función `hasRole()` de `firestore.rules`); ese documento solo lo crea la Function `completarRegistro` y el rol es inmutable. No se usan custom claims.
-- Nunca poner secretos (llaves de pasarela de pago, Dialogflow) en la app: van en Functions con `defineSecret`.
-- La app nunca confía en datos del cliente para precios/stock/estado de pago: eso lo hace una Function.
+- Toda colección nueva o campo nuevo → actualizar `firestore.rules` (y las políticas de Storage en `supabase/migrations/` si hay archivos) **y** `docs/modelo-datos.md`.
+- El rol se lee en las reglas desde `users/{uid}.role` (función `hasRole()` de `firestore.rules`); ese documento solo lo crea la Edge Function `completar-registro` y el rol es inmutable. No se usan custom claims para el rol (el único claim, `role: "authenticated"`, es un requisito técnico de Supabase).
+- Nunca poner secretos (llaves de pasarela de pago, Dialogflow) en la app: van en las Edge Functions como secretos (`supabase secrets set`).
+- La app nunca confía en datos del cliente para precios/stock/estado de pago: eso lo hace una Edge Function.
 
 ## Comandos
 
@@ -65,11 +67,14 @@ lib/
 flutter pub get
 flutter analyze                  # debe quedar en 0 issues
 flutter test                     # pruebas unitarias y de widgets
-flutter run --dart-define=USE_EMULATORS=true   # app contra emuladores locales
+flutter run --dart-define-from-file=env/dev.json   # app contra Firebase + Supabase
+flutter run --dart-define=USE_EMULATORS=true      # app contra emuladores locales (Auth + Firestore)
 flutter build apk --release
 
-cd functions && npm install && npm run build && npm test
-firebase emulators:start         # auth, firestore, functions, storage (UI en http://localhost:4000)
+cd functions && npm install && npm run lint && npm test   # lógica de Edge Functions (+ npm run test:rules con Java)
+deno check supabase/functions/completar-registro/index.ts
+supabase functions deploy <nombre> --project-ref tahnazumbqsupzpusrba --use-api
+firebase emulators:start         # auth, firestore (UI en http://localhost:4000)
 ```
 
 ## Cómo trabajar una tarea (flujo esperado de Claude Code)

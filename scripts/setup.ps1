@@ -48,10 +48,10 @@ if (Test-Path $gradle) {
     Write-Warning "No se encontró $gradle. Ajusta minSdk = 23 manualmente."
 }
 
-Write-Host "`n[4/5] Instalando dependencias de Cloud Functions..." -ForegroundColor Cyan
+Write-Host "`n[4/5] Instalando dependencias de las pruebas de backend (functions/)..." -ForegroundColor Cyan
 Push-Location functions
 Run "npm install"
-Run "npm run build"
+Run "npm run lint"
 Pop-Location
 
 Write-Host "`n[5/5] Listo." -ForegroundColor Green

@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
-import 'package:mascoti/plugins/mascotas/domain/pet.dart';
+import 'package:mascoti/core/domain/pet.dart';
 import 'package:mascoti/plugins/mascotas/mascotas_plugin.dart';
 import 'package:mascoti/plugins/mascotas/presentation/owner_home_page.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pets_providers.dart';
@@ -124,7 +124,7 @@ void main() {
           id: 'p1',
           ownerUid: 'u1',
           nombre: 'Luna',
-          especie: 'perro',
+          especie: PetSpecies.perro,
           fechaNacimiento: birth,
         ),
       ]),

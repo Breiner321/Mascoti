@@ -52,7 +52,7 @@ service cloud.firestore {
     // ---------- users (RF-01, RF-02) ----------
     match /users/{uid} {
       allow read: if isSelf(uid);
-      // Se crea solo desde la Function completarRegistro (Admin SDK).
+      // Se crea solo desde la Edge Function completar-registro.
       allow create, delete: if false;
       // role, estado, clinicId y uid son inmutables desde la app
       // (estado lo cambia solo un administrador con el Admin SDK).
@@ -68,29 +68,174 @@ service cloud.firestore {
       }
     }
 
-    // ---------- clinics (RF-01, RF-04, RF-09) ----------
+    // ---------- Validaciones de campos ----------
+    // Valores en español, iguales a los enums de lib/core/domain.
+    function animalTypes() {
+      return ['perros', 'gatos', 'aves', 'roedores', 'reptiles', 'granja', 'exoticos'];
+    }
+
+    function isTime(t) {
+      return t is string && t.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+    }
+
+    function isDate(d) {
+      return d is string && d.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
+    }
+
+    // Campo opcional: ausente, null o texto de máximo maxLen caracteres.
+    function optString(data, field, maxLen) {
+      return data.get(field, null) == null
+        || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function validAnimalTypes(list) {
+      return list is list && list.size() > 0 && list.hasOnly(animalTypes());
+    }
+
+    // RF-06: {apertura, cierre, duracionSlotMin}, apertura antes del cierre.
+    function validOpeningHours(h) {
+      return h is map
+        && h.keys().hasOnly(['apertura', 'cierre', 'duracionSlotMin'])
+        && isTime(h.apertura) && isTime(h.cierre) && h.apertura < h.cierre
+        && h.duracionSlotMin is int
+        && h.duracionSlotMin >= 5 && h.duracionSlotMin <= 480;
+    }
+
+    // ---------- clinics (RF-01, RF-04, RF-06, RF-09) ----------
     match /clinics/{clinicId} {
       allow read: if signedIn();
+      // La crea solo la Edge Function completar-registro.
       allow create, delete: if false;
+
+      // RF-04: la clínica dueña (activa) edita solo su perfil de atención.
+      // nombre, lat/lng, geo, ownerUid y createdAt no se cambian desde la app.
       allow update: if hasRole('clinica')
         && resource.data.ownerUid == request.auth.uid
-        && !changedKeys().hasAny(['ownerUid', 'createdAt'])
-        && request.resource.data.estado in ['incompleto', 'activo'];
+        && onlyChanges(['tiposAnimales', 'atencionEmergencias', 'horarioBase',
+                        'telefono', 'direccion', 'estado'])
+        && clinicFieldsValid(request.resource.data)
+        && clinicStatusChangeValid();
 
-      // Catálogo de servicios (RF-05). Validaciones de campos: semana 2.
+      function clinicFieldsValid(data) {
+        return (!('tiposAnimales' in changedKeys()) || validAnimalTypes(data.tiposAnimales))
+          && (!('atencionEmergencias' in changedKeys()) || data.atencionEmergencias is bool)
+          && (!('horarioBase' in changedKeys()) || validOpeningHours(data.horarioBase))
+          && (!('telefono' in changedKeys())
+              || (data.telefono is string && data.telefono.matches('^[0-9]{10}$')))
+          && (!('direccion' in changedKeys())
+              || (data.direccion is string && data.direccion.size() >= 3
+                  && data.direccion.size() <= 200));
+      }
+
+      // Única transición permitida: 'incompleto' → 'activo', y solo si ya
+      // tiene al menos un tipo de animal (RF-04, paso 7).
+      function clinicStatusChangeValid() {
+        return !('estado' in changedKeys())
+          || (resource.data.estado == 'incompleto'
+              && request.resource.data.estado == 'activo'
+              && validAnimalTypes(request.resource.data.tiposAnimales));
+      }
+
+      // ---------- Catálogo de servicios (RF-05) ----------
       match /services/{serviceId} {
         allow read: if signedIn();
-        allow create, update: if hasRole('clinica') && isClinicOwner(clinicId);
+        allow create, update: if hasRole('clinica')
+          && isClinicOwner(clinicId)
+          && validService(request.resource.data);
         allow delete: if false; // borrado lógico: activo = false
+
+        function validService(data) {
+          return data.keys().hasOnly(['nombre', 'categoria', 'descripcion', 'precio',
+                                      'duracionMin', 'activo', 'createdAt', 'updatedAt'])
+            && data.nombre is string && data.nombre.size() >= 3 && data.nombre.size() <= 60
+            && data.categoria in ['vacunacion', 'peluqueria', 'bano', 'cirugia',
+                                  'consulta_general', 'otro']
+            && data.precio is number && data.precio > 0
+            && data.duracionMin is int && data.duracionMin >= 5 && data.duracionMin <= 480
+            && data.activo is bool
+            && optString(data, 'descripcion', 1000);
+        }
+      }
+
+      // ---------- Agenda: franjas horarias (RF-06) ----------
+      // Id determinístico {fecha}_{hora} (p. ej. 2026-10-15_09:30).
+      match /slots/{slotId} {
+        allow read: if signedIn();
+
+        // La clínica publica franjas 'disponible' (con servicio) o las
+        // bloquea como 'no_disponible'. 'reservado_temporal' y 'ocupado' los
+        // pone el flujo de agendamiento (RF-14), no la clínica.
+        allow create: if hasRole('clinica')
+          && isClinicOwner(clinicId)
+          && validSlot(request.resource.data);
+
+        // RF-06, flujo alterno: una franja con cita no se puede modificar.
+        allow update: if hasRole('clinica')
+          && isClinicOwner(clinicId)
+          && !(resource.data.estado in ['ocupado', 'reservado_temporal'])
+          && validSlot(request.resource.data);
+
+        allow delete: if hasRole('clinica')
+          && isClinicOwner(clinicId)
+          && !(resource.data.estado in ['ocupado', 'reservado_temporal']);
+
+        function validSlot(data) {
+          return data.keys().hasOnly(['fecha', 'hora', 'inicio', 'serviceId', 'precio', 'estado'])
+            && isDate(data.fecha) && isTime(data.hora)
+            && slotId == data.fecha + '_' + data.hora
+            && data.inicio is timestamp
+            && data.estado in ['disponible', 'no_disponible']
+            && (data.estado != 'disponible'
+                || (data.get('serviceId', null) is string && data.serviceId.size() > 0))
+            && (data.get('precio', null) == null
+                || (data.precio is number && data.precio > 0));
+        }
       }
     }
 
-    // ---------- pets (home del dueño; registro de mascotas: semana 2) ----------
+    // ---------- pets (registro de mascotas, semana 2) ----------
     match /pets/{petId} {
-      // Solo el dueño lee sus mascotas. La app consulta con
-      // where('ownerUid', '==', uid), que estas reglas permiten.
+      // El dueño lee sus mascotas (la app consulta where ownerUid == uid).
+      // TODO(semana 3): las clínicas con cita con la mascota también la leen
+      // (historial médico, RF-08).
       allow read: if isActive() && resource.data.ownerUid == request.auth.uid;
-      allow write: if false; // TODO(semana 2): crear y editar con validaciones
+
+      allow create: if hasRole('dueno')
+        && request.resource.data.ownerUid == request.auth.uid
+        && validPet(request.resource.data);
+
+      allow update: if hasRole('dueno')
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && validPet(request.resource.data);
+
+      allow delete: if hasRole('dueno') && resource.data.ownerUid == request.auth.uid;
+
+      function validPet(data) {
+        return data.keys().hasOnly(['ownerUid', 'nombre', 'especie', 'raza', 'fechaNacimiento',
+                                    'sexo', 'fotoPath', 'alergias', 'condiciones',
+                                    'contactoEmergencia', 'createdAt'])
+          // Obligatorios
+          && data.nombre is string && data.nombre.size() >= 1 && data.nombre.size() <= 40
+          && data.especie in ['perro', 'gato', 'ave', 'roedor', 'reptil', 'granja', 'exotico']
+          // Opcionales
+          && optString(data, 'raza', 60)
+          && (data.get('sexo', null) == null || data.sexo in ['macho', 'hembra'])
+          && (data.get('fechaNacimiento', null) == null
+              || (data.fechaNacimiento is timestamp && data.fechaNacimiento <= request.time))
+          // La foto solo puede estar en la carpeta del dueño (bucket mascotas).
+          && (data.get('fotoPath', null) == null
+              || (data.fotoPath is string
+                  && data.fotoPath.matches('^' + request.auth.uid + '/' + petId + '/foto[.](jpg|png)$')))
+          && data.get('alergias', []) is list && data.get('alergias', []).size() <= 30
+          && data.get('condiciones', []) is list && data.get('condiciones', []).size() <= 30
+          && (data.get('contactoEmergencia', null) == null
+              || (data.contactoEmergencia is map
+                  && data.contactoEmergencia.keys().hasOnly(['nombre', 'telefono'])
+                  && data.contactoEmergencia.nombre is string
+                  && data.contactoEmergencia.telefono is string
+                  && data.contactoEmergencia.telefono.matches('^[0-9]{7,10}$')));
+      }
     }
 
     // ---------- Todo lo demás está cerrado por defecto ----------

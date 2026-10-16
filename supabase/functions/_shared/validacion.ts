@@ -1,4 +1,4 @@
-import { HttpsError } from "firebase-functions/v2/https";
+import { ErrorRegistro } from "./errores.ts";
 
 export type Rol = "dueno" | "clinica";
 
@@ -18,10 +18,10 @@ export interface DatosRegistro {
 const TELEFONO = /^\d{10}$/;
 
 function invalido(mensaje: string): never {
-  throw new HttpsError("invalid-argument", mensaje);
+  throw new ErrorRegistro("invalid-argument", mensaje);
 }
 
-/** lat/lng vienen de Google Places: obligatorios, finitos y en rango. */
+/** lat/lng vienen del buscador de direcciones: obligatorios, finitos y en rango. */
 function coordenada(valor: unknown, limite: number): number {
   if (typeof valor !== "number" || !Number.isFinite(valor) || Math.abs(valor) > limite) {
     invalido("Selecciona una dirección válida de la lista");
@@ -29,7 +29,7 @@ function coordenada(valor: unknown, limite: number): number {
   return valor;
 }
 
-/** Valida el payload de completarRegistro con las reglas de RF-01 (paso 9-10). */
+/** Valida el payload de completar-registro con las reglas de RF-01 (pasos 9-10). */
 export function validarRegistro(data: unknown): DatosRegistro {
   if (typeof data !== "object" || data === null) invalido("Datos de registro vacíos");
   const { role, clinica } = data as Record<string, unknown>;
