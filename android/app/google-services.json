@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "387449002729-b5e73la1eoahfa9ctmap41d52tcdodh0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "co.mascoti.mascoti",
+            "certificate_hash": "03dbb5feaf011c5ed8c821a1da075a3dfc2c96b5"
+          }
+        },
+        {
           "client_id": "387449002729-ejsc0s6k0sh1vclj3s27q7d19gpci0tg.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
