@@ -14,6 +14,7 @@ build/
 
 # Android
 android/.gradle/
+android/.kotlin/
 android/captures/
 android/local.properties
 android/**/GeneratedPluginRegistrant.java
