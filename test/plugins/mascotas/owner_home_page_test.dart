@@ -133,5 +133,33 @@ void main() {
     expect(find.text('Luna'), findsOneWidget);
     expect(find.text('Perro · 3 años'), findsOneWidget);
     expect(find.text('Registra tu primera mascota'), findsNothing);
+    expect(find.byTooltip('Agregar mascota'), findsOneWidget);
+    expect(find.byTooltip('Cambiar mascota'), findsNothing);
+  });
+
+  testWidgets('con varias mascotas se cambia la activa con el selector', (tester) async {
+    await pumpHome(
+      tester,
+      pets: Stream.value(const [
+        Pet(id: 'p2', ownerUid: 'u1', nombre: 'Michi', especie: PetSpecies.gato),
+        Pet(id: 'p1', ownerUid: 'u1', nombre: 'Luna', especie: PetSpecies.perro),
+      ]),
+    );
+
+    // Por defecto, la más reciente (primera de la lista).
+    expect(find.text('Michi'), findsOneWidget);
+    expect(find.text('Luna'), findsNothing);
+
+    await tester.tap(find.byTooltip('Cambiar mascota'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mis mascotas'), findsOneWidget);
+    expect(find.text('Agregar mascota'), findsOneWidget);
+
+    await tester.tap(find.text('Luna'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Luna'), findsOneWidget);
+    expect(find.text('Perro'), findsOneWidget);
+    expect(find.text('Michi'), findsNothing);
   });
 }

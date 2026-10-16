@@ -17,6 +17,15 @@ abstract final class AppColors {
   static const sosBorder = Color(0xFFFECACA);
   static const success = Color(0xFF16A34A); // snackbar "Perfil actualizado"
   static const textMuted = Color(0xFF81778C);
+
+  // Agenda (RF-06): estados de las franjas.
+  static const slotAvailable = success; // disponible
+  static const slotAvailableContainer = Color(0xFFDCFCE7);
+  static const slotCovered = Color(0xFFF0FDF4); // cubierta por un servicio largo
+  static const slotBlocked = Color(0xFFB45309); // no disponible (almuerzo…)
+  static const slotBlockedContainer = Color(0xFFFEF3C7);
+  static const slotLocked = Color(0xFF6B7280); // ocupada / reservada
+  static const slotLockedContainer = Color(0xFFE5E7EB);
 }
 
 abstract final class AppTheme {

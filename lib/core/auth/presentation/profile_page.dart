@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../kernel/plugin_registry.dart';
 import '../../theme/app_theme.dart';
 import '../auth_providers.dart';
 
@@ -36,6 +38,7 @@ class ProfilePage extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     if (user == null) return const SizedBox.shrink();
     final photo = user.photoUrl;
+    final links = ref.watch(pluginRegistryProvider).profileLinksFor(user);
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -69,7 +72,17 @@ class ProfilePage extends ConsumerWidget {
             side: BorderSide.none,
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
+        for (final link in links)
+          Card(
+            child: ListTile(
+              leading: Icon(link.icon, color: AppColors.primary),
+              title: Text(link.label),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(link.path),
+            ),
+          ),
+        const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: () => _confirmSignOut(context, ref),
           icon: const Icon(Icons.logout),
