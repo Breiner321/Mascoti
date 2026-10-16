@@ -60,7 +60,7 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 | RF-02 | 🟨 | errores tipados, suspensión (reglas + Function) y pruebas |
 | RF-03 | 🟨 | logout local sin red; falta borrar token FCM (RF-13) |
 | RF-04 | 🟨 | pantalla `/clinica/perfil-atencion` (especies, emergencias, horario base), `ClinicRepository` en tiempo real, paso de `incompleto` a `activo`, enlace desde el perfil y la agenda, pruebas. Falta: prueba de punta a punta en el emulador con Firebase |
-| RF-05 | ⬜ | base lista: modelo `ClinicService` y reglas de `services` |
+| RF-05 | 🟨 | `/clinica/servicios`: lista en tiempo real, formulario crear/editar en bottom sheet, borrado lógico con confirmación, animación y snackbar, reintento ante fallo de red; `ServicesRepository` y pruebas. Falta: advertencia de citas activas (TODO, depende de RF-14) y prueba de punta a punta |
 | RF-06 | ⬜ | base lista: modelo `Slot`, reglas e índices de `slots` |
 | RF-07 | ⬜ | |
 | RF-08 | ⬜ | |
