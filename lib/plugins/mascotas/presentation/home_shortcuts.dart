@@ -48,13 +48,6 @@ abstract final class HomeShortcuts {
     path: MascotasRoutes.newPet,
   );
 
-  static const petList = HomeShortcut(
-    label: 'Mis mascotas',
-    icon: Icons.menu,
-    pluginId: 'mascotas',
-    path: MascotasRoutes.petList,
-  );
-
   /// Sección "Accesos" (2 × 2).
   static const access = [
     HomeShortcut(

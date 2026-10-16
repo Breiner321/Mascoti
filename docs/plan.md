@@ -74,7 +74,7 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 | RF-16 | ⬜ | |
 | RF-17 | ⬜ | |
 | RF-18 | ⬜ | |
-| Mascotas (soporte) | ⬜ | |
+| Mascotas (soporte) | 🟨 | formulario crear/editar (`/mascotas/nueva`, `/mascotas/perfil/:petId/editar`) con foto (cámara o galería, compresión a ≤ 1 MB, JPG/PNG), alergias y condiciones en chips, contacto de emergencia (10 dígitos); `PetsRepository` (stream, crear, editar, foto en Supabase por etapas y guardado sin foto con "Reintentar" si falla); perfil `/mascotas/perfil/:petId` con pestañas vacías para RF-08 y RF-17/18; tarjeta "Mi mascota" con mascota activa y selector; pruebas. Falta: prueba de punta a punta con Supabase en el emulador |
 | Registros médicos (soporte) | ⬜ | |
 
 Leyenda: ⬜ pendiente · 🟨 en curso · 🟩 integrado en `main`
