@@ -84,6 +84,9 @@ void main() {
       expect(goStep(CoreRoutes.registration, const AsyncData(setup)), setup);
       expect(goStep(CoreRoutes.splash, const AsyncData(setup)), setup);
       expect(goStep('/clinica', const AsyncData(setup)), setup);
+      // RF-04: ni el resto del panel ni las reservas de la clínica.
+      expect(goStep('/clinica/servicios', const AsyncData(setup)), setup);
+      expect(goStep('/reservas', const AsyncData(setup)), setup);
       expect(goStep(setup, const AsyncData(setup)), isNull);
       expect(goStep(CoreRoutes.profile, const AsyncData(setup)), isNull);
     });

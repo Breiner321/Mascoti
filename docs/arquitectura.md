@@ -43,10 +43,13 @@ abstract class MascotiPlugin {
   Future<void> initialize() async {}      // opcional: configuración al arrancar
   // opcional: ruta obligatoria para el usuario (onboarding, perfil incompleto…)
   ProviderListenable<AsyncValue<String?>>? requiredStep(AppUser user) => null;
+  List<PluginProfileLink> profileLinks(AppUser user) => const []; // enlaces en /perfil
 }
 ```
 
 **Pasos obligatorios sin que el core conozca los plugins.** Un plugin puede exigir que el usuario pase por una de sus rutas antes de usar la app (p. ej. `clinica` exige `/clinica/perfil-atencion` mientras `clinics/{id}.estado == 'incompleto'`). El plugin devuelve un provider desde `requiredStep`; el core (`pendingStepProvider`) solo combina esos valores y el `redirect` lleva al usuario a esa ruta (permite además `/perfil` para cerrar sesión). Mientras el plugin responde, el usuario espera en el splash.
+
+**Enlaces en el perfil.** El perfil (`/perfil`) es del core y no puede importar plugins. Un plugin aporta enlaces a sus pantallas de configuración con `profileLinks` (p. ej. `clinica` aporta "Perfil de atención" para editar RF-04 después).
 
 `lib/core/kernel/plugin_manifest.dart` es la **única** lista de plugins activos:
 

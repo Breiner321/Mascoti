@@ -27,6 +27,23 @@ class PluginDestination {
   final int order;
 }
 
+/// Enlace que un plugin aporta a la pantalla de perfil (p. ej. la
+/// configuración del módulo para editarla después).
+@immutable
+class PluginProfileLink {
+  const PluginProfileLink({
+    required this.label,
+    required this.icon,
+    required this.path,
+  });
+
+  final String label;
+  final IconData icon;
+
+  /// Ruta a la que navega el enlace (debe pertenecer al plugin).
+  final String path;
+}
+
 /// Contrato que todo módulo funcional de Mascoti debe implementar.
 ///
 /// Reglas (ver docs/arquitectura.md):
@@ -55,6 +72,9 @@ abstract class MascotiPlugin {
   /// a ser null. Debe devolver siempre el mismo provider para el mismo usuario
   /// (p. ej. un `family`). Por defecto el plugin no exige nada.
   ProviderListenable<AsyncValue<String?>>? requiredStep(AppUser user) => null;
+
+  /// Enlaces que el plugin aporta a la pantalla de perfil de [user].
+  List<PluginProfileLink> profileLinks(AppUser user) => const [];
 
   /// Configuración opcional al arrancar la app (se ejecuta una vez).
   Future<void> initialize() async {}
