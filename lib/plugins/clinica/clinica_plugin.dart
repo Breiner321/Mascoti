@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:go_router/go_router.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import '../../core/auth/domain/app_user.dart';
 import '../../core/kernel/mascoti_plugin.dart';
@@ -22,6 +23,10 @@ class ClinicaPlugin extends MascotiPlugin {
 
   @override
   Set<UserRole> get roles => const {UserRole.clinica};
+
+  /// El calendario de la agenda (table_calendar) formatea fechas en español.
+  @override
+  Future<void> initialize() => initializeDateFormatting('es');
 
   @override
   List<RouteBase> routes() => [

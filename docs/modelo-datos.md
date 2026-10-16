@@ -39,7 +39,7 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 
 Subcolecciones:
 - `services/{serviceId}` — RF-05: `{nombre, categoria, descripcion, precio, duracionMin, activo, createdAt, updatedAt}`; `precio` en COP: la app solo envía enteros (decisión del equipo; el RF permitía 2 decimales) y las reglas aceptan cualquier número > 0; `categoria ∈ vacunacion, peluqueria, bano, cirugia, consulta_general, otro`.
-- `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — RF-06: `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados.
+- `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — RF-06: `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados. Una franja `disponible` ocupa de `hora` a `hora + duracionMin` del servicio: las franjas que quedan dentro de ese rango no tienen documento (la app las muestra como "cubiertas") y la app no permite guardar si el rango pisa otra franja o pasa del cierre (`DaySchedule.conflicts`). Una franja sin documento no se ofrece a los dueños.
 - `products/{productId}` — RF-07: `{nombre, categoria, descripcion, precio, stock, fotoUrl, estado:'activo'|'agotado'|'inactivo', createdAt}`.
 
 ## `pets/{petId}` — soporte para RF-08, RF-14, RF-17, RF-18
