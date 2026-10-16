@@ -59,6 +59,18 @@ class ClinicaPlugin extends MascotiPlugin {
         ),
       ];
 
+  /// RF-04: editar el perfil de atención después de la primera configuración.
+  @override
+  List<PluginProfileLink> profileLinks(AppUser user) => user.clinicId == null
+      ? const []
+      : const [
+          PluginProfileLink(
+            label: 'Perfil de atención',
+            icon: Icons.tune,
+            path: ClinicaRoutes.setup,
+          ),
+        ];
+
   @override
   ProviderListenable<AsyncValue<String?>>? requiredStep(AppUser user) {
     final clinicId = user.clinicId;

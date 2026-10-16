@@ -59,7 +59,7 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 | RF-01 | 🟨 | backend, interfaz de registro (LOGIN + Places), paso obligatorio de la clínica, home y onboarding del dueño. Direcciones con OpenStreetMap; registro con la Edge Function `completar-registro`. Falta: secreto de Supabase y prueba de punta a punta |
 | RF-02 | 🟨 | errores tipados, suspensión (reglas + Function) y pruebas |
 | RF-03 | 🟨 | logout local sin red; falta borrar token FCM (RF-13) |
-| RF-04 | ⬜ | base lista: modelo `Clinic` en core y reglas de `clinics` |
+| RF-04 | 🟨 | pantalla `/clinica/perfil-atencion` (especies, emergencias, horario base), `ClinicRepository` en tiempo real, paso de `incompleto` a `activo`, enlace desde el perfil y la agenda, pruebas. Falta: prueba de punta a punta en el emulador con Firebase |
 | RF-05 | ⬜ | base lista: modelo `ClinicService` y reglas de `services` |
 | RF-06 | ⬜ | base lista: modelo `Slot`, reglas e índices de `slots` |
 | RF-07 | ⬜ | |

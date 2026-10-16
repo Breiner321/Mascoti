@@ -32,7 +32,7 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 | geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09). Lo calcula `completar-registro` (geohash de 10 caracteres, igual a `geofire-common`) |
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
 | atencionEmergencias | bool | RF-10 |
-| horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06. Horas `HH:mm` (24 h); duración entera 5–480. `OpeningHours.slotTimes()` genera las franjas del día |
+| horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06. Horas `HH:mm` (24 h); duración entera 5–480 (la app ofrece 15, 30 o 60 min en RF-04). `OpeningHours.slotTimes()` genera las franjas del día |
 | calificacion | number? | promedio (futuro) |
 | estado | `'incompleto' \| 'activo'` | pasa a activo en RF-04. Mientras sea `incompleto`, la app obliga a la clínica a ir a `/clinica/perfil-atencion` |
 | createdAt | Timestamp | |

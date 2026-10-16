@@ -65,6 +65,10 @@ class PluginRegistry {
     return list;
   }
 
+  List<PluginProfileLink> profileLinksFor(AppUser user) => [
+        for (final plugin in pluginsFor(user.role)) ...plugin.profileLinks(user),
+      ];
+
   MascotiPlugin? pluginForLocation(String location) {
     for (final plugin in _plugins) {
       if (isUnder(location, plugin.basePath)) return plugin;
