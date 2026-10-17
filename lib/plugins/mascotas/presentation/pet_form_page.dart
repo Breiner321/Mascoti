@@ -64,6 +64,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
   late final _contactoTelefono =
       TextEditingController(text: widget.initial?.contactoEmergencia?.telefono);
   late final _fechaText = TextEditingController();
+  late final _sexoDetalle = TextEditingController(text: widget.initial?.sexoDetalle);
 
   late PetSpecies? _especie = widget.initial?.especie;
   late PetSex? _sexo = widget.initial?.sexo;
@@ -85,7 +86,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
 
   @override
   void dispose() {
-    for (final c in [_nombre, _raza, _contactoNombre, _contactoTelefono, _fechaText]) {
+    for (final c in [_nombre, _raza, _contactoNombre, _contactoTelefono, _fechaText, _sexoDetalle]) {
       c.dispose();
     }
     super.dispose();
@@ -141,6 +142,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
       especie: _especie!,
       raza: optional(_raza),
       sexo: _sexo,
+      sexoDetalle: _sexo == PetSex.otro ? _sexoDetalle.text.trim() : null,
       fechaNacimiento: _fechaNacimiento,
       fotoPath: initial?.fotoPath,
       alergias: _alergias,
@@ -148,6 +150,8 @@ class _PetFormState extends ConsumerState<_PetForm> {
       contactoEmergencia: contactoNombre == null || contactoTelefono == null
           ? null
           : EmergencyContact(nombre: contactoNombre, telefono: contactoTelefono),
+      codigoPaciente: initial?.codigoPaciente,
+      clinicasAutorizadas: initial?.clinicasAutorizadas ?? const [],
       createdAt: initial?.createdAt,
     );
   }
@@ -279,6 +283,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 for (final s in PetSex.values)
                   ChoiceChip(
@@ -290,6 +295,19 @@ class _PetFormState extends ConsumerState<_PetForm> {
                   ),
               ],
             ),
+            if (_sexo == PetSex.otro) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _sexoDetalle,
+                enabled: enabled,
+                maxLength: PetValidators.maxSexoDetalle,
+                decoration: const InputDecoration(
+                  labelText: 'Especifique',
+                  hintText: 'Ej.: hermafrodita, no determinable',
+                ),
+                validator: PetValidators.sexoDetalle,
+              ),
+            ],
             const SizedBox(height: 24),
             TagChipsField(
               label: 'Alergias',

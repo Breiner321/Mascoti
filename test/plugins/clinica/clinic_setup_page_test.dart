@@ -111,8 +111,9 @@ void main() {
       expect(find.widgetWithText(CheckboxListTile, type.label), findsOneWidget);
     }
     expect(find.text('Atendemos emergencias'), findsOneWidget);
-    expect(find.text('08:00'), findsOneWidget);
-    expect(find.text('18:00'), findsOneWidget);
+    // Se muestran en AM/PM; en Firestore siguen en 24 h.
+    expect(find.text('8:00 a. m.'), findsOneWidget);
+    expect(find.text('6:00 p. m.'), findsOneWidget);
     expect(find.text('30 min'), findsOneWidget);
   });
 
@@ -169,7 +170,7 @@ void main() {
     final aves = tester.widget<CheckboxListTile>(
         find.widgetWithText(CheckboxListTile, 'Aves'));
     expect(aves.value, isTrue);
-    expect(find.text('07:00'), findsOneWidget);
+    expect(find.text('7:00 a. m.'), findsOneWidget);
     expect(await isEnabled(tester), isTrue);
     expect(find.text('Cerrar sesión'), findsNothing);
   });

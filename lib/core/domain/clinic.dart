@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 import 'animal_type.dart';
+import 'clinic_service.dart';
 import 'opening_hours.dart';
 
 /// `clinics.estado`: pasa de incompleto a activo al configurar el perfil de
@@ -34,6 +35,7 @@ class Clinic {
     required this.lng,
     this.geohash,
     this.tiposAnimales = const [],
+    this.categoriasServicio = const [],
     this.atencionEmergencias = false,
     this.horarioBase,
     this.calificacion,
@@ -53,6 +55,12 @@ class Clinic {
       lng: (map['lng'] as num?)?.toDouble() ?? 0,
       geohash: geo is Map ? geo['geohash'] as String? : null,
       tiposAnimales: AnimalType.listFrom(map['tiposAnimales']),
+      categoriasServicio: map['categoriasServicio'] is List
+          ? [
+              for (final v in map['categoriasServicio'] as List)
+                if (v is String) ServiceCategory.fromValue(v),
+            ]
+          : const [],
       atencionEmergencias: map['atencionEmergencias'] == true,
       horarioBase: map['horarioBase'] is Map
           ? OpeningHours.fromMap(Map<String, dynamic>.from(map['horarioBase'] as Map))
@@ -75,6 +83,11 @@ class Clinic {
   final String? geohash;
 
   final List<AnimalType> tiposAnimales;
+
+  /// Categorías de sus servicios activos (RF-05), para filtrar el mapa
+  /// (RF-09) sin consultar la subcolección de cada clínica. La actualiza el
+  /// plugin clinica al guardar o desactivar un servicio.
+  final List<ServiceCategory> categoriasServicio;
   final bool atencionEmergencias;
 
   /// null hasta que la clínica configure su horario (RF-06).
@@ -100,6 +113,7 @@ class Clinic {
           'geopoint': GeoPoint(lat, lng),
         },
         'tiposAnimales': [for (final t in tiposAnimales) t.value],
+        'categoriasServicio': [for (final c in categoriasServicio) c.value],
         'atencionEmergencias': atencionEmergencias,
         'horarioBase': horarioBase?.toMap(),
         'calificacion': calificacion,
@@ -123,6 +137,7 @@ class Clinic {
     String? telefono,
     String? direccion,
     List<AnimalType>? tiposAnimales,
+    List<ServiceCategory>? categoriasServicio,
     bool? atencionEmergencias,
     OpeningHours? horarioBase,
     ClinicStatus? estado,
@@ -137,6 +152,7 @@ class Clinic {
         lng: lng,
         geohash: geohash,
         tiposAnimales: tiposAnimales ?? this.tiposAnimales,
+        categoriasServicio: categoriasServicio ?? this.categoriasServicio,
         atencionEmergencias: atencionEmergencias ?? this.atencionEmergencias,
         horarioBase: horarioBase ?? this.horarioBase,
         calificacion: calificacion,
@@ -156,6 +172,7 @@ class Clinic {
       other.lng == lng &&
       other.geohash == geohash &&
       listEquals(other.tiposAnimales, tiposAnimales) &&
+      listEquals(other.categoriasServicio, categoriasServicio) &&
       other.atencionEmergencias == atencionEmergencias &&
       other.horarioBase == horarioBase &&
       other.calificacion == calificacion &&
@@ -173,6 +190,7 @@ class Clinic {
         lng,
         geohash,
         Object.hashAll(tiposAnimales),
+        Object.hashAll(categoriasServicio),
         atencionEmergencias,
         horarioBase,
         calificacion,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/domain/slot.dart';
+import '../../../core/format/time_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/day_schedule.dart';
 import 'service_validators.dart';
@@ -98,11 +99,20 @@ class SlotTile extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      franja.hora,
-                      style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    // "10:20 a. m." es más largo que "10:20": se reduce para
+                    // caber en la grilla de 3 columnas sin desbordar.
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          TimeFormat.hour(franja.hora),
+                          maxLines: 1,
+                          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 4),
                     if (franja.edited)
                       const Icon(Icons.edit, size: 14, color: AppColors.primary),
                     if (selected)

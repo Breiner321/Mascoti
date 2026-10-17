@@ -31,21 +31,25 @@ enum PetSpecies {
   }
 }
 
-/// `pets.sexo`.
+/// `pets.sexo`. Algunas especies (exóticos, aves jóvenes, reptiles) no
+/// tienen el sexo determinado; con [otro] se especifica en `sexoDetalle`.
 enum PetSex {
   macho('macho', 'Macho'),
-  hembra('hembra', 'Hembra');
+  hembra('hembra', 'Hembra'),
+  indeterminado('indeterminado', 'Indeterminado'),
+  otro('otro', 'Otro (especifique)');
 
   const PetSex(this.value, this.label);
 
   final String value;
   final String label;
 
-  static PetSex? fromValue(Object? value) => switch (value) {
-        'macho' => macho,
-        'hembra' => hembra,
-        _ => null,
-      };
+  static PetSex? fromValue(Object? value) {
+    for (final s in values) {
+      if (s.value == value) return s;
+    }
+    return null;
+  }
 }
 
 /// `pets.contactoEmergencia` (RF-17: se muestra en la placa QR).
@@ -83,11 +87,14 @@ class Pet {
     required this.especie,
     this.raza,
     this.sexo,
+    this.sexoDetalle,
     this.fechaNacimiento,
     this.fotoPath,
     this.alergias = const [],
     this.condiciones = const [],
     this.contactoEmergencia,
+    this.codigoPaciente,
+    this.clinicasAutorizadas = const [],
     this.createdAt,
   });
 
@@ -98,6 +105,7 @@ class Pet {
         especie: PetSpecies.fromValue(map['especie']),
         raza: map['raza'] as String?,
         sexo: PetSex.fromValue(map['sexo']),
+        sexoDetalle: map['sexoDetalle'] as String?,
         fechaNacimiento: (map['fechaNacimiento'] as Timestamp?)?.toDate(),
         fotoPath: map['fotoPath'] as String?,
         alergias: _strings(map['alergias']),
@@ -106,6 +114,8 @@ class Pet {
             ? EmergencyContact.fromMap(
                 Map<String, dynamic>.from(map['contactoEmergencia'] as Map))
             : null,
+        codigoPaciente: map['codigoPaciente'] as String?,
+        clinicasAutorizadas: _strings(map['clinicasAutorizadas']),
         createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       );
 
@@ -115,6 +125,18 @@ class Pet {
   final PetSpecies especie;
   final String? raza;
   final PetSex? sexo;
+
+  /// Texto libre cuando [sexo] es [PetSex.otro] (máx. 30 caracteres).
+  final String? sexoDetalle;
+
+  /// Texto para mostrar: "Hembra", "Otro: hermafrodita", "Sin registrar".
+  String get sexoTexto => switch (sexo) {
+        null => 'Sin registrar',
+        PetSex.otro => (sexoDetalle?.trim().isNotEmpty ?? false)
+            ? 'Otro: ${sexoDetalle!.trim()}'
+            : 'Otro',
+        final s => s.label,
+      };
   final DateTime? fechaNacimiento;
 
   /// Ruta de la foto en el bucket `mascotas` de Supabase Storage:
@@ -124,6 +146,16 @@ class Pet {
   final List<String> alergias;
   final List<String> condiciones;
   final EmergencyContact? contactoEmergencia;
+
+  /// Código que el dueño le da a la clínica para vincularla (`MSC-XXXX`,
+  /// ver PatientCode). Se asigna al crear la mascota y nunca cambia. null
+  /// solo en mascotas creadas antes de la semana 3 (se asigna al abrirlas).
+  final String? codigoPaciente;
+
+  /// Ids de las clínicas que pueden ver la mascota y su historial. Las
+  /// agrega la Edge Function `vincular-mascota`; el dueño solo puede quitar.
+  final List<String> clinicasAutorizadas;
+
   final DateTime? createdAt;
 
   static List<String> _strings(Object? raw) =>
@@ -135,12 +167,16 @@ class Pet {
         'especie': especie.value,
         'raza': raza,
         'sexo': sexo?.value,
+        // Solo se guarda con sexo "otro".
+        'sexoDetalle': sexo == PetSex.otro ? sexoDetalle : null,
         'fechaNacimiento':
             fechaNacimiento == null ? null : Timestamp.fromDate(fechaNacimiento!),
         'fotoPath': fotoPath,
         'alergias': alergias,
         'condiciones': condiciones,
         'contactoEmergencia': contactoEmergencia?.toMap(),
+        'codigoPaciente': codigoPaciente,
+        'clinicasAutorizadas': clinicasAutorizadas,
         'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!),
       };
 
@@ -149,11 +185,14 @@ class Pet {
     PetSpecies? especie,
     String? raza,
     PetSex? sexo,
+    String? sexoDetalle,
     DateTime? fechaNacimiento,
     String? fotoPath,
     List<String>? alergias,
     List<String>? condiciones,
     EmergencyContact? contactoEmergencia,
+    String? codigoPaciente,
+    List<String>? clinicasAutorizadas,
   }) =>
       Pet(
         id: id,
@@ -162,11 +201,14 @@ class Pet {
         especie: especie ?? this.especie,
         raza: raza ?? this.raza,
         sexo: sexo ?? this.sexo,
+        sexoDetalle: sexoDetalle ?? this.sexoDetalle,
         fechaNacimiento: fechaNacimiento ?? this.fechaNacimiento,
         fotoPath: fotoPath ?? this.fotoPath,
         alergias: alergias ?? this.alergias,
         condiciones: condiciones ?? this.condiciones,
         contactoEmergencia: contactoEmergencia ?? this.contactoEmergencia,
+        codigoPaciente: codigoPaciente ?? this.codigoPaciente,
+        clinicasAutorizadas: clinicasAutorizadas ?? this.clinicasAutorizadas,
         createdAt: createdAt,
       );
 
@@ -197,11 +239,14 @@ class Pet {
       other.especie == especie &&
       other.raza == raza &&
       other.sexo == sexo &&
+      other.sexoDetalle == sexoDetalle &&
       other.fechaNacimiento == fechaNacimiento &&
       other.fotoPath == fotoPath &&
       listEquals(other.alergias, alergias) &&
       listEquals(other.condiciones, condiciones) &&
       other.contactoEmergencia == contactoEmergencia &&
+      other.codigoPaciente == codigoPaciente &&
+      listEquals(other.clinicasAutorizadas, clinicasAutorizadas) &&
       other.createdAt == createdAt;
 
   @override
@@ -212,11 +257,14 @@ class Pet {
         especie,
         raza,
         sexo,
+        sexoDetalle,
         fechaNacimiento,
         fotoPath,
         Object.hashAll(alergias),
         Object.hashAll(condiciones),
         contactoEmergencia,
+        codigoPaciente,
+        Object.hashAll(clinicasAutorizadas),
         createdAt,
       );
 }

@@ -1,7 +1,7 @@
 // Edge Function completar-registro (RF-01). Reemplaza a la Cloud Function
 // completarRegistro: el plan gratuito de Firebase no permite desplegar
 // Cloud Functions. La lógica está en ../_shared/registro.ts (con pruebas).
-import { ErrorRegistro } from "../_shared/errores.ts";
+import { ErrorFuncion } from "../_shared/errores.ts";
 import { nuevoIdFirestore } from "../_shared/firestore.ts";
 import { leerCuentaServicio } from "../_shared/cuenta_servicio.ts";
 import { commitFirestore, habilitarEnSupabase, verificarTokenFirebase } from "../_shared/google.ts";
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     );
     return responder(200, resultado);
   } catch (e) {
-    if (e instanceof ErrorRegistro) {
+    if (e instanceof ErrorFuncion) {
       return responder(e.estadoHttp, { error: { code: e.codigo, message: e.message } });
     }
     console.error(e);

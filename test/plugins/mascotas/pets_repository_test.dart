@@ -3,6 +3,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/plugins/mascotas/data/pets_repository.dart';
+import 'package:mascoti/core/domain/patient_code.dart';
 import 'package:mascoti/core/domain/pet.dart';
 import 'package:mascoti/plugins/mascotas/domain/pet_photo.dart';
 
@@ -150,6 +151,63 @@ void main() {
 
       expect((await doc('p1'))['fotoPath'], 'ana/p1/foto.png');
       expect(storage.deleted, ['ana/p1/foto.jpg']);
+    });
+
+    test('al crear asigna el código de paciente y lo registra en codigosPaciente',
+        () async {
+      final codes = ['MSC-7K4P'].iterator;
+      repository = PetsRepository(
+        firestore: firestore,
+        storage: storage,
+        generateCode: () => (codes..moveNext()).current,
+      );
+
+      await repository.savePet(luna('p1'), isNew: true);
+
+      final data = await doc('p1');
+      expect(data['codigoPaciente'], 'MSC-7K4P');
+      expect(data['clinicasAutorizadas'], isEmpty);
+      final code = (await firestore.doc('codigosPaciente/MSC-7K4P').get()).data()!;
+      expect(code['petId'], 'p1');
+      expect(code['ownerUid'], 'ana');
+    });
+
+    test('editar no toca el código ni las clínicas autorizadas', () async {
+      await repository.savePet(luna('p1'), isNew: true);
+      final code = (await doc('p1'))['codigoPaciente'];
+      await firestore.doc('pets/p1').update({'clinicasAutorizadas': ['c1']});
+
+      // El formulario podría traer una versión vieja de la mascota.
+      await repository.savePet(luna('p1').copyWith(nombre: 'Luna B'), isNew: false);
+
+      final data = await doc('p1');
+      expect(data['nombre'], 'Luna B');
+      expect(data['codigoPaciente'], code);
+      expect(data['clinicasAutorizadas'], ['c1']);
+    });
+
+    test('ensurePatientCode asigna código a una mascota de la semana 2 una sola vez',
+        () async {
+      await firestore.doc('pets/p1').set({'ownerUid': 'ana', 'nombre': 'Luna', 'especie': 'perro'});
+      final antigua = (await repository.watchPet('p1').first)!;
+      expect(antigua.codigoPaciente, isNull);
+
+      final code = await repository.ensurePatientCode(antigua);
+
+      expect(PatientCode.isValid(code), isTrue);
+      expect((await doc('p1'))['codigoPaciente'], code);
+      expect((await firestore.doc('codigosPaciente/$code').get()).data()!['petId'], 'p1');
+      final conCodigo = (await repository.watchPet('p1').first)!;
+      expect(await repository.ensurePatientCode(conCodigo), code);
+    });
+
+    test('revokeClinic quita solo esa clínica', () async {
+      await repository.savePet(luna('p1'), isNew: true);
+      await firestore.doc('pets/p1').update({'clinicasAutorizadas': ['c1', 'c2']});
+
+      await repository.revokeClinic('p1', 'c1');
+
+      expect((await doc('p1'))['clinicasAutorizadas'], ['c2']);
     });
 
     test('watchPet emite la mascota, o null si no existe', () async {

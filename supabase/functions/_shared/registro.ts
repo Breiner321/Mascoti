@@ -1,4 +1,4 @@
-import { ErrorRegistro } from "./errores.ts";
+import { ErrorFuncion } from "./errores.ts";
 import { crearDocumento, type EscrituraFirestore, HORA_SERVIDOR, PuntoGeo } from "./firestore.ts";
 import { geohash } from "./geohash.ts";
 import { validarRegistro, type Rol } from "./validacion.ts";
@@ -44,14 +44,14 @@ export async function completarRegistro(
 ): Promise<ResultadoRegistro> {
   const token = autorizacion?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) {
-    throw new ErrorRegistro("unauthenticated", "Debes iniciar sesión con Google.");
+    throw new ErrorFuncion("unauthenticated", "Debes iniciar sesión con Google.");
   }
 
   let usuario: UsuarioFirebase;
   try {
     usuario = await deps.verificarToken(token);
   } catch {
-    throw new ErrorRegistro("unauthenticated", "Debes iniciar sesión con Google.");
+    throw new ErrorFuncion("unauthenticated", "Debes iniciar sesión con Google.");
   }
 
   const datos = validarRegistro(cuerpo);
@@ -97,7 +97,7 @@ export async function completarRegistro(
 
   const resultado = await deps.commit(escrituras);
   if (resultado === "ya-existe") {
-    throw new ErrorRegistro("already-exists", "Esta cuenta ya está registrada. Iniciando sesión...");
+    throw new ErrorFuncion("already-exists", "Esta cuenta ya está registrada. Iniciando sesión...");
   }
 
   try {

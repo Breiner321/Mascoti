@@ -3,7 +3,12 @@
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.9.6";
 
 import type { CuentaServicio } from "./cuenta_servicio.ts";
-import type { EscrituraFirestore } from "./firestore.ts";
+import {
+  decodificarCampos,
+  type EscrituraFirestore,
+  type TransformacionFirestore,
+  type ValorFirestore,
+} from "./firestore.ts";
 import type { UsuarioFirebase } from "./registro.ts";
 
 const JWKS_FIREBASE = createRemoteJWKSet(
@@ -65,7 +70,7 @@ async function tokenDeAcceso(cuenta: CuentaServicio): Promise<string> {
 /** Commit atómico de Firestore. "ya-existe" si falla una precondición exists:false. */
 export async function commitFirestore(
   cuenta: CuentaServicio,
-  escrituras: EscrituraFirestore[],
+  escrituras: (EscrituraFirestore | TransformacionFirestore)[],
 ): Promise<"ok" | "ya-existe"> {
   const url =
     `https://firestore.googleapis.com/v1/projects/${cuenta.project_id}/databases/(default)/documents:commit`;
@@ -106,4 +111,20 @@ export async function habilitarEnSupabase(cuenta: CuentaServicio, uid: string): 
     }),
   });
   if (!respuesta.ok) throw new Error(`Identity Toolkit ${respuesta.status}: ${await respuesta.text()}`);
+}
+
+/** Documento de Firestore como objeto plano, o null si no existe. */
+export async function leerDocumentoFirestore(
+  cuenta: CuentaServicio,
+  ruta: string,
+): Promise<Record<string, unknown> | null> {
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${cuenta.project_id}/databases/(default)/documents/${ruta}`;
+  const respuesta = await fetch(url, {
+    headers: { "Authorization": `Bearer ${await tokenDeAcceso(cuenta)}` },
+  });
+  if (respuesta.status === 404) return null;
+  if (!respuesta.ok) throw new Error(`Firestore ${respuesta.status}: ${await respuesta.text()}`);
+  const documento = await respuesta.json() as { fields?: Record<string, ValorFirestore> };
+  return decodificarCampos(documento.fields);
 }

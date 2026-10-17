@@ -72,7 +72,7 @@ flutter run --dart-define=USE_EMULATORS=true      # app contra emuladores locale
 flutter build apk --release
 
 cd functions && npm install && npm run lint && npm test   # lógica de Edge Functions (+ npm run test:rules con Java)
-deno check supabase/functions/completar-registro/index.ts
+deno check supabase/functions/*/index.ts
 supabase functions deploy <nombre> --project-ref tahnazumbqsupzpusrba --use-api
 firebase emulators:start         # auth, firestore (UI en http://localhost:4000)
 ```
