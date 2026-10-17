@@ -64,7 +64,39 @@ void main() {
     // Cada especie corresponde a un tipo distinto de clínica.
     expect(PetSpecies.values.map((s) => s.animalType).toSet(), AnimalType.values.toSet());
     expect(PetSpecies.fromValue('dragon'), PetSpecies.exotico);
-    expect(PetSex.fromValue('otro'), isNull);
+    expect(PetSex.fromValue('desconocido'), isNull);
+  });
+
+  test('sexo: nuevas opciones y detalle solo con "otro"', () {
+    expect(PetSex.values.map((s) => s.value), ['macho', 'hembra', 'indeterminado', 'otro']);
+    final otro = Pet.fromMap('p1', {...doc, 'sexo': 'otro', 'sexoDetalle': 'Hermafrodita'});
+    expect(otro.sexo, PetSex.otro);
+    expect(otro.sexoTexto, 'Otro: Hermafrodita');
+    expect(otro.toMap()['sexoDetalle'], 'Hermafrodita');
+
+    // Si el sexo cambia, el detalle ya no se guarda.
+    final hembra = otro.copyWith(sexo: PetSex.hembra);
+    expect(hembra.toMap()['sexoDetalle'], isNull);
+    expect(hembra.sexoTexto, 'Hembra');
+
+    expect(Pet.fromMap('p2', {...doc, 'sexo': 'indeterminado'}).sexoTexto, 'Indeterminado');
+    expect(Pet.fromMap('p3', {...doc}..remove('sexo')).sexoTexto, 'Sin registrar');
+  });
+
+  test('código de paciente y clínicas autorizadas', () {
+    final pet = Pet.fromMap('p1', {
+      ...doc,
+      'codigoPaciente': 'MSC-7K4P',
+      'clinicasAutorizadas': ['c1', 'c2'],
+    });
+    expect(pet.codigoPaciente, 'MSC-7K4P');
+    expect(pet.clinicasAutorizadas, ['c1', 'c2']);
+    expect(Pet.fromMap('p1', pet.toMap()), pet);
+    expect(pet.copyWith(clinicasAutorizadas: const ['c1']).clinicasAutorizadas, ['c1']);
+    // Mascotas de la semana 2: sin código y sin clínicas.
+    final antigua = Pet.fromMap('p2', doc);
+    expect(antigua.codigoPaciente, isNull);
+    expect(antigua.clinicasAutorizadas, isEmpty);
   });
 
   test('resumen "Especie · edad"', () {

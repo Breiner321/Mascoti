@@ -112,8 +112,10 @@ service cloud.firestore {
       allow update: if hasRole('clinica')
         && resource.data.ownerUid == request.auth.uid
         && onlyChanges(['tiposAnimales', 'atencionEmergencias', 'horarioBase',
-                        'telefono', 'direccion', 'estado'])
+                        'telefono', 'direccion', 'lat', 'lng', 'geo',
+                        'categoriasServicio', 'estado'])
         && clinicFieldsValid(request.resource.data)
+        && clinicLocationValid(request.resource.data)
         && clinicStatusChangeValid();
 
       function clinicFieldsValid(data) {
@@ -124,7 +126,30 @@ service cloud.firestore {
               || (data.telefono is string && data.telefono.matches('^[0-9]{10}$')))
           && (!('direccion' in changedKeys())
               || (data.direccion is string && data.direccion.size() >= 3
-                  && data.direccion.size() <= 200));
+                  && data.direccion.size() <= 200))
+          // Resumen de las categorías de sus servicios activos (RF-09).
+          && (!('categoriasServicio' in changedKeys())
+              || (data.categoriasServicio is list && data.categoriasServicio.size() <= 6
+                  && data.categoriasServicio.hasOnly(['vacunacion', 'peluqueria', 'bano',
+                                                      'cirugia', 'consulta_general', 'otro'])));
+      }
+
+      // Semana 3: la dirección cambia SOLO junto con sus coordenadas, y `geo`
+      // debe coincidir con lat/lng, para que el mapa (RF-09) no muestre la
+      // clínica en el lugar anterior. El geohash no se puede recalcular aquí:
+      // se exige su formato (9-10 caracteres base32, como geoflutterfire_plus).
+      function clinicLocationValid(data) {
+        return !changedKeys().hasAny(['direccion', 'lat', 'lng', 'geo'])
+          || (changedKeys().hasAny(['lat', 'lng'])
+              && 'geo' in changedKeys()
+              && data.lat is number && data.lat >= -90 && data.lat <= 90
+              && data.lng is number && data.lng >= -180 && data.lng <= 180
+              && data.geo is map && data.geo.keys().hasOnly(['geohash', 'geopoint'])
+              && data.geo.geopoint is latlng
+              && data.geo.geopoint.latitude() == data.lat
+              && data.geo.geopoint.longitude() == data.lng
+              && data.geo.geohash is string
+              && data.geo.geohash.matches('^[0-9bcdefghjkmnpqrstuvwxyz]{9,10}$'));
       }
 
       // Única transición permitida: 'incompleto' → 'activo', y solo si ya
@@ -193,34 +218,97 @@ service cloud.firestore {
       }
     }
 
-    // ---------- pets (registro de mascotas, semana 2) ----------
-    match /pets/{petId} {
-      // El dueño lee sus mascotas (la app consulta where ownerUid == uid).
-      // TODO(semana 3): las clínicas con cita con la mascota también la leen
-      // (historial médico, RF-08).
-      allow read: if isActive() && resource.data.ownerUid == request.auth.uid;
+    // ---------- Código de paciente (semana 3) ----------
+    // MSC-XXXX sin 0/O, 1/I ni L (PatientCode en lib/core/domain).
+    function isPatientCode(code) {
+      return code is string && code.matches('^MSC-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$');
+    }
 
+    // El código quedará (al terminar el lote) registrado para esta mascota.
+    function codeIsFor(code, petId) {
+      return existsAfter(/databases/$(database)/documents/codigosPaciente/$(code))
+        && getAfter(/databases/$(database)/documents/codigosPaciente/$(code)).data.petId == petId;
+    }
+
+    // Clínica (activa) autorizada por el dueño para ver la mascota.
+    function isAuthorizedClinic(petData) {
+      return hasRole('clinica')
+        && userData().get('clinicId', null) != null
+        && userData().clinicId in petData.get('clinicasAutorizadas', []);
+    }
+
+    // codigosPaciente/{codigo} → {petId, ownerUid}. El id del documento hace
+    // único el código: solo se puede CREAR, así que si ya existe el lote
+    // entero falla y la app prueba otro. Nadie lo lee desde la app (lo usa
+    // la Edge Function vincular-mascota con la cuenta de servicio).
+    match /codigosPaciente/{codigo} {
+      allow read, update, delete: if false;
+      allow create: if hasRole('dueno')
+        && isPatientCode(codigo)
+        && request.resource.data.keys().hasOnly(['petId', 'ownerUid', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.petId is string
+        && getAfter(/databases/$(database)/documents/pets/$(request.resource.data.petId)).data.ownerUid
+             == request.auth.uid
+        && getAfter(/databases/$(database)/documents/pets/$(request.resource.data.petId)).data.codigoPaciente
+             == codigo;
+    }
+
+    // ---------- pets (registro de mascotas, semana 2; vinculación, semana 3) ----------
+    match /pets/{petId} {
+      // El dueño lee sus mascotas (la app consulta where ownerUid == uid) y
+      // las clínicas autorizadas las suyas (where clinicasAutorizadas
+      // array-contains clinicId).
+      allow read: if (isActive() && resource.data.ownerUid == request.auth.uid)
+        || isAuthorizedClinic(resource.data);
+
+      // Al crearla se registra su código en el mismo lote y empieza sin
+      // clínicas autorizadas.
       allow create: if hasRole('dueno')
         && request.resource.data.ownerUid == request.auth.uid
-        && validPet(request.resource.data);
+        && validPet(request.resource.data)
+        && isPatientCode(request.resource.data.get('codigoPaciente', null))
+        && codeIsFor(request.resource.data.codigoPaciente, petId)
+        && request.resource.data.get('clinicasAutorizadas', []).size() == 0;
 
+      // El dueño edita sus datos; el código no cambia (salvo asignarlo una
+      // vez a mascotas de la semana 2) y de clinicasAutorizadas solo puede
+      // QUITAR clínicas (revocar acceso). Agregarlas solo lo hace la Edge
+      // Function vincular-mascota.
       allow update: if hasRole('dueno')
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == resource.data.ownerUid
-        && validPet(request.resource.data);
+        && validPet(request.resource.data)
+        && patientCodeUpdateValid()
+        && resource.data.get('clinicasAutorizadas', [])
+             .hasAll(request.resource.data.get('clinicasAutorizadas', []));
 
       allow delete: if hasRole('dueno') && resource.data.ownerUid == request.auth.uid;
 
+      function patientCodeUpdateValid() {
+        return !('codigoPaciente' in changedKeys())
+          || (resource.data.get('codigoPaciente', null) == null
+              && isPatientCode(request.resource.data.codigoPaciente)
+              && codeIsFor(request.resource.data.codigoPaciente, petId));
+      }
+
       function validPet(data) {
         return data.keys().hasOnly(['ownerUid', 'nombre', 'especie', 'raza', 'fechaNacimiento',
-                                    'sexo', 'fotoPath', 'alergias', 'condiciones',
-                                    'contactoEmergencia', 'createdAt'])
+                                    'sexo', 'sexoDetalle', 'fotoPath', 'alergias', 'condiciones',
+                                    'contactoEmergencia', 'codigoPaciente',
+                                    'clinicasAutorizadas', 'createdAt'])
           // Obligatorios
           && data.nombre is string && data.nombre.size() >= 1 && data.nombre.size() <= 40
           && data.especie in ['perro', 'gato', 'ave', 'roedor', 'reptil', 'granja', 'exotico']
           // Opcionales
           && optString(data, 'raza', 60)
-          && (data.get('sexo', null) == null || data.sexo in ['macho', 'hembra'])
+          && (data.get('sexo', null) == null
+              || data.sexo in ['macho', 'hembra', 'indeterminado', 'otro'])
+          // sexo 'otro' exige sexoDetalle (1–30 caracteres); con otro sexo no va.
+          && (data.get('sexo', null) == 'otro'
+              ? (data.get('sexoDetalle', null) is string
+                 && data.sexoDetalle.size() >= 1 && data.sexoDetalle.size() <= 30)
+              : data.get('sexoDetalle', null) == null)
           && (data.get('fechaNacimiento', null) == null
               || (data.fechaNacimiento is timestamp && data.fechaNacimiento <= request.time))
           // La foto solo puede estar en la carpeta del dueño (bucket mascotas).
@@ -229,6 +317,8 @@ service cloud.firestore {
                   && data.fotoPath.matches('^' + request.auth.uid + '/' + petId + '/foto[.](jpg|png)$')))
           && data.get('alergias', []) is list && data.get('alergias', []).size() <= 30
           && data.get('condiciones', []) is list && data.get('condiciones', []).size() <= 30
+          && data.get('clinicasAutorizadas', []) is list
+          && data.get('clinicasAutorizadas', []).size() <= 50
           && (data.get('contactoEmergencia', null) == null
               || (data.contactoEmergencia is map
                   && data.contactoEmergencia.keys().hasOnly(['nombre', 'telefono'])
@@ -236,6 +326,148 @@ service cloud.firestore {
                   && data.contactoEmergencia.telefono is string
                   && data.contactoEmergencia.telefono.matches('^[0-9]{7,10}$')));
       }
+
+      // ---------- Historial médico (RF-08, semana 3) ----------
+      // Lo crea una clínica autorizada; lo leen el dueño y las clínicas
+      // autorizadas; la clínica autora lo corrige durante 24 h; nunca se borra.
+      match /medicalRecords/{recordId} {
+        function petData() {
+          return get(/databases/$(database)/documents/pets/$(petId)).data;
+        }
+
+        allow read: if (isActive() && petData().ownerUid == request.auth.uid)
+          || isAuthorizedClinic(petData());
+
+        allow create: if isAuthorizedClinic(petData())
+          && request.resource.data.clinicId == userData().clinicId
+          && request.resource.data.createdAt == request.time
+          && validRecord(request.resource.data);
+
+        allow update: if isAuthorizedClinic(petData())
+          && resource.data.clinicId == userData().clinicId
+          && request.time < resource.data.createdAt + duration.value(24, 'h')
+          && !changedKeys().hasAny(['clinicId', 'createdAt'])
+          && request.resource.data.get('updatedAt', null) == request.time
+          && validRecord(request.resource.data);
+
+        allow delete: if false;
+
+        function validRecord(data) {
+          return data.keys().hasOnly(['clinicId', 'clinicNombre', 'appointmentId', 'fecha',
+                                      'diagnostico', 'tratamiento', 'vacunas', 'adjuntos',
+                                      'createdAt', 'updatedAt'])
+            && data.fecha is timestamp
+            && data.fecha <= request.time + duration.value(1, 'h')
+            && data.diagnostico is string
+            && data.diagnostico.size() >= 1 && data.diagnostico.size() <= 2000
+            && optString(data, 'tratamiento', 2000)
+            && optString(data, 'clinicNombre', 100)
+            && optString(data, 'appointmentId', 100)
+            && validVaccines(data.get('vacunas', []))
+            && validAttachments(data.get('adjuntos', []));
+        }
+
+        // Las reglas no tienen ciclos: se valida elemento por elemento hasta
+        // el máximo permitido (10 vacunas, 10 adjuntos).
+        function validVaccine(v) {
+          return v is map
+            && v.keys().hasOnly(['nombre', 'lote', 'fechaAplicacion', 'fechaProximaDosis'])
+            && v.nombre is string && v.nombre.size() >= 1 && v.nombre.size() <= 80
+            && v.lote is string && v.lote.size() >= 1 && v.lote.size() <= 40
+            && v.fechaAplicacion is timestamp
+            && (v.get('fechaProximaDosis', null) == null
+                || (v.fechaProximaDosis is timestamp
+                    && v.fechaProximaDosis > v.fechaAplicacion));
+        }
+
+        function vaccineAt(list, i) {
+          return list.size() <= i || validVaccine(list[i]);
+        }
+
+        function validVaccines(list) {
+          return list is list && list.size() <= 10
+            && vaccineAt(list, 0) && vaccineAt(list, 1) && vaccineAt(list, 2)
+            && vaccineAt(list, 3) && vaccineAt(list, 4) && vaccineAt(list, 5)
+            && vaccineAt(list, 6) && vaccineAt(list, 7) && vaccineAt(list, 8)
+            && vaccineAt(list, 9);
+        }
+
+        // Adjunto en el bucket `registros`: {petId}/{recordId}/{archivo}.
+        function validAttachment(a) {
+          return a is map
+            && a.keys().hasOnly(['path', 'tipo', 'nombre'])
+            && a.tipo in ['imagen', 'pdf']
+            && a.nombre is string && a.nombre.size() >= 1 && a.nombre.size() <= 120
+            && a.path is string
+            && a.path.matches('^' + petId + '/' + recordId + '/[^/]+$');
+        }
+
+        function attachmentAt(list, i) {
+          return list.size() <= i || validAttachment(list[i]);
+        }
+
+        function validAttachments(list) {
+          return list is list && list.size() <= 10
+            && attachmentAt(list, 0) && attachmentAt(list, 1) && attachmentAt(list, 2)
+            && attachmentAt(list, 3) && attachmentAt(list, 4) && attachmentAt(list, 5)
+            && attachmentAt(list, 6) && attachmentAt(list, 7) && attachmentAt(list, 8)
+            && attachmentAt(list, 9);
+        }
+      }
+    }
+
+    // ---------- Próximas dosis (semana 3, las usa RF-13) ----------
+    // vacunasProgramadas/{recordId}_{n}: una por vacuna con refuerzo del
+    // registro. La crea la clínica autora en el mismo lote que el registro y
+    // debe coincidir con la vacuna n de ese registro. RF-13 marca
+    // `notificado` desde el servidor (cuenta de servicio).
+    match /vacunasProgramadas/{scheduledId} {
+      function recordPath(data) {
+        return /databases/$(database)/documents/pets/$(data.petId)/medicalRecords/$(data.recordId);
+      }
+
+      function vaccineIndex() {
+        return int(scheduledId.split('_')[1]);
+      }
+
+      function matchesRecord(data) {
+        return scheduledId.matches('^[A-Za-z0-9]+_[0-9]$')
+          && scheduledId.split('_')[0] == data.recordId
+          && existsAfter(recordPath(data))
+          && getAfter(recordPath(data)).data.clinicId == data.clinicId
+          && getAfter(recordPath(data)).data.vacunas.size() > vaccineIndex()
+          && getAfter(recordPath(data)).data.vacunas[vaccineIndex()].nombre == data.vacuna
+          && getAfter(recordPath(data)).data.vacunas[vaccineIndex()].fechaProximaDosis
+               == data.fechaProximaDosis;
+      }
+
+      function validScheduled(data) {
+        return data.keys().hasOnly(['petId', 'ownerUid', 'clinicId', 'recordId', 'vacuna',
+                                    'fechaProximaDosis', 'notificado', 'createdAt'])
+          && data.petId is string && data.recordId is string
+          && data.vacuna is string && data.fechaProximaDosis is timestamp
+          && data.notificado == false
+          && data.clinicId == userData().clinicId
+          && get(/databases/$(database)/documents/pets/$(data.petId)).data.ownerUid == data.ownerUid
+          && isAuthorizedClinic(get(/databases/$(database)/documents/pets/$(data.petId)).data)
+          && matchesRecord(data);
+      }
+
+      allow read: if (isActive() && resource.data.ownerUid == request.auth.uid)
+        || (hasRole('clinica') && resource.data.clinicId == userData().clinicId);
+
+      allow create: if hasRole('clinica') && validScheduled(request.resource.data);
+
+      // Al corregir el registro (24 h) la clínica autora ajusta o quita la
+      // próxima dosis. Nadie más la cambia.
+      allow update: if hasRole('clinica')
+        && resource.data.clinicId == userData().clinicId
+        && !changedKeys().hasAny(['petId', 'ownerUid', 'clinicId', 'recordId'])
+        && validScheduled(request.resource.data);
+      allow delete: if hasRole('clinica')
+        && resource.data.clinicId == userData().clinicId
+        && request.time < get(/databases/$(database)/documents/pets/$(resource.data.petId)/medicalRecords/$(resource.data.recordId)).data.createdAt
+             + duration.value(24, 'h');
     }
 
     // ---------- Todo lo demás está cerrado por defecto ----------
