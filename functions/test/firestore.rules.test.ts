@@ -19,7 +19,9 @@ import {
   doc,
   getDoc,
   getDocs,
+  orderBy,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -541,6 +543,179 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       const vet2 = env.authenticatedContext("vet2").firestore();
       await assertSucceeds(updateDoc(doc(ana, "pets/p6"), { clinicasAutorizadas: [] }));
       await assertFails(getDoc(doc(vet2, "pets/p6")));
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Semana 3: historial médico (RF-08) y próximas dosis
+  // ------------------------------------------------------------------
+
+  describe("medicalRecords y vacunasProgramadas", () => {
+    // p6 de ana, autorizada para c2 (vet2, activa). vet (c1) no está autorizada.
+    beforeEach(async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "pets/p6"), {
+          ownerUid: "ana",
+          nombre: "Toby",
+          especie: "perro",
+          codigoPaciente: "MSC-TOBY",
+          clinicasAutorizadas: ["c2"],
+        });
+      });
+    });
+
+    const aplicada = new Date("2026-10-10T15:00:00Z");
+    const refuerzo = new Date("2027-10-10T15:00:00Z");
+    const registro = () => ({
+      clinicId: "c2",
+      clinicNombre: "Vet 2",
+      fecha: new Date("2026-10-10T15:00:00Z"),
+      diagnostico: "Control anual, sano",
+      tratamiento: "Ninguno",
+      vacunas: [{ nombre: "Rabia", lote: "L-123", fechaAplicacion: aplicada, fechaProximaDosis: refuerzo }],
+      adjuntos: [{ path: "p6/r1/radiografia.jpg", tipo: "imagen", nombre: "Radiografía.jpg" }],
+      createdAt: serverTimestamp(),
+    });
+
+    const dosis = () => ({
+      petId: "p6",
+      ownerUid: "ana",
+      clinicId: "c2",
+      recordId: "r1",
+      vacuna: "Rabia",
+      fechaProximaDosis: refuerzo,
+      notificado: false,
+      createdAt: serverTimestamp(),
+    });
+
+    async function sembrarRegistro(creado: Date, extra: Record<string, unknown> = {}) {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "pets/p6/medicalRecords/r1"),
+          { ...registro(), createdAt: creado, ...extra });
+      });
+    }
+
+    it("la clínica autorizada crea el registro con sus próximas dosis en un lote", async () => {
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      const lote = writeBatch(vet2);
+      lote.set(doc(vet2, "pets/p6/medicalRecords/r1"), registro());
+      lote.set(doc(vet2, "vacunasProgramadas/r1_0"), dosis());
+      await assertSucceeds(lote.commit());
+    });
+
+    it("una clínica no autorizada, o a nombre de otra, no crea registros", async () => {
+      const vet = env.authenticatedContext("vet").firestore(); // c1, no autorizada
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      await assertFails(setDoc(doc(vet, "pets/p6/medicalRecords/r1"), { ...registro(), clinicId: "c1" }));
+      await assertFails(setDoc(doc(vet2, "pets/p6/medicalRecords/r1"), { ...registro(), clinicId: "c1" }));
+      // El dueño tampoco escribe su historial.
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertFails(setDoc(doc(ana, "pets/p6/medicalRecords/r1"), registro()));
+    });
+
+    it("valida los campos del registro", async () => {
+      const r1 = doc(env.authenticatedContext("vet2").firestore(), "pets/p6/medicalRecords/r1");
+      const vacuna = registro().vacunas[0];
+      const adjunto = registro().adjuntos[0];
+      for (const malo of [
+        { diagnostico: "" },
+        { diagnostico: "x".repeat(2001) },
+        { fecha: "2026-10-10" },
+        { fecha: new Date("2999-01-01T00:00:00Z") },
+        { tratamiento: 5 },
+        { createdAt: new Date("2026-01-01T00:00:00Z") }, // debe ser la hora del servidor
+        { extra: true },
+        { vacunas: [{ ...vacuna, lote: "" }] },
+        { vacunas: [{ lote: vacuna.lote, fechaAplicacion: vacuna.fechaAplicacion }] }, // sin nombre
+        { vacunas: [{ ...vacuna, fechaProximaDosis: new Date("2026-01-01T00:00:00Z") }] },
+        { vacunas: [vacuna, { ...vacuna, fechaAplicacion: "ayer" }] },
+        { vacunas: Array(11).fill(vacuna) },
+        { adjuntos: [{ ...adjunto, tipo: "video" }] },
+        { adjuntos: [{ ...adjunto, path: "p6/otro/radiografia.jpg" }] },
+        { adjuntos: [{ ...adjunto, path: "p9/r1/radiografia.jpg" }] },
+        { adjuntos: Array(11).fill(adjunto) },
+      ]) {
+        await assertFails(setDoc(r1, { ...registro(), ...malo }));
+      }
+      // Sin vacunas ni adjuntos ni tratamiento también es válido.
+      await assertSucceeds(setDoc(r1, {
+        clinicId: "c2", fecha: new Date("2026-10-10T15:00:00Z"),
+        diagnostico: "Consulta", createdAt: serverTimestamp(),
+      }));
+    });
+
+    it("leen el dueño y las clínicas autorizadas; los demás no", async () => {
+      await sembrarRegistro(new Date());
+      const ana = env.authenticatedContext("ana").firestore();
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      const vet = env.authenticatedContext("vet").firestore();
+      const otro = env.authenticatedContext("vet2").firestore();
+      await assertSucceeds(getDoc(doc(ana, "pets/p6/medicalRecords/r1")));
+      await assertSucceeds(getDocs(query(collection(ana, "pets/p6/medicalRecords"), orderBy("fecha", "desc"))));
+      await assertSucceeds(getDocs(collection(otro, "pets/p6/medicalRecords")));
+      await assertFails(getDoc(doc(vet, "pets/p6/medicalRecords/r1")));
+      // Al revocar el acceso, la clínica deja de leer el historial.
+      await assertSucceeds(updateDoc(doc(ana, "pets/p6"), { clinicasAutorizadas: [] }));
+      await assertFails(getDoc(doc(vet2, "pets/p6/medicalRecords/r1")));
+    });
+
+    it("la clínica autora corrige dentro de 24 h; después no; nunca se borra", async () => {
+      const r1 = doc(env.authenticatedContext("vet2").firestore(), "pets/p6/medicalRecords/r1");
+      await sembrarRegistro(new Date(Date.now() - 60 * 60 * 1000)); // hace 1 h
+      await assertSucceeds(updateDoc(r1, { diagnostico: "Corregido", updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(r1, { diagnostico: "Sin updatedAt" }));
+      await assertFails(updateDoc(r1, { clinicId: "c1", updatedAt: serverTimestamp() }));
+      await assertFails(deleteDoc(r1));
+
+      await sembrarRegistro(new Date(Date.now() - 25 * 60 * 60 * 1000)); // hace 25 h
+      await assertFails(updateDoc(r1, { diagnostico: "Tarde", updatedAt: serverTimestamp() }));
+    });
+
+    it("solo la clínica autora edita, aunque otra también esté autorizada", async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await updateDoc(doc(ctx.firestore(), "pets/p6"), { clinicasAutorizadas: ["c2", "c1"] });
+        await updateDoc(doc(ctx.firestore(), "clinics/c1"), { estado: "activo" });
+      });
+      await sembrarRegistro(new Date());
+      const vet = env.authenticatedContext("vet").firestore(); // c1, autorizada pero no autora
+      await assertSucceeds(getDoc(doc(vet, "pets/p6/medicalRecords/r1")));
+      await assertFails(updateDoc(doc(vet, "pets/p6/medicalRecords/r1"),
+        { diagnostico: "Ajeno", updatedAt: serverTimestamp() }));
+    });
+
+    it("la próxima dosis debe coincidir con la vacuna del registro", async () => {
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      for (const [id, malo] of [
+        ["r1_0", { vacuna: "Moquillo" }],
+        ["r1_0", { fechaProximaDosis: new Date("2028-01-01T00:00:00Z") }],
+        ["r1_1", {}], // el registro solo tiene una vacuna
+        ["r1_0", { ownerUid: "otro" }],
+        ["r1_0", { notificado: true }],
+        ["r2_0", {}], // otro registro
+      ] as [string, Record<string, unknown>][]) {
+        const lote = writeBatch(vet2);
+        lote.set(doc(vet2, "pets/p6/medicalRecords/r1"), registro());
+        lote.set(doc(vet2, `vacunasProgramadas/${id}`), { ...dosis(), ...malo });
+        await assertFails(lote.commit());
+      }
+      // Sin el registro en el mismo lote (o ya existente) tampoco.
+      await assertFails(setDoc(doc(vet2, "vacunasProgramadas/r1_0"), dosis()));
+    });
+
+    it("las próximas dosis las leen el dueño y la clínica autora", async () => {
+      await sembrarRegistro(new Date());
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "vacunasProgramadas/r1_0"), { ...dosis(), createdAt: new Date() });
+      });
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertSucceeds(getDoc(doc(ana, "vacunasProgramadas/r1_0")));
+      await assertSucceeds(getDocs(query(collection(ana, "vacunasProgramadas"),
+        where("ownerUid", "==", "ana"))));
+      await assertSucceeds(getDoc(doc(env.authenticatedContext("vet2").firestore(), "vacunasProgramadas/r1_0")));
+      await assertFails(getDoc(doc(env.authenticatedContext("vet").firestore(), "vacunasProgramadas/r1_0")));
+      // El dueño no puede marcarla como notificada ni borrarla.
+      await assertFails(updateDoc(doc(ana, "vacunasProgramadas/r1_0"), { notificado: true }));
+      await assertFails(deleteDoc(doc(ana, "vacunasProgramadas/r1_0")));
     });
   });
 });

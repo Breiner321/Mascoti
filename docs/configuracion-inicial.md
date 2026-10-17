@@ -67,6 +67,7 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    supabase db query --linked -f supabase/migrations/20261005000000_storage_mascoti.sql
    supabase db query --linked -f supabase/migrations/20261015000000_storage_mascotas.sql
    supabase db query --linked -f supabase/migrations/20261016000000_limite_vinculacion.sql
+   supabase db query --linked -f supabase/migrations/20261016010000_storage_registros.sql
    ```
    O pega cada archivo en **SQL Editor** del panel. Se pueden ejecutar varias veces sin problema.
 3. **Cuenta de servicio de Firebase** (la Edge Function la usa para escribir en Firestore): Firebase → Configuración del proyecto → Cuentas de servicio → **Generar nueva clave privada**. Guarda el JSON **fuera del repositorio** y cárgalo como secreto. Se pasa en **Base64** porque PowerShell rompe el JSON al enviarlo como argumento (error `Invalid secret pair`):
@@ -78,6 +79,7 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    ```powershell
    supabase functions deploy completar-registro --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy vincular-mascota --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy adjuntos-historial --project-ref tahnazumbqsupzpusrba --use-api
    ```
 
 **Todos, en su computador:**

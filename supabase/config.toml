@@ -421,3 +421,6 @@ verify_jwt = false
 
 [functions.vincular-mascota]
 verify_jwt = false
+
+[functions.adjuntos-historial]
+verify_jwt = false

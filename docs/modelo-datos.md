@@ -56,8 +56,18 @@ Reglas: el **dueño** (rol `dueno`, activo) crea, lee, edita y borra sus mascota
 - `sexo ∈ macho, hembra, indeterminado, otro`. Con `otro` es obligatorio `sexoDetalle` (texto de 1–30 caracteres, p. ej. "hermafrodita"); con cualquier otro valor `sexoDetalle` no se guarda.
 - `fotoPath` (antes `fotoUrl`): **ruta** en el bucket `mascotas` de Supabase Storage, `{ownerUid}/{petId}/foto.jpg|png` (`StorageRepository.petPhotoPath`). El bucket es privado, así que no hay una URL fija: la app pide un enlace temporal con `StorageRepository.signedUrl`. Las reglas exigen que la ruta sea de la carpeta del dueño y de esa mascota.
 
-Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**):
-`{clinicId, clinicNombre, appointmentId?, fecha, diagnostico, tratamiento, vacunas:[{nombre, lote, fechaAplicacion, fechaProximaDosis}], adjuntos:[{url, tipo:'imagen'|'pdf', nombre}], createdAt}`
+Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**; modelo `MedicalRecord` en `lib/core/domain`, repositorio `MedicalRecordsRepository` en `lib/core/data`):
+`{clinicId, clinicNombre, appointmentId?, fecha, diagnostico, tratamiento, vacunas:[{nombre, lote, fechaAplicacion, fechaProximaDosis?}], adjuntos:[{path, tipo:'imagen'|'pdf', nombre}], createdAt, updatedAt?}`
+
+- **Crea** una clínica autorizada (`clinicId` = la suya; `createdAt` = hora del servidor). **Leen** el dueño y las clínicas autorizadas. **Corrige** solo la clínica autora durante **24 h** (`updatedAt` = hora del servidor). **Nunca** se borra.
+- Obligatorios: `fecha` (no futura) y `diagnostico` (1–2000). Máximo 10 vacunas (nombre 1–80, lote 1–40, `fechaProximaDosis` posterior a la aplicación) y 10 adjuntos: las reglas validan elemento por elemento porque no tienen ciclos.
+- `adjuntos[].path` (antes `url`): `{petId}/{recordId}/{archivo}` en el bucket privado **`registros`** de Supabase. Se suben y se ven con enlaces firmados de la Edge Function `adjuntos-historial`, que verifica en Firestore que quien pide es el dueño o una clínica autorizada (Supabase no puede leer Firestore en sus políticas).
+
+## `vacunasProgramadas/{recordId}_{n}` — semana 3, para RF-13
+
+`{petId, ownerUid, clinicId, recordId, vacuna, fechaProximaDosis, notificado, createdAt}`: una por cada vacuna `n` del registro que tenga `fechaProximaDosis`. La crea la clínica **en el mismo lote** que el registro y las reglas verifican que coincida con la vacuna `n` de ese registro. Existe porque Firestore no puede buscar por fechas dentro de una lista de objetos (`vacunas[].fechaProximaDosis`). La leen el dueño y la clínica autora; `notificado` lo marca RF-13 desde el servidor.
+
+Índices: `(ownerUid, fechaProximaDosis)` para el carnet del dueño y `(notificado, fechaProximaDosis)` para los recordatorios.
 
 ## `codigosPaciente/{codigo}` — semana 3 · *nadie lo lee desde la app*
 
@@ -100,6 +110,14 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 | Ruta | Quién escribe/lee | Uso |
 |---|---|---|
 | `usuarios/{uidFirebase}/...` | solo ese usuario | adjuntos del chat, PDF y demás archivos de cada persona |
+
+### Bucket `registros` (adjuntos del historial médico)
+
+| Ruta | Escribe | Lee | Límites |
+|---|---|---|---|
+| `{petId}/{recordId}/{archivo}` | clínica autorizada (autora del registro, 24 h) | dueño y clínicas autorizadas | JPG/PNG/PDF, máximo 10 MB |
+
+Sin políticas para la app: todo pasa por la Edge Function `adjuntos-historial`. Migración: `supabase/migrations/20261016010000_storage_registros.sql`.
 
 ### Bucket `mascotas` (fotos de mascotas)
 
