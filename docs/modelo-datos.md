@@ -33,6 +33,7 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 | lat, lng | number | desde OpenStreetMap (buscador de direcciones); obligatorios (los valida `completar-registro`) |
 | geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09). Lo calcula `completar-registro` (geohash de 10 caracteres, igual a `geofire-common`) |
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
+| categoriasServicio | string[] | categorías de sus servicios **activos** (RF-05), para filtrar el directorio (RF-09). La actualiza `ServicesRepository.syncCategories` al guardar o desactivar un servicio |
 | atencionEmergencias | bool | RF-10 |
 | horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06. Horas `HH:mm` (24 h); duración entera 5–480 (la app ofrece 15, 30 o 60 min en RF-04). `OpeningHours.slotTimes()` genera las franjas del día |
 | calificacion | number? | promedio (futuro) |
@@ -136,4 +137,7 @@ Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
 - `appointments`: `clinicId ASC, estado ASC, inicio ASC` · `ownerUid ASC, inicio DESC`
 - `slots` (collection group): `fecha ASC, estado ASC`
 - `notifications`: `uid ASC, createdAt DESC`
-- `clinics`: `estado ASC, geo.geohash ASC`
+- `clinics`: `estado ASC, geo.geohash ASC` (búsqueda geográfica de `ClinicsGeoRepository`, `lib/core/data`)
+- `vacunasProgramadas`: `ownerUid ASC, fechaProximaDosis ASC` · `notificado ASC, fechaProximaDosis ASC`
+
+**Ubicación de la clínica (semana 3):** `direccion` solo cambia junto con `lat`, `lng` y `geo`, y `geo.geopoint` debe coincidir con `lat`/`lng` (reglas). Usa `ClinicsGeoRepository.addressUpdate(...)`, que arma los cuatro campos. Para revisar o recalcular `geo` de clínicas existentes: `npm run verificar-geo` en `functions/`.

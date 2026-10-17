@@ -112,8 +112,10 @@ service cloud.firestore {
       allow update: if hasRole('clinica')
         && resource.data.ownerUid == request.auth.uid
         && onlyChanges(['tiposAnimales', 'atencionEmergencias', 'horarioBase',
-                        'telefono', 'direccion', 'estado'])
+                        'telefono', 'direccion', 'lat', 'lng', 'geo',
+                        'categoriasServicio', 'estado'])
         && clinicFieldsValid(request.resource.data)
+        && clinicLocationValid(request.resource.data)
         && clinicStatusChangeValid();
 
       function clinicFieldsValid(data) {
@@ -124,7 +126,30 @@ service cloud.firestore {
               || (data.telefono is string && data.telefono.matches('^[0-9]{10}$')))
           && (!('direccion' in changedKeys())
               || (data.direccion is string && data.direccion.size() >= 3
-                  && data.direccion.size() <= 200));
+                  && data.direccion.size() <= 200))
+          // Resumen de las categorías de sus servicios activos (RF-09).
+          && (!('categoriasServicio' in changedKeys())
+              || (data.categoriasServicio is list && data.categoriasServicio.size() <= 6
+                  && data.categoriasServicio.hasOnly(['vacunacion', 'peluqueria', 'bano',
+                                                      'cirugia', 'consulta_general', 'otro'])));
+      }
+
+      // Semana 3: la dirección cambia SOLO junto con sus coordenadas, y `geo`
+      // debe coincidir con lat/lng, para que el mapa (RF-09) no muestre la
+      // clínica en el lugar anterior. El geohash no se puede recalcular aquí:
+      // se exige su formato (9-10 caracteres base32, como geoflutterfire_plus).
+      function clinicLocationValid(data) {
+        return !changedKeys().hasAny(['direccion', 'lat', 'lng', 'geo'])
+          || (changedKeys().hasAny(['lat', 'lng'])
+              && 'geo' in changedKeys()
+              && data.lat is number && data.lat >= -90 && data.lat <= 90
+              && data.lng is number && data.lng >= -180 && data.lng <= 180
+              && data.geo is map && data.geo.keys().hasOnly(['geohash', 'geopoint'])
+              && data.geo.geopoint is latlng
+              && data.geo.geopoint.latitude() == data.lat
+              && data.geo.geopoint.longitude() == data.lng
+              && data.geo.geohash is string
+              && data.geo.geohash.matches('^[0-9bcdefghjkmnpqrstuvwxyz]{9,10}$'));
       }
 
       // Única transición permitida: 'incompleto' → 'activo', y solo si ya

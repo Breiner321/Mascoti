@@ -26,6 +26,7 @@ import {
   updateDoc,
   where,
   writeBatch,
+  GeoPoint,
 } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
@@ -164,12 +165,43 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
         atencionEmergencias: true,
         horarioBase: { apertura: "08:00", cierre: "18:00", duracionSlotMin: 30 },
         telefono: "3009998877",
-        direccion: "Calle 100 # 15-20, Bogotá",
       }));
-      // Campos que no se editan desde la app.
+      // Campos que no se editan desde la app (la ubicación solo junto con
+      // la dirección; ver "dirección y coordenadas").
       for (const cambio of [{ nombre: "Otro" }, { lat: 1 }, { geo: null }, { createdAt: new Date() }]) {
         await assertFails(updateDoc(c1, cambio));
       }
+    });
+
+    it("dirección y coordenadas cambian juntas y coherentes (semana 3)", async () => {
+      const c1 = doc(env.authenticatedContext("vet").firestore(), "clinics/c1");
+      const ubicacion = {
+        direccion: "Calle 100 # 15-20, Bogotá",
+        lat: 4.6867,
+        lng: -74.0486,
+        geo: { geohash: "d2g6f9yhk", geopoint: new GeoPoint(4.6867, -74.0486) },
+      };
+      await assertSucceeds(updateDoc(c1, ubicacion));
+      // La dirección sola ya no: el mapa quedaría en el lugar anterior.
+      await assertFails(updateDoc(c1, { direccion: "Otra dirección 123" }));
+      // Coordenadas sin geo, o geo que no coincide.
+      await assertFails(updateDoc(c1, { lat: 4.7, lng: -74.05 }));
+      for (const malo of [
+        { geo: { geohash: "d2g6f9yhk", geopoint: new GeoPoint(4.7, -74.0486) } },
+        { geo: { geohash: "XYZ", geopoint: new GeoPoint(4.6867, -74.0486) } },
+        { geo: { geohash: "d2g6f9yhk" } },
+        { lat: 91, geo: { geohash: "d2g6f9yhk", geopoint: new GeoPoint(90, -74.0486) } },
+      ]) {
+        await assertFails(updateDoc(c1, { ...ubicacion, lat: 4.6868, ...malo }));
+      }
+    });
+
+    it("categoriasServicio: solo categorías válidas", async () => {
+      const c1 = doc(env.authenticatedContext("vet").firestore(), "clinics/c1");
+      await assertSucceeds(updateDoc(c1, { categoriasServicio: ["vacunacion", "peluqueria"] }));
+      await assertSucceeds(updateDoc(c1, { categoriasServicio: [] }));
+      await assertFails(updateDoc(c1, { categoriasServicio: ["spa"] }));
+      await assertFails(updateDoc(c1, { categoriasServicio: "vacunacion" }));
     });
 
     it("tiposAnimales: lista no vacía y solo valores válidos", async () => {
