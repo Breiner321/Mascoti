@@ -31,21 +31,25 @@ enum PetSpecies {
   }
 }
 
-/// `pets.sexo`.
+/// `pets.sexo`. Algunas especies (exóticos, aves jóvenes, reptiles) no
+/// tienen el sexo determinado; con [otro] se especifica en `sexoDetalle`.
 enum PetSex {
   macho('macho', 'Macho'),
-  hembra('hembra', 'Hembra');
+  hembra('hembra', 'Hembra'),
+  indeterminado('indeterminado', 'Indeterminado'),
+  otro('otro', 'Otro (especifique)');
 
   const PetSex(this.value, this.label);
 
   final String value;
   final String label;
 
-  static PetSex? fromValue(Object? value) => switch (value) {
-        'macho' => macho,
-        'hembra' => hembra,
-        _ => null,
-      };
+  static PetSex? fromValue(Object? value) {
+    for (final s in values) {
+      if (s.value == value) return s;
+    }
+    return null;
+  }
 }
 
 /// `pets.contactoEmergencia` (RF-17: se muestra en la placa QR).
@@ -83,6 +87,7 @@ class Pet {
     required this.especie,
     this.raza,
     this.sexo,
+    this.sexoDetalle,
     this.fechaNacimiento,
     this.fotoPath,
     this.alergias = const [],
@@ -98,6 +103,7 @@ class Pet {
         especie: PetSpecies.fromValue(map['especie']),
         raza: map['raza'] as String?,
         sexo: PetSex.fromValue(map['sexo']),
+        sexoDetalle: map['sexoDetalle'] as String?,
         fechaNacimiento: (map['fechaNacimiento'] as Timestamp?)?.toDate(),
         fotoPath: map['fotoPath'] as String?,
         alergias: _strings(map['alergias']),
@@ -115,6 +121,18 @@ class Pet {
   final PetSpecies especie;
   final String? raza;
   final PetSex? sexo;
+
+  /// Texto libre cuando [sexo] es [PetSex.otro] (máx. 30 caracteres).
+  final String? sexoDetalle;
+
+  /// Texto para mostrar: "Hembra", "Otro: hermafrodita", "Sin registrar".
+  String get sexoTexto => switch (sexo) {
+        null => 'Sin registrar',
+        PetSex.otro => (sexoDetalle?.trim().isNotEmpty ?? false)
+            ? 'Otro: ${sexoDetalle!.trim()}'
+            : 'Otro',
+        final s => s.label,
+      };
   final DateTime? fechaNacimiento;
 
   /// Ruta de la foto en el bucket `mascotas` de Supabase Storage:
@@ -135,6 +153,8 @@ class Pet {
         'especie': especie.value,
         'raza': raza,
         'sexo': sexo?.value,
+        // Solo se guarda con sexo "otro".
+        'sexoDetalle': sexo == PetSex.otro ? sexoDetalle : null,
         'fechaNacimiento':
             fechaNacimiento == null ? null : Timestamp.fromDate(fechaNacimiento!),
         'fotoPath': fotoPath,
@@ -149,6 +169,7 @@ class Pet {
     PetSpecies? especie,
     String? raza,
     PetSex? sexo,
+    String? sexoDetalle,
     DateTime? fechaNacimiento,
     String? fotoPath,
     List<String>? alergias,
@@ -162,6 +183,7 @@ class Pet {
         especie: especie ?? this.especie,
         raza: raza ?? this.raza,
         sexo: sexo ?? this.sexo,
+        sexoDetalle: sexoDetalle ?? this.sexoDetalle,
         fechaNacimiento: fechaNacimiento ?? this.fechaNacimiento,
         fotoPath: fotoPath ?? this.fotoPath,
         alergias: alergias ?? this.alergias,
@@ -197,6 +219,7 @@ class Pet {
       other.especie == especie &&
       other.raza == raza &&
       other.sexo == sexo &&
+      other.sexoDetalle == sexoDetalle &&
       other.fechaNacimiento == fechaNacimiento &&
       other.fotoPath == fotoPath &&
       listEquals(other.alergias, alergias) &&
@@ -212,6 +235,7 @@ class Pet {
         especie,
         raza,
         sexo,
+        sexoDetalle,
         fechaNacimiento,
         fotoPath,
         Object.hashAll(alergias),

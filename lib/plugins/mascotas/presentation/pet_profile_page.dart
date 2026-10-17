@@ -111,7 +111,7 @@ class _PetDetails extends StatelessWidget {
         const SizedBox(height: 16),
         _Info(label: 'Especie', value: pet.especie.label),
         _Info(label: 'Raza', value: pet.raza ?? 'Sin registrar'),
-        _Info(label: 'Sexo', value: pet.sexo?.label ?? 'Sin registrar'),
+        _Info(label: 'Sexo', value: pet.sexoTexto),
         _Info(
           label: 'Fecha de nacimiento',
           value: birth == null

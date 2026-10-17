@@ -213,14 +213,20 @@ service cloud.firestore {
 
       function validPet(data) {
         return data.keys().hasOnly(['ownerUid', 'nombre', 'especie', 'raza', 'fechaNacimiento',
-                                    'sexo', 'fotoPath', 'alergias', 'condiciones',
+                                    'sexo', 'sexoDetalle', 'fotoPath', 'alergias', 'condiciones',
                                     'contactoEmergencia', 'createdAt'])
           // Obligatorios
           && data.nombre is string && data.nombre.size() >= 1 && data.nombre.size() <= 40
           && data.especie in ['perro', 'gato', 'ave', 'roedor', 'reptil', 'granja', 'exotico']
           // Opcionales
           && optString(data, 'raza', 60)
-          && (data.get('sexo', null) == null || data.sexo in ['macho', 'hembra'])
+          && (data.get('sexo', null) == null
+              || data.sexo in ['macho', 'hembra', 'indeterminado', 'otro'])
+          // sexo 'otro' exige sexoDetalle (1–30 caracteres); con otro sexo no va.
+          && (data.get('sexo', null) == 'otro'
+              ? (data.get('sexoDetalle', null) is string
+                 && data.sexoDetalle.size() >= 1 && data.sexoDetalle.size() <= 30)
+              : data.get('sexoDetalle', null) == null)
           && (data.get('fechaNacimiento', null) == null
               || (data.fechaNacimiento is timestamp && data.fechaNacimiento <= request.time))
           // La foto solo puede estar en la carpeta del dueño (bucket mascotas).

@@ -4,6 +4,8 @@ Fuente única de verdad del esquema. **Todo PR que agregue o cambie colecciones 
 
 Modelos en Dart: `lib/core/domain/` (`Clinic`, `ClinicService`, `Slot`, `Pet`), compartidos por todos los plugins. Los enums guardan en Firestore el valor en español de esta página.
 
+Horas (`hora`, `horarioBase.apertura/cierre`): se **guardan** en 24 h `HH:mm`; la app las **muestra** en 12 h con a. m./p. m. (`TimeFormat` en `lib/core/format`).
+
 Convenciones: nombres de campos en español como en los RF; fechas como `Timestamp`; dinero en COP como `number` entero (sin decimales) salvo que el RF diga otra cosa; ids generados por Firestore salvo que se indique.
 
 ## `users/{uid}`  — RF-01, RF-02 · *se crea solo con la Edge Function `completar-registro` (Supabase)*
@@ -46,10 +48,10 @@ Subcolecciones:
 
 Reglas: el **dueño** (rol `dueno`, activo) crea, lee, edita y borra sus mascotas; obligatorios `nombre` (1–40) y `especie`; `ownerUid` no cambia. Las clínicas podrán leerlas en la semana 3 (RF-08). La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
 
-`{ownerUid, nombre, especie, raza?, fechaNacimiento?, sexo?, fotoPath?, alergias:string[], condiciones:string[], contactoEmergencia?:{nombre, telefono}, createdAt}`
+`{ownerUid, nombre, especie, raza?, fechaNacimiento?, sexo?, sexoDetalle?, fotoPath?, alergias:string[], condiciones:string[], contactoEmergencia?:{nombre, telefono}, createdAt}`
 
 - `especie ∈ perro, gato, ave, roedor, reptil, granja, exotico` (singular). Cada una corresponde a un valor de `clinics.tiposAnimales` (`PetSpecies.animalType`), para mostrar solo clínicas que atienden esa especie.
-- `sexo ∈ macho, hembra`.
+- `sexo ∈ macho, hembra, indeterminado, otro`. Con `otro` es obligatorio `sexoDetalle` (texto de 1–30 caracteres, p. ej. "hermafrodita"); con cualquier otro valor `sexoDetalle` no se guarda.
 - `fotoPath` (antes `fotoUrl`): **ruta** en el bucket `mascotas` de Supabase Storage, `{ownerUid}/{petId}/foto.jpg|png` (`StorageRepository.petPhotoPath`). El bucket es privado, así que no hay una URL fija: la app pide un enlace temporal con `StorageRepository.signedUrl`. Las reglas exigen que la ruta sea de la carpeta del dueño y de esa mascota.
 
 Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**):

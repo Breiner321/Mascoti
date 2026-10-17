@@ -6,6 +6,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/domain/animal_type.dart';
 import '../../../core/domain/clinic.dart';
 import '../../../core/domain/opening_hours.dart';
+import '../../../core/format/time_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../clinica_routes.dart';
 import '../data/clinic_repository.dart';
@@ -88,8 +89,8 @@ class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
   Future<void> _pickTime({required bool opening}) async {
     final current = opening ? _hours.apertura : _hours.cierre;
     final minutes = OpeningHours.minutesOf(current);
-    final picked = await showTimePicker(
-      context: context,
+    final picked = await TimeFormat.pick(
+      context,
       initialTime: TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
       helpText: opening ? 'Hora de apertura' : 'Hora de cierre',
     );
@@ -212,14 +213,14 @@ class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.wb_sunny_outlined),
                   title: const Text('Hora de apertura'),
-                  trailing: Text(_hours.apertura, style: textTheme.titleMedium),
+                  trailing: Text(TimeFormat.hour(_hours.apertura), style: textTheme.titleMedium),
                   onTap: _saving ? null : () => _pickTime(opening: true),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.nightlight_outlined),
                   title: const Text('Hora de cierre'),
-                  trailing: Text(_hours.cierre, style: textTheme.titleMedium),
+                  trailing: Text(TimeFormat.hour(_hours.cierre), style: textTheme.titleMedium),
                   onTap: _saving ? null : () => _pickTime(opening: false),
                 ),
                 const SizedBox(height: 8),

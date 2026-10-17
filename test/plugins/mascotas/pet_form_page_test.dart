@@ -111,6 +111,44 @@ void main() {
     expect(await pets(), isEmpty);
   });
 
+  testWidgets('sexo "Otro (especifique)" pide el detalle y lo guarda', (tester) async {
+    await pumpForm(tester);
+    await tester.enterText(field('Nombre *'), 'Kiwi');
+    await chooseSpecies(tester, 'Exótico');
+    expect(field('Especifique'), findsNothing);
+
+    await tester.tap(find.text('Otro (especifique)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registrar mascota'));
+    await tester.pumpAndSettle();
+    expect(find.text('Especifica el sexo'), findsOneWidget);
+    expect(await pets(), isEmpty);
+
+    await tester.enterText(field('Especifique'), ' Hermafrodita ');
+    await tester.tap(find.text('Registrar mascota'));
+    await tester.pumpAndSettle();
+
+    final data = (await pets()).single.data();
+    expect(data['sexo'], 'otro');
+    expect(data['sexoDetalle'], 'Hermafrodita');
+  });
+
+  testWidgets('sexo "Indeterminado" se guarda sin detalle', (tester) async {
+    await pumpForm(tester);
+    await tester.enterText(field('Nombre *'), 'Iggy');
+    await chooseSpecies(tester, 'Reptil');
+    await tester.tap(find.text('Indeterminado'));
+    await tester.pumpAndSettle();
+    expect(field('Especifique'), findsNothing);
+
+    await tester.tap(find.text('Registrar mascota'));
+    await tester.pumpAndSettle();
+
+    final data = (await pets()).single.data();
+    expect(data['sexo'], 'indeterminado');
+    expect(data['sexoDetalle'], isNull);
+  });
+
   testWidgets('agrega y quita alergias como chips, sin repetidos', (tester) async {
     await pumpForm(tester);
 

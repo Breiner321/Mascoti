@@ -371,6 +371,16 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       }
     });
 
+    it("sexo: indeterminado y otro con detalle (solo con 'otro')", async () => {
+      const p3 = doc(env.authenticatedContext("ana").firestore(), "pets/p3");
+      await assertSucceeds(setDoc(p3, { ...mascota, sexo: "indeterminado" }));
+      await assertSucceeds(setDoc(p3, { ...mascota, sexo: "otro", sexoDetalle: "Hermafrodita" }));
+      await assertFails(setDoc(p3, { ...mascota, sexo: "hembra", sexoDetalle: "x" }));
+      await assertFails(setDoc(p3, { ...mascota, sexo: "otro", sexoDetalle: "" }));
+      await assertFails(setDoc(p3, { ...mascota, sexo: "otro" })); // falta el detalle
+      await assertFails(setDoc(p3, { ...mascota, sexo: "otro", sexoDetalle: "x".repeat(31) }));
+    });
+
     it("nadie crea mascotas a nombre de otro ni cambia el dueño", async () => {
       const ana = env.authenticatedContext("ana").firestore();
       const vet = env.authenticatedContext("vet").firestore();

@@ -7,6 +7,7 @@ enum PetImageType { jpg, png }
 abstract final class PetValidators {
   static const maxNombre = 40;
   static const maxRaza = 60;
+  static const maxSexoDetalle = 30;
   static const maxContactoNombre = 60;
   static const maxTags = 30;
   static const maxTagLength = 40;
@@ -26,6 +27,16 @@ abstract final class PetValidators {
   static String? raza(String? value) => (value?.trim().length ?? 0) > maxRaza
       ? 'La raza no puede superar $maxRaza caracteres'
       : null;
+
+  /// Con sexo "Otro (especifique)" el detalle es obligatorio.
+  static String? sexoDetalle(String? value) {
+    final v = value?.trim() ?? '';
+    if (v.isEmpty) return 'Especifica el sexo';
+    if (v.length > maxSexoDetalle) {
+      return 'Máximo $maxSexoDetalle caracteres';
+    }
+    return null;
+  }
 
   static String? fechaNacimiento(DateTime? value, DateTime now) =>
       value != null && value.isAfter(now)
