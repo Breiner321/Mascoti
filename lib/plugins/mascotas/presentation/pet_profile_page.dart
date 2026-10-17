@@ -6,6 +6,7 @@ import '../../../core/domain/pet.dart';
 import '../../../core/theme/app_theme.dart';
 import '../mascotas_routes.dart';
 import 'pets_providers.dart';
+import 'widgets/patient_access_card.dart';
 import 'widgets/pet_avatar.dart';
 
 /// Perfil de una mascota: datos, y pestañas preparadas para el historial
@@ -128,6 +129,7 @@ class _PetDetails extends StatelessWidget {
           label: 'Contacto de emergencia',
           value: contact == null ? 'Sin registrar' : '${contact.nombre} · ${contact.telefono}',
         ),
+        PatientAccessCard(pet: pet),
       ],
     );
   }

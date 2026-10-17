@@ -10,6 +10,7 @@ import {
   assertFails,
   assertSucceeds,
   initializeTestEnvironment,
+  type RulesTestContext,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import {
@@ -22,6 +23,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
@@ -53,7 +55,8 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       await setDoc(doc(db, "users/susp"), { uid: "susp", role: "clinica", estado: "suspendido", clinicId: "c3" });
       await setDoc(doc(db, "clinics/c3"), { ownerUid: "susp", nombre: "Suspendida", estado: "activo" });
       await setDoc(doc(db, "users/susp/devices/d1"), { fcmToken: "t" });
-      await setDoc(doc(db, "pets/p1"), { ownerUid: "ana", nombre: "Luna" });
+      // Mascota de la semana 2: sin código de paciente.
+      await setDoc(doc(db, "pets/p1"), { ownerUid: "ana", nombre: "Luna", especie: "perro" });
       await setDoc(doc(db, "pets/p2"), { ownerUid: "otro", nombre: "Max" });
     });
   });
@@ -138,7 +141,7 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
     await assertFails(getDoc(doc(ana, "pets/p2")));
     await assertSucceeds(getDocs(query(collection(ana, "pets"), where("ownerUid", "==", "ana"))));
     await assertFails(getDocs(collection(ana, "pets")));
-    await assertFails(setDoc(doc(ana, "pets/p3"), { ownerUid: "ana", nombre: "Nueva" }));
+    await assertFails(setDoc(doc(ana, "pets/p3"), { ownerUid: "ana", nombre: "Nueva" })); // sin especie ni código
   });
 
   it("sin sesión no se lee nada", async () => {
@@ -336,25 +339,45 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       alergias: ["pollo"],
       condiciones: [],
       contactoEmergencia: { nombre: "Ana", telefono: "3001234567" },
+      clinicasAutorizadas: [],
       createdAt: new Date(),
     };
 
-    it("el dueño crea, edita y borra sus mascotas", async () => {
-      const p3 = doc(env.authenticatedContext("ana").firestore(), "pets/p3");
-      await assertSucceeds(setDoc(p3, mascota));
+    // Como lo hace PetsRepository: mascota + codigosPaciente/{codigo} en un lote.
+    function crear(
+      db: ReturnType<RulesTestContext["firestore"]>,
+      petId: string,
+      datos: Record<string, unknown>,
+      codigo = "MSC-7K4P",
+    ) {
+      const lote = writeBatch(db);
+      lote.set(doc(db, `pets/${petId}`), { ...datos, codigoPaciente: codigo });
+      lote.set(doc(db, `codigosPaciente/${codigo}`), {
+        petId,
+        ownerUid: datos.ownerUid,
+        createdAt: new Date(),
+      });
+      return lote.commit();
+    }
+
+    it("el dueño crea (con código), edita y borra sus mascotas", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertSucceeds(crear(ana, "p3", mascota));
+      const p3 = doc(ana, "pets/p3");
       await assertSucceeds(updateDoc(p3, { nombre: "Luna B", alergias: [] }));
       await assertSucceeds(deleteDoc(p3));
     });
 
     it("solo nombre y especie son obligatorios", async () => {
-      const p3 = doc(env.authenticatedContext("ana").firestore(), "pets/p3");
-      await assertSucceeds(setDoc(p3, { ownerUid: "ana", nombre: "Michi", especie: "gato" }));
-      await assertFails(setDoc(doc(env.authenticatedContext("ana").firestore(), "pets/p4"),
-        { ownerUid: "ana", nombre: "Sin especie" }));
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertSucceeds(
+        crear(ana, "p3", { ownerUid: "ana", nombre: "Michi", especie: "gato" }),
+      );
+      await assertFails(crear(ana, "p4", { ownerUid: "ana", nombre: "Sin especie" }, "MSC-2222"));
     });
 
     it("rechaza datos inválidos", async () => {
-      const p3 = doc(env.authenticatedContext("ana").firestore(), "pets/p3");
+      const ana = env.authenticatedContext("ana").firestore();
       for (const malo of [
         { nombre: "" },
         { especie: "dragon" },
@@ -367,28 +390,157 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
         { contactoEmergencia: { nombre: "Ana", telefono: "abc" } },
         { extra: true },
       ]) {
-        await assertFails(setDoc(p3, { ...mascota, ...malo }));
+        await assertFails(crear(ana, "p3", { ...mascota, ...malo }));
       }
     });
 
     it("sexo: indeterminado y otro con detalle (solo con 'otro')", async () => {
-      const p3 = doc(env.authenticatedContext("ana").firestore(), "pets/p3");
-      await assertSucceeds(setDoc(p3, { ...mascota, sexo: "indeterminado" }));
-      await assertSucceeds(setDoc(p3, { ...mascota, sexo: "otro", sexoDetalle: "Hermafrodita" }));
-      await assertFails(setDoc(p3, { ...mascota, sexo: "hembra", sexoDetalle: "x" }));
-      await assertFails(setDoc(p3, { ...mascota, sexo: "otro", sexoDetalle: "" }));
-      await assertFails(setDoc(p3, { ...mascota, sexo: "otro" })); // falta el detalle
-      await assertFails(setDoc(p3, { ...mascota, sexo: "otro", sexoDetalle: "x".repeat(31) }));
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertSucceeds(crear(ana, "p3", { ...mascota, sexo: "indeterminado" }, "MSC-AAAA"));
+      await assertSucceeds(crear(ana, "p4",
+        { ...mascota, fotoPath: null, sexo: "otro", sexoDetalle: "Hermafrodita" }, "MSC-BBBB"));
+      for (const malo of [
+        { sexo: "hembra", sexoDetalle: "x" },
+        { sexo: "otro", sexoDetalle: "" },
+        { sexo: "otro" }, // falta el detalle
+        { sexo: "otro", sexoDetalle: "x".repeat(31) },
+      ]) {
+        await assertFails(crear(ana, "p5", { ...mascota, fotoPath: null, ...malo }, "MSC-CCCC"));
+      }
     });
 
     it("nadie crea mascotas a nombre de otro ni cambia el dueño", async () => {
       const ana = env.authenticatedContext("ana").firestore();
       const vet = env.authenticatedContext("vet").firestore();
-      await assertFails(setDoc(doc(ana, "pets/p3"), { ...mascota, ownerUid: "otro" }));
-      await assertFails(setDoc(doc(vet, "pets/p5"), { ...mascota, ownerUid: "vet" })); // rol clínica
+      await assertFails(crear(ana, "p3", { ...mascota, ownerUid: "otro" }));
+      await assertFails(crear(vet, "p5", { ...mascota, ownerUid: "vet" })); // rol clínica
       await assertFails(updateDoc(doc(ana, "pets/p1"), { ownerUid: "otro" }));
       await assertFails(updateDoc(doc(ana, "pets/p2"), { nombre: "Robada" }));
       await assertFails(deleteDoc(doc(ana, "pets/p2")));
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Semana 3: código de paciente y vinculación clínica ↔ mascota
+  // ------------------------------------------------------------------
+
+  describe("código de paciente", () => {
+    const base = { ownerUid: "ana", nombre: "Kiwi", especie: "ave", clinicasAutorizadas: [] };
+
+    it("una mascota nueva necesita su código registrado en el mismo lote", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      // Sin código.
+      await assertFails(setDoc(doc(ana, "pets/p7"), base));
+      // Con código pero sin registrarlo en codigosPaciente.
+      await assertFails(setDoc(doc(ana, "pets/p7"), { ...base, codigoPaciente: "MSC-7K4P" }));
+      // El registro del código solo, sin la mascota.
+      await assertFails(setDoc(doc(ana, "codigosPaciente/MSC-7K4P"),
+        { petId: "p7", ownerUid: "ana", createdAt: new Date() }));
+    });
+
+    it("formato MSC-XXXX sin caracteres ambiguos", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      for (const malo of ["MSC-0K4P", "MSC-OK4P", "MSC-1K4P", "MSC-IK4P", "MSC-LK4P",
+                          "MSC-7K4", "MSC-7K4PP", "msc-7k4p", "ABC-7K4P"]) {
+        const lote = writeBatch(ana);
+        lote.set(doc(ana, "pets/p7"), { ...base, codigoPaciente: malo });
+        lote.set(doc(ana, `codigosPaciente/${malo}`), { petId: "p7", ownerUid: "ana" });
+        await assertFails(lote.commit());
+      }
+    });
+
+    it("un código ya usado no se puede reutilizar (unicidad)", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      const lote1 = writeBatch(ana);
+      lote1.set(doc(ana, "pets/p7"), { ...base, codigoPaciente: "MSC-7K4P" });
+      lote1.set(doc(ana, "codigosPaciente/MSC-7K4P"), { petId: "p7", ownerUid: "ana" });
+      await assertSucceeds(lote1.commit());
+
+      const lote2 = writeBatch(ana);
+      lote2.set(doc(ana, "pets/p8"), { ...base, codigoPaciente: "MSC-7K4P" });
+      lote2.set(doc(ana, "codigosPaciente/MSC-7K4P"), { petId: "p8", ownerUid: "ana" });
+      await assertFails(lote2.commit());
+    });
+
+    it("no se puede apuntar un código a la mascota de otro", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertFails(setDoc(doc(ana, "codigosPaciente/MSC-9999"),
+        { petId: "p2", ownerUid: "ana" }));
+    });
+
+    it("nadie lee codigosPaciente desde la app", async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "codigosPaciente/MSC-7K4P"), { petId: "p1", ownerUid: "ana" });
+      });
+      for (const uid of ["ana", "vet", "vet2"]) {
+        const db = env.authenticatedContext(uid).firestore();
+        await assertFails(getDoc(doc(db, "codigosPaciente/MSC-7K4P")));
+      }
+    });
+
+    it("el código no cambia; a una mascota antigua se le asigna una sola vez", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      // p1 es de la semana 2 (sin código): se le asigna con su registro.
+      const lote = writeBatch(ana);
+      lote.update(doc(ana, "pets/p1"), { codigoPaciente: "MSC-7K4P" });
+      lote.set(doc(ana, "codigosPaciente/MSC-7K4P"), { petId: "p1", ownerUid: "ana" });
+      await assertSucceeds(lote.commit());
+      // Luego ya no se puede cambiar.
+      const otro = writeBatch(ana);
+      otro.update(doc(ana, "pets/p1"), { codigoPaciente: "MSC-2222" });
+      otro.set(doc(ana, "codigosPaciente/MSC-2222"), { petId: "p1", ownerUid: "ana" });
+      await assertFails(otro.commit());
+    });
+  });
+
+  describe("clinicasAutorizadas", () => {
+    beforeEach(async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "pets/p6"), {
+          ownerUid: "ana",
+          nombre: "Toby",
+          especie: "perro",
+          codigoPaciente: "MSC-TOBY",
+          clinicasAutorizadas: ["c2"],
+        });
+      });
+    });
+
+    it("una mascota nueva empieza sin clínicas autorizadas", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      const lote = writeBatch(ana);
+      lote.set(doc(ana, "pets/p7"),
+        { ownerUid: "ana", nombre: "X", especie: "gato", codigoPaciente: "MSC-7K4P",
+          clinicasAutorizadas: ["c2"] });
+      lote.set(doc(ana, "codigosPaciente/MSC-7K4P"), { petId: "p7", ownerUid: "ana" });
+      await assertFails(lote.commit());
+    });
+
+    it("el dueño puede quitar clínicas (revocar) pero no agregarlas", async () => {
+      const p6 = doc(env.authenticatedContext("ana").firestore(), "pets/p6");
+      await assertFails(updateDoc(p6, { clinicasAutorizadas: ["c2", "c1"] }));
+      await assertFails(updateDoc(p6, { clinicasAutorizadas: ["c1"] }));
+      await assertSucceeds(updateDoc(p6, { clinicasAutorizadas: [] }));
+    });
+
+    it("una clínica autorizada (activa) lee la mascota; las demás no", async () => {
+      const vet2 = env.authenticatedContext("vet2").firestore(); // clínica c2, activa
+      const vet = env.authenticatedContext("vet").firestore(); // clínica c1, no autorizada
+      await assertSucceeds(getDoc(doc(vet2, "pets/p6")));
+      await assertSucceeds(getDocs(query(collection(vet2, "pets"),
+        where("clinicasAutorizadas", "array-contains", "c2"))));
+      await assertFails(getDoc(doc(vet, "pets/p6")));
+      await assertFails(getDocs(query(collection(vet, "pets"),
+        where("clinicasAutorizadas", "array-contains", "c2"))));
+      // Ni la clínica autorizada puede editarla.
+      await assertFails(updateDoc(doc(vet2, "pets/p6"), { nombre: "Otro" }));
+    });
+
+    it("al revocar, la clínica deja de leerla", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      await assertSucceeds(updateDoc(doc(ana, "pets/p6"), { clinicasAutorizadas: [] }));
+      await assertFails(getDoc(doc(vet2, "pets/p6")));
     });
   });
 });

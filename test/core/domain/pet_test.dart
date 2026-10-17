@@ -83,6 +83,22 @@ void main() {
     expect(Pet.fromMap('p3', {...doc}..remove('sexo')).sexoTexto, 'Sin registrar');
   });
 
+  test('código de paciente y clínicas autorizadas', () {
+    final pet = Pet.fromMap('p1', {
+      ...doc,
+      'codigoPaciente': 'MSC-7K4P',
+      'clinicasAutorizadas': ['c1', 'c2'],
+    });
+    expect(pet.codigoPaciente, 'MSC-7K4P');
+    expect(pet.clinicasAutorizadas, ['c1', 'c2']);
+    expect(Pet.fromMap('p1', pet.toMap()), pet);
+    expect(pet.copyWith(clinicasAutorizadas: const ['c1']).clinicasAutorizadas, ['c1']);
+    // Mascotas de la semana 2: sin código y sin clínicas.
+    final antigua = Pet.fromMap('p2', doc);
+    expect(antigua.codigoPaciente, isNull);
+    expect(antigua.clinicasAutorizadas, isEmpty);
+  });
+
   test('resumen "Especie · edad"', () {
     final now = DateTime(2026, 10, 15);
     expect(Pet.fromMap('p1', doc).summary(now), 'Perro · 3 años');

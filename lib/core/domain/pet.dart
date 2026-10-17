@@ -93,6 +93,8 @@ class Pet {
     this.alergias = const [],
     this.condiciones = const [],
     this.contactoEmergencia,
+    this.codigoPaciente,
+    this.clinicasAutorizadas = const [],
     this.createdAt,
   });
 
@@ -112,6 +114,8 @@ class Pet {
             ? EmergencyContact.fromMap(
                 Map<String, dynamic>.from(map['contactoEmergencia'] as Map))
             : null,
+        codigoPaciente: map['codigoPaciente'] as String?,
+        clinicasAutorizadas: _strings(map['clinicasAutorizadas']),
         createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       );
 
@@ -142,6 +146,16 @@ class Pet {
   final List<String> alergias;
   final List<String> condiciones;
   final EmergencyContact? contactoEmergencia;
+
+  /// Código que el dueño le da a la clínica para vincularla (`MSC-XXXX`,
+  /// ver PatientCode). Se asigna al crear la mascota y nunca cambia. null
+  /// solo en mascotas creadas antes de la semana 3 (se asigna al abrirlas).
+  final String? codigoPaciente;
+
+  /// Ids de las clínicas que pueden ver la mascota y su historial. Las
+  /// agrega la Edge Function `vincular-mascota`; el dueño solo puede quitar.
+  final List<String> clinicasAutorizadas;
+
   final DateTime? createdAt;
 
   static List<String> _strings(Object? raw) =>
@@ -161,6 +175,8 @@ class Pet {
         'alergias': alergias,
         'condiciones': condiciones,
         'contactoEmergencia': contactoEmergencia?.toMap(),
+        'codigoPaciente': codigoPaciente,
+        'clinicasAutorizadas': clinicasAutorizadas,
         'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!),
       };
 
@@ -175,6 +191,8 @@ class Pet {
     List<String>? alergias,
     List<String>? condiciones,
     EmergencyContact? contactoEmergencia,
+    String? codigoPaciente,
+    List<String>? clinicasAutorizadas,
   }) =>
       Pet(
         id: id,
@@ -189,6 +207,8 @@ class Pet {
         alergias: alergias ?? this.alergias,
         condiciones: condiciones ?? this.condiciones,
         contactoEmergencia: contactoEmergencia ?? this.contactoEmergencia,
+        codigoPaciente: codigoPaciente ?? this.codigoPaciente,
+        clinicasAutorizadas: clinicasAutorizadas ?? this.clinicasAutorizadas,
         createdAt: createdAt,
       );
 
@@ -225,6 +245,8 @@ class Pet {
       listEquals(other.alergias, alergias) &&
       listEquals(other.condiciones, condiciones) &&
       other.contactoEmergencia == contactoEmergencia &&
+      other.codigoPaciente == codigoPaciente &&
+      listEquals(other.clinicasAutorizadas, clinicasAutorizadas) &&
       other.createdAt == createdAt;
 
   @override
@@ -241,6 +263,8 @@ class Pet {
         Object.hashAll(alergias),
         Object.hashAll(condiciones),
         contactoEmergencia,
+        codigoPaciente,
+        Object.hashAll(clinicasAutorizadas),
         createdAt,
       );
 }

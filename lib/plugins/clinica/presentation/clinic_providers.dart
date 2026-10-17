@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/domain/clinic.dart';
 import '../../../core/domain/clinic_service.dart';
 import '../../../core/domain/slot.dart';
+import '../../../core/supabase/supabase_providers.dart';
 import '../clinica_routes.dart';
 import '../data/clinic_repository.dart';
+import '../data/pet_link_api.dart';
 import '../data/services_repository.dart';
 import '../data/slots_repository.dart';
 
@@ -59,3 +61,8 @@ final clinicSetupStepProvider =
 
 /// Reloj de la agenda: decide qué franjas ya pasaron. Se reemplaza en pruebas.
 final agendaClockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
+/// Vinculación de mascotas con su código de paciente (semana 3).
+final petLinkApiProvider = Provider<PetLinkApi>(
+  (ref) => PetLinkApi(ref.watch(supabaseClientProvider)?.functions),
+);

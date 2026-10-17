@@ -46,16 +46,26 @@ Subcolecciones:
 
 ## `pets/{petId}` — soporte para RF-08, RF-14, RF-17, RF-18
 
-Reglas: el **dueño** (rol `dueno`, activo) crea, lee, edita y borra sus mascotas; obligatorios `nombre` (1–40) y `especie`; `ownerUid` no cambia. Las clínicas podrán leerlas en la semana 3 (RF-08). La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
+Reglas: el **dueño** (rol `dueno`, activo) crea, lee, edita y borra sus mascotas; obligatorios `nombre` (1–40), `especie` y (al crear) `codigoPaciente`; `ownerUid` y `codigoPaciente` no cambian. Las **clínicas autorizadas** (activas) la leen; consultan `where('clinicasAutorizadas', 'array-contains', clinicId)`. La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
 
-`{ownerUid, nombre, especie, raza?, fechaNacimiento?, sexo?, sexoDetalle?, fotoPath?, alergias:string[], condiciones:string[], contactoEmergencia?:{nombre, telefono}, createdAt}`
+`{ownerUid, nombre, especie, raza?, fechaNacimiento?, sexo?, sexoDetalle?, fotoPath?, codigoPaciente, clinicasAutorizadas:string[], alergias:string[], condiciones:string[], contactoEmergencia?:{nombre, telefono}, createdAt}`
 
+- `codigoPaciente`: código corto `MSC-XXXX` (sin 0/O, 1/I ni L; `PatientCode`) que el dueño le da a su veterinaria. Se asigna al crear la mascota, en el **mismo lote** que `codigosPaciente/{codigo}`, y nunca cambia. A las mascotas de la semana 2 se les asigna al abrir su perfil.
+- `clinicasAutorizadas`: ids de las clínicas que pueden leer la mascota y su historial (RF-08). Solo la Edge Function `vincular-mascota` **agrega**; el dueño solo puede **quitar** (revocar). Empieza vacía.
 - `especie ∈ perro, gato, ave, roedor, reptil, granja, exotico` (singular). Cada una corresponde a un valor de `clinics.tiposAnimales` (`PetSpecies.animalType`), para mostrar solo clínicas que atienden esa especie.
 - `sexo ∈ macho, hembra, indeterminado, otro`. Con `otro` es obligatorio `sexoDetalle` (texto de 1–30 caracteres, p. ej. "hermafrodita"); con cualquier otro valor `sexoDetalle` no se guarda.
 - `fotoPath` (antes `fotoUrl`): **ruta** en el bucket `mascotas` de Supabase Storage, `{ownerUid}/{petId}/foto.jpg|png` (`StorageRepository.petPhotoPath`). El bucket es privado, así que no hay una URL fija: la app pide un enlace temporal con `StorageRepository.signedUrl`. Las reglas exigen que la ruta sea de la carpeta del dueño y de esa mascota.
 
 Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**):
 `{clinicId, clinicNombre, appointmentId?, fecha, diagnostico, tratamiento, vacunas:[{nombre, lote, fechaAplicacion, fechaProximaDosis}], adjuntos:[{url, tipo:'imagen'|'pdf', nombre}], createdAt}`
+
+## `codigosPaciente/{codigo}` — semana 3 · *nadie lo lee desde la app*
+
+`{petId, ownerUid, createdAt}`. El id del documento (`MSC-XXXX`) hace único el código: las reglas solo permiten **crearlo** (junto con la mascota que lo usa), así que si ya existe el lote completo falla y la app prueba otro código. Lo lee la Edge Function `vincular-mascota` con la cuenta de servicio.
+
+### Límite de intentos de vinculación (Postgres de Supabase)
+
+Tabla `public.intentos_vinculacion (clinic_id, intentado_en)` y función `registrar_intento_vinculacion`: máximo **10 búsquedas de código por clínica por hora**. Solo la usa la Edge Function (RLS sin políticas). No guarda datos de la app. Migración: `supabase/migrations/20261016000000_limite_vinculacion.sql`.
 
 ## `appointments/{appointmentId}` — RF-14
 

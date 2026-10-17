@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/domain/clinic.dart';
 import '../../../core/domain/pet.dart';
 import '../../../core/storage/storage_providers.dart';
 import '../../../core/storage/storage_repository.dart';
@@ -61,5 +62,18 @@ final petPhotoUrlProvider = FutureProvider.autoDispose.family<String, String>(
   (ref, path) => ref
       .watch(storageRepositoryProvider)
       .signedUrl(path, bucketId: StorageRepository.petsBucket),
+  retry: (_, __) => null,
+);
+
+/// Clínica autorizada para ver una mascota (nombre en la lista de accesos).
+final authorizedClinicProvider = StreamProvider.autoDispose.family<Clinic?, String>(
+  (ref, clinicId) => ref.watch(petsRepositoryProvider).watchClinic(clinicId),
+  retry: (_, __) => null,
+);
+
+/// Asigna el código de paciente a una mascota de la semana 2 (las nuevas ya
+/// lo traen) y lo devuelve.
+final patientCodeProvider = FutureProvider.autoDispose.family<String, Pet>(
+  (ref, pet) => ref.watch(petsRepositoryProvider).ensurePatientCode(pet),
   retry: (_, __) => null,
 );

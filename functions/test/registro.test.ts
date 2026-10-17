@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { ErrorRegistro } from "../../supabase/functions/_shared/errores.ts";
+import { ErrorFuncion } from "../../supabase/functions/_shared/errores.ts";
 import {
   crearDocumento,
   type EscrituraFirestore,
@@ -51,7 +51,7 @@ describe("completarRegistro (Edge Function, RF-01)", () => {
 
   async function esperarError(promesa: Promise<unknown>, codigo: string, mensaje?: string) {
     const error = await promesa.then(() => null, (e) => e);
-    expect(error).toBeInstanceOf(ErrorRegistro);
+    expect(error).toBeInstanceOf(ErrorFuncion);
     expect(error.codigo).toBe(codigo);
     if (mensaje) expect(error.message).toBe(mensaje);
   }

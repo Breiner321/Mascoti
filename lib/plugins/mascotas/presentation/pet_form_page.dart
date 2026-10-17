@@ -150,6 +150,8 @@ class _PetFormState extends ConsumerState<_PetForm> {
       contactoEmergencia: contactoNombre == null || contactoTelefono == null
           ? null
           : EmergencyContact(nombre: contactoNombre, telefono: contactoTelefono),
+      codigoPaciente: initial?.codigoPaciente,
+      clinicasAutorizadas: initial?.clinicasAutorizadas ?? const [],
       createdAt: initial?.createdAt,
     );
   }

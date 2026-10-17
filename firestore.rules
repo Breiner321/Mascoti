@@ -193,28 +193,85 @@ service cloud.firestore {
       }
     }
 
-    // ---------- pets (registro de mascotas, semana 2) ----------
-    match /pets/{petId} {
-      // El dueño lee sus mascotas (la app consulta where ownerUid == uid).
-      // TODO(semana 3): las clínicas con cita con la mascota también la leen
-      // (historial médico, RF-08).
-      allow read: if isActive() && resource.data.ownerUid == request.auth.uid;
+    // ---------- Código de paciente (semana 3) ----------
+    // MSC-XXXX sin 0/O, 1/I ni L (PatientCode en lib/core/domain).
+    function isPatientCode(code) {
+      return code is string && code.matches('^MSC-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$');
+    }
 
+    // El código quedará (al terminar el lote) registrado para esta mascota.
+    function codeIsFor(code, petId) {
+      return existsAfter(/databases/$(database)/documents/codigosPaciente/$(code))
+        && getAfter(/databases/$(database)/documents/codigosPaciente/$(code)).data.petId == petId;
+    }
+
+    // Clínica (activa) autorizada por el dueño para ver la mascota.
+    function isAuthorizedClinic(petData) {
+      return hasRole('clinica')
+        && userData().get('clinicId', null) != null
+        && userData().clinicId in petData.get('clinicasAutorizadas', []);
+    }
+
+    // codigosPaciente/{codigo} → {petId, ownerUid}. El id del documento hace
+    // único el código: solo se puede CREAR, así que si ya existe el lote
+    // entero falla y la app prueba otro. Nadie lo lee desde la app (lo usa
+    // la Edge Function vincular-mascota con la cuenta de servicio).
+    match /codigosPaciente/{codigo} {
+      allow read, update, delete: if false;
+      allow create: if hasRole('dueno')
+        && isPatientCode(codigo)
+        && request.resource.data.keys().hasOnly(['petId', 'ownerUid', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.petId is string
+        && getAfter(/databases/$(database)/documents/pets/$(request.resource.data.petId)).data.ownerUid
+             == request.auth.uid
+        && getAfter(/databases/$(database)/documents/pets/$(request.resource.data.petId)).data.codigoPaciente
+             == codigo;
+    }
+
+    // ---------- pets (registro de mascotas, semana 2; vinculación, semana 3) ----------
+    match /pets/{petId} {
+      // El dueño lee sus mascotas (la app consulta where ownerUid == uid) y
+      // las clínicas autorizadas las suyas (where clinicasAutorizadas
+      // array-contains clinicId).
+      allow read: if (isActive() && resource.data.ownerUid == request.auth.uid)
+        || isAuthorizedClinic(resource.data);
+
+      // Al crearla se registra su código en el mismo lote y empieza sin
+      // clínicas autorizadas.
       allow create: if hasRole('dueno')
         && request.resource.data.ownerUid == request.auth.uid
-        && validPet(request.resource.data);
+        && validPet(request.resource.data)
+        && isPatientCode(request.resource.data.get('codigoPaciente', null))
+        && codeIsFor(request.resource.data.codigoPaciente, petId)
+        && request.resource.data.get('clinicasAutorizadas', []).size() == 0;
 
+      // El dueño edita sus datos; el código no cambia (salvo asignarlo una
+      // vez a mascotas de la semana 2) y de clinicasAutorizadas solo puede
+      // QUITAR clínicas (revocar acceso). Agregarlas solo lo hace la Edge
+      // Function vincular-mascota.
       allow update: if hasRole('dueno')
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == resource.data.ownerUid
-        && validPet(request.resource.data);
+        && validPet(request.resource.data)
+        && patientCodeUpdateValid()
+        && resource.data.get('clinicasAutorizadas', [])
+             .hasAll(request.resource.data.get('clinicasAutorizadas', []));
 
       allow delete: if hasRole('dueno') && resource.data.ownerUid == request.auth.uid;
+
+      function patientCodeUpdateValid() {
+        return !('codigoPaciente' in changedKeys())
+          || (resource.data.get('codigoPaciente', null) == null
+              && isPatientCode(request.resource.data.codigoPaciente)
+              && codeIsFor(request.resource.data.codigoPaciente, petId));
+      }
 
       function validPet(data) {
         return data.keys().hasOnly(['ownerUid', 'nombre', 'especie', 'raza', 'fechaNacimiento',
                                     'sexo', 'sexoDetalle', 'fotoPath', 'alergias', 'condiciones',
-                                    'contactoEmergencia', 'createdAt'])
+                                    'contactoEmergencia', 'codigoPaciente',
+                                    'clinicasAutorizadas', 'createdAt'])
           // Obligatorios
           && data.nombre is string && data.nombre.size() >= 1 && data.nombre.size() <= 40
           && data.especie in ['perro', 'gato', 'ave', 'roedor', 'reptil', 'granja', 'exotico']
@@ -235,6 +292,8 @@ service cloud.firestore {
                   && data.fotoPath.matches('^' + request.auth.uid + '/' + petId + '/foto[.](jpg|png)$')))
           && data.get('alergias', []) is list && data.get('alergias', []).size() <= 30
           && data.get('condiciones', []) is list && data.get('condiciones', []).size() <= 30
+          && data.get('clinicasAutorizadas', []) is list
+          && data.get('clinicasAutorizadas', []).size() <= 50
           && (data.get('contactoEmergencia', null) == null
               || (data.contactoEmergencia is map
                   && data.contactoEmergencia.keys().hasOnly(['nombre', 'telefono'])
