@@ -570,6 +570,32 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       await assertFails(updateDoc(doc(vet2, "pets/p6"), { nombre: "Otro" }));
     });
 
+    it("pacientes: la clínica guarda el nombre del dueño solo de mascotas que la autorizaron", async () => {
+      const vet2 = env.authenticatedContext("vet2").firestore(); // c2, autorizada en p6
+      const vet = env.authenticatedContext("vet").firestore(); // c1, no autorizada
+      const ana = env.authenticatedContext("ana").firestore();
+      const datos = { duenoNombre: "Ana Pérez", vinculadoAt: serverTimestamp() };
+
+      await assertSucceeds(setDoc(doc(vet2, "clinics/c2/pacientes/p6"), datos));
+      await assertSucceeds(getDocs(collection(vet2, "clinics/c2/pacientes")));
+      // Otra clínica, una mascota no autorizada o en la carpeta de otra clínica: no.
+      await assertFails(setDoc(doc(vet, "clinics/c1/pacientes/p6"), datos));
+      await assertFails(setDoc(doc(vet2, "clinics/c2/pacientes/p1"), datos));
+      await assertFails(setDoc(doc(vet, "clinics/c2/pacientes/p6"), datos));
+      await assertFails(getDocs(collection(vet, "clinics/c2/pacientes")));
+      // El dueño no lee ni escribe la lista de la clínica.
+      await assertFails(getDoc(doc(ana, "clinics/c2/pacientes/p6")));
+      await assertFails(setDoc(doc(ana, "clinics/c2/pacientes/p6"), datos));
+      // Solo esos dos campos, con la hora del servidor; no se borra.
+      await assertFails(setDoc(doc(vet2, "clinics/c2/pacientes/p6"),
+        { ...datos, petId: "p6" }));
+      await assertFails(setDoc(doc(vet2, "clinics/c2/pacientes/p6"),
+        { duenoNombre: "Ana", vinculadoAt: new Date(2020, 0, 1) }));
+      await assertFails(setDoc(doc(vet2, "clinics/c2/pacientes/p6"),
+        { duenoNombre: "a".repeat(101), vinculadoAt: serverTimestamp() }));
+      await assertFails(deleteDoc(doc(vet2, "clinics/c2/pacientes/p6")));
+    });
+
     it("al revocar, la clínica deja de leerla", async () => {
       const ana = env.authenticatedContext("ana").firestore();
       const vet2 = env.authenticatedContext("vet2").firestore();
