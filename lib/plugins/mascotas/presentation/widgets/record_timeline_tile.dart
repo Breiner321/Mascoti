@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/domain/medical_record.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../date_label.dart';
 import 'record_attachment_tile.dart';
 
 /// Una consulta en la línea de tiempo: punto y línea vertical a la izquierda
@@ -23,7 +24,6 @@ class RecordTimelineTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final dates = MaterialLocalizations.of(context);
     return Stack(
       children: [
         // Línea vertical: del punto anterior al siguiente.
@@ -68,7 +68,7 @@ class RecordTimelineTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    dates.formatMediumDate(record.fecha),
+                    dateLabel(context, record.fecha),
                     style: textTheme.labelMedium?.copyWith(color: AppColors.primary),
                   ),
                   const SizedBox(height: 2),
@@ -116,7 +116,6 @@ class _RecordDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final dates = MaterialLocalizations.of(context);
     final muted = textTheme.bodySmall?.copyWith(color: AppColors.textMuted);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,7 +143,7 @@ class _RecordDetail extends StatelessWidget {
               subtitle: Text([
                 'Lote ${v.lote}',
                 if (v.fechaProximaDosis case final next?)
-                  'Próxima dosis: ${dates.formatMediumDate(next)}',
+                  'Próxima dosis: ${dateLabel(context, next)}',
               ].join(' · ')),
             ),
         ],

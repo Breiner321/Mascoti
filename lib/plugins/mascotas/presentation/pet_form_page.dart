@@ -11,6 +11,7 @@ import '../data/pets_repository.dart';
 import '../domain/pet_photo.dart';
 import '../domain/pet_validators.dart';
 import '../mascotas_routes.dart';
+import 'date_label.dart';
 import 'pets_providers.dart';
 import 'widgets/pet_photo_field.dart';
 import 'widgets/tag_chips_field.dart';
@@ -93,7 +94,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
   }
 
   String _formatDate(DateTime? date) =>
-      date == null ? '' : MaterialLocalizations.of(context).formatMediumDate(date);
+      date == null ? '' : dateLabel(context, date);
 
   Future<void> _pickDate() async {
     final now = DateTime.now();

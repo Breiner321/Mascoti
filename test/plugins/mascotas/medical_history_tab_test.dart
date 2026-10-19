@@ -119,6 +119,8 @@ void main() {
     final gastro = tester.getTopLeft(find.text('Gastroenteritis'));
     expect(otitis.dy, lessThan(gastro.dy));
     expect(find.text('Vet Central'), findsNWidgets(2));
+    // Las fechas llevan el año (la consulta antigua es de 2025).
+    expect(find.textContaining('2025'), findsOneWidget);
     expect(find.text('Gotas óticas cada 12 h'), findsNothing);
 
     await tester.tap(find.text('Otitis externa'));

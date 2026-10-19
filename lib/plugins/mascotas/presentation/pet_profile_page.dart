@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/domain/pet.dart';
 import '../../../core/theme/app_theme.dart';
 import '../mascotas_routes.dart';
+import 'date_label.dart';
 import 'medical_history_tab.dart';
 import 'pets_providers.dart';
 import 'widgets/patient_access_card.dart';
@@ -115,7 +116,7 @@ class _PetDetails extends StatelessWidget {
           label: 'Fecha de nacimiento',
           value: birth == null
               ? 'Sin registrar'
-              : MaterialLocalizations.of(context).formatMediumDate(birth),
+              : dateLabel(context, birth),
         ),
         _Tags(title: 'Alergias', values: pet.alergias, empty: 'Sin alergias registradas'),
         _Tags(
