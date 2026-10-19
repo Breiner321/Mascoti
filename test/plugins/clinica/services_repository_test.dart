@@ -99,6 +99,23 @@ void main() {
     expect(await repo.watchActive('c1').first, isEmpty);
   });
 
+  test('mantiene en la clínica las categorías de sus servicios activos (RF-09)', () async {
+    await firestore.doc('clinics/c1').set({'nombre': 'Vet', 'estado': 'activo'});
+    Future<List<dynamic>?> categorias() async =>
+        (await firestore.doc('clinics/c1').get()).data()!['categoriasServicio'] as List?;
+
+    await repo.save('c1', service('a'), isNew: true);
+    await repo.save(
+      'c1',
+      service('b', nombre: 'Baño').copyWith(categoria: ServiceCategory.bano),
+      isNew: true,
+    );
+    expect(await categorias(), ['bano', 'consulta_general']);
+
+    await repo.deactivate('c1', 'b');
+    expect(await categorias(), ['consulta_general']);
+  });
+
   test('citas activas: 0 hasta que existan las citas (RF-14)', () async {
     expect(await repo.activeAppointmentsCount('c1', 'a'), 0);
   });

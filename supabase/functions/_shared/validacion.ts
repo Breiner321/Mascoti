@@ -1,4 +1,4 @@
-import { ErrorRegistro } from "./errores.ts";
+import { ErrorFuncion } from "./errores.ts";
 
 export type Rol = "dueno" | "clinica";
 
@@ -18,7 +18,7 @@ export interface DatosRegistro {
 const TELEFONO = /^\d{10}$/;
 
 function invalido(mensaje: string): never {
-  throw new ErrorRegistro("invalid-argument", mensaje);
+  throw new ErrorFuncion("invalid-argument", mensaje);
 }
 
 /** lat/lng vienen del buscador de direcciones: obligatorios, finitos y en rango. */

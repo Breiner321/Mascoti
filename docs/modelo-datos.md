@@ -4,6 +4,8 @@ Fuente única de verdad del esquema. **Todo PR que agregue o cambie colecciones 
 
 Modelos en Dart: `lib/core/domain/` (`Clinic`, `ClinicService`, `Slot`, `Pet`), compartidos por todos los plugins. Los enums guardan en Firestore el valor en español de esta página.
 
+Horas (`hora`, `horarioBase.apertura/cierre`): se **guardan** en 24 h `HH:mm`; la app las **muestra** en 12 h con a. m./p. m. (`TimeFormat` en `lib/core/format`).
+
 Convenciones: nombres de campos en español como en los RF; fechas como `Timestamp`; dinero en COP como `number` entero (sin decimales) salvo que el RF diga otra cosa; ids generados por Firestore salvo que se indique.
 
 ## `users/{uid}`  — RF-01, RF-02 · *se crea solo con la Edge Function `completar-registro` (Supabase)*
@@ -31,6 +33,7 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 | lat, lng | number | desde OpenStreetMap (buscador de direcciones); obligatorios (los valida `completar-registro`) |
 | geo | map `{geohash, geopoint}` | para `geoflutterfire_plus` (RF-09). Lo calcula `completar-registro` (geohash de 10 caracteres, igual a `geofire-common`) |
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
+| categoriasServicio | string[] | categorías de sus servicios **activos** (RF-05), para filtrar el directorio (RF-09). La actualiza `ServicesRepository.syncCategories` al guardar o desactivar un servicio |
 | atencionEmergencias | bool | RF-10 |
 | horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06. Horas `HH:mm` (24 h); duración entera 5–480 (la app ofrece 15, 30 o 60 min en RF-04). `OpeningHours.slotTimes()` genera las franjas del día |
 | calificacion | number? | promedio (futuro) |
@@ -40,20 +43,41 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 Subcolecciones:
 - `services/{serviceId}` — RF-05: `{nombre, categoria, descripcion, precio, duracionMin, activo, createdAt, updatedAt}`; `precio` en COP: la app solo envía enteros (decisión del equipo; el RF permitía 2 decimales) y las reglas aceptan cualquier número > 0; `categoria ∈ vacunacion, peluqueria, bano, cirugia, consulta_general, otro`.
 - `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — RF-06: `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados. Una franja `disponible` ocupa de `hora` a `hora + duracionMin` del servicio: las franjas que quedan dentro de ese rango no tienen documento (la app las muestra como "cubiertas") y la app no permite guardar si el rango pisa otra franja o pasa del cierre (`DaySchedule.conflicts`). Una franja sin documento no se ofrece a los dueños.
+- `pacientes/{petId}` — registros médicos (semana 3): `{duenoNombre, vinculadoAt}`. Nombre del dueño de cada mascota vinculada, para la lista "Pacientes" de la clínica (la clínica no puede leer `users/{ownerUid}`). La app lo guarda con lo que devuelve la Edge Function `vincular-mascota`; las reglas solo dejan escribir a la clínica dueña y si la mascota ya la tiene en `clinicasAutorizadas`. La lista de pacientes sale de `pets where clinicasAutorizadas array-contains clinicId` (índice automático de un campo); este documento solo aporta el nombre.
 - `products/{productId}` — RF-07: `{nombre, categoria, descripcion, precio, stock, fotoUrl, estado:'activo'|'agotado'|'inactivo', createdAt}`.
 
 ## `pets/{petId}` — soporte para RF-08, RF-14, RF-17, RF-18
 
-Reglas: el **dueño** (rol `dueno`, activo) crea, lee, edita y borra sus mascotas; obligatorios `nombre` (1–40) y `especie`; `ownerUid` no cambia. Las clínicas podrán leerlas en la semana 3 (RF-08). La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
+Reglas: el **dueño** (rol `dueno`, activo) crea, lee, edita y borra sus mascotas; obligatorios `nombre` (1–40), `especie` y (al crear) `codigoPaciente`; `ownerUid` y `codigoPaciente` no cambian. Las **clínicas autorizadas** (activas) la leen; consultan `where('clinicasAutorizadas', 'array-contains', clinicId)`. La app consulta `where('ownerUid', '==', uid)` y ordena por `createdAt` en el cliente (sin índice compuesto).
 
-`{ownerUid, nombre, especie, raza?, fechaNacimiento?, sexo?, fotoPath?, alergias:string[], condiciones:string[], contactoEmergencia?:{nombre, telefono}, createdAt}`
+`{ownerUid, nombre, especie, raza?, fechaNacimiento?, sexo?, sexoDetalle?, fotoPath?, codigoPaciente, clinicasAutorizadas:string[], alergias:string[], condiciones:string[], contactoEmergencia?:{nombre, telefono}, createdAt}`
 
+- `codigoPaciente`: código corto `MSC-XXXX` (sin 0/O, 1/I ni L; `PatientCode`) que el dueño le da a su veterinaria. Se asigna al crear la mascota, en el **mismo lote** que `codigosPaciente/{codigo}`, y nunca cambia. A las mascotas de la semana 2 se les asigna al abrir su perfil.
+- `clinicasAutorizadas`: ids de las clínicas que pueden leer la mascota y su historial (RF-08). Solo la Edge Function `vincular-mascota` **agrega**; el dueño solo puede **quitar** (revocar). Empieza vacía.
 - `especie ∈ perro, gato, ave, roedor, reptil, granja, exotico` (singular). Cada una corresponde a un valor de `clinics.tiposAnimales` (`PetSpecies.animalType`), para mostrar solo clínicas que atienden esa especie.
-- `sexo ∈ macho, hembra`.
+- `sexo ∈ macho, hembra, indeterminado, otro`. Con `otro` es obligatorio `sexoDetalle` (texto de 1–30 caracteres, p. ej. "hermafrodita"); con cualquier otro valor `sexoDetalle` no se guarda.
 - `fotoPath` (antes `fotoUrl`): **ruta** en el bucket `mascotas` de Supabase Storage, `{ownerUid}/{petId}/foto.jpg|png` (`StorageRepository.petPhotoPath`). El bucket es privado, así que no hay una URL fija: la app pide un enlace temporal con `StorageRepository.signedUrl`. Las reglas exigen que la ruta sea de la carpeta del dueño y de esa mascota.
 
-Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**):
-`{clinicId, clinicNombre, appointmentId?, fecha, diagnostico, tratamiento, vacunas:[{nombre, lote, fechaAplicacion, fechaProximaDosis}], adjuntos:[{url, tipo:'imagen'|'pdf', nombre}], createdAt}`
+Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**; modelo `MedicalRecord` en `lib/core/domain`, repositorio `MedicalRecordsRepository` en `lib/core/data`):
+`{clinicId, clinicNombre, appointmentId?, fecha, diagnostico, tratamiento, vacunas:[{nombre, lote, fechaAplicacion, fechaProximaDosis?}], adjuntos:[{path, tipo:'imagen'|'pdf', nombre}], createdAt, updatedAt?}`
+
+- **Crea** una clínica autorizada (`clinicId` = la suya; `createdAt` = hora del servidor). **Leen** el dueño y las clínicas autorizadas. **Corrige** solo la clínica autora durante **24 h** (`updatedAt` = hora del servidor). **Nunca** se borra.
+- Obligatorios: `fecha` (no futura) y `diagnostico` (1–2000). Máximo 10 vacunas (nombre 1–80, lote 1–40, `fechaProximaDosis` posterior a la aplicación) y 10 adjuntos: las reglas validan elemento por elemento porque no tienen ciclos.
+- `adjuntos[].path` (antes `url`): `{petId}/{recordId}/{archivo}` en el bucket privado **`registros`** de Supabase. Se suben y se ven con enlaces firmados de la Edge Function `adjuntos-historial`, que verifica en Firestore que quien pide es el dueño o una clínica autorizada (Supabase no puede leer Firestore en sus políticas).
+
+## `vacunasProgramadas/{recordId}_{n}` — semana 3, para RF-13
+
+`{petId, ownerUid, clinicId, recordId, vacuna, fechaProximaDosis, notificado, createdAt}`: una por cada vacuna `n` del registro que tenga `fechaProximaDosis`. La crea la clínica **en el mismo lote** que el registro y las reglas verifican que coincida con la vacuna `n` de ese registro. Existe porque Firestore no puede buscar por fechas dentro de una lista de objetos (`vacunas[].fechaProximaDosis`). La leen el dueño y la clínica autora; `notificado` lo marca RF-13 desde el servidor.
+
+Índices: `(ownerUid, fechaProximaDosis)` para el carnet del dueño y `(notificado, fechaProximaDosis)` para los recordatorios.
+
+## `codigosPaciente/{codigo}` — semana 3 · *nadie lo lee desde la app*
+
+`{petId, ownerUid, createdAt}`. El id del documento (`MSC-XXXX`) hace único el código: las reglas solo permiten **crearlo** (junto con la mascota que lo usa), así que si ya existe el lote completo falla y la app prueba otro código. Lo lee la Edge Function `vincular-mascota` con la cuenta de servicio.
+
+### Límite de intentos de vinculación (Postgres de Supabase)
+
+Tabla `public.intentos_vinculacion (clinic_id, intentado_en)` y función `registrar_intento_vinculacion`: máximo **10 búsquedas de código por clínica por hora**. Solo la usa la Edge Function (RLS sin políticas). No guarda datos de la app. Migración: `supabase/migrations/20261016000000_limite_vinculacion.sql`.
 
 ## `appointments/{appointmentId}` — RF-14
 
@@ -89,6 +113,14 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 |---|---|---|
 | `usuarios/{uidFirebase}/...` | solo ese usuario | adjuntos del chat, PDF y demás archivos de cada persona |
 
+### Bucket `registros` (adjuntos del historial médico)
+
+| Ruta | Escribe | Lee | Límites |
+|---|---|---|---|
+| `{petId}/{recordId}/{archivo}` | clínica autorizada (autora del registro, 24 h) | dueño y clínicas autorizadas | JPG/PNG/PDF, máximo 10 MB |
+
+Sin políticas para la app: todo pasa por la Edge Function `adjuntos-historial`. Migración: `supabase/migrations/20261016010000_storage_registros.sql`.
+
 ### Bucket `mascotas` (fotos de mascotas)
 
 Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
@@ -106,4 +138,7 @@ Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
 - `appointments`: `clinicId ASC, estado ASC, inicio ASC` · `ownerUid ASC, inicio DESC`
 - `slots` (collection group): `fecha ASC, estado ASC`
 - `notifications`: `uid ASC, createdAt DESC`
-- `clinics`: `estado ASC, geo.geohash ASC`
+- `clinics`: `estado ASC, geo.geohash ASC` (búsqueda geográfica de `ClinicsGeoRepository`, `lib/core/data`)
+- `vacunasProgramadas`: `ownerUid ASC, fechaProximaDosis ASC` · `notificado ASC, fechaProximaDosis ASC`
+
+**Ubicación de la clínica (semana 3):** `direccion` solo cambia junto con `lat`, `lng` y `geo`, y `geo.geopoint` debe coincidir con `lat`/`lng` (reglas). Usa `ClinicsGeoRepository.addressUpdate(...)`, que arma los cuatro campos. Para revisar o recalcular `geo` de clínicas existentes: `npm run verificar-geo` en `functions/`.

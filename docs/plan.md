@@ -63,8 +63,8 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 | RF-05 | 🟨 | `/clinica/servicios`: lista en tiempo real, formulario crear/editar en bottom sheet, borrado lógico con confirmación, animación y snackbar, reintento ante fallo de red; `ServicesRepository` y pruebas. Falta: advertencia de citas activas (TODO, depende de RF-14) y prueba de punta a punta |
 | RF-06 | 🟨 | agenda "Mi día": calendario (`table_calendar`), franjas según `horarioBase`, selección múltiple Disponible (con servicio y copia del precio) / No disponible / Quitar, guardado en `WriteBatch`, validación de solapamientos por duración del servicio, franjas ocupadas y pasadas de solo lectura; lógica pura en `plugins/clinica/domain/day_schedule.dart` con pruebas. Falta: lista de citas del día (RF-14) y prueba de punta a punta |
 | RF-07 | ⬜ | |
-| RF-08 | ⬜ | |
-| RF-09 | ⬜ | |
+| RF-08 | ⬜ | base lista (Dev A): vinculación con código de paciente, reglas del historial, `MedicalRecordsRepository`, adjuntos firmados |
+| RF-09 | ⬜ | base lista (Dev A): `ClinicsGeoRepository` (radio, filtros, distancia) y `categoriasServicio` |
 | RF-10 | ⬜ | |
 | RF-11 | ⬜ | |
 | RF-12 | ⬜ | |
@@ -75,6 +75,6 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 | RF-17 | ⬜ | |
 | RF-18 | ⬜ | |
 | Mascotas (soporte) | 🟨 | formulario crear/editar (`/mascotas/nueva`, `/mascotas/perfil/:petId/editar`) con foto (cámara o galería, compresión a ≤ 1 MB, JPG/PNG), alergias y condiciones en chips, contacto de emergencia (10 dígitos); `PetsRepository` (stream, crear, editar, foto en Supabase por etapas y guardado sin foto con "Reintentar" si falla); perfil `/mascotas/perfil/:petId` con pestañas vacías para RF-08 y RF-17/18; tarjeta "Mi mascota" con mascota activa y selector; pruebas. Falta: prueba de punta a punta con Supabase en el emulador |
-| Registros médicos (soporte) | ⬜ | |
+| Registros médicos (soporte) | 🟨 | pestaña "Pacientes" de la clínica (`/clinica/pacientes`): lista en tiempo real con buscador y estado vacío; "Vincular paciente" con el código MSC-XXXX (`vincular-mascota`, mensajes de código inexistente y límite de intentos) y nombre del dueño en `clinics/{id}/pacientes`; perfil del paciente de solo lectura con alergias y condiciones en rojo e historial; formulario de consulta (fecha, diagnóstico, tratamiento, vacunas con lote y próxima dosis, adjuntos JPG/PNG/PDF ≤ 10 MB con reintento) que se corrige 24 h y luego es de solo lectura; pruebas. Falta: desplegar las reglas, vista de PDF en la app y prueba de punta a punta con Supabase |
 
 Leyenda: ⬜ pendiente · 🟨 en curso · 🟩 integrado en `main`

@@ -418,3 +418,9 @@ enabled = true
 # emisor y audiencia de mascoti-b27cf), así que el gateway no lo revalida.
 [functions.completar-registro]
 verify_jwt = false
+
+[functions.vincular-mascota]
+verify_jwt = false
+
+[functions.adjuntos-historial]
+verify_jwt = false

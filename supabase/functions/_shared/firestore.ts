@@ -87,3 +87,79 @@ const ALFABETO_ID = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
 export function nuevoIdFirestore(aleatorio: (n: number) => Uint8Array): string {
   return Array.from(aleatorio(20), (b) => ALFABETO_ID[b % ALFABETO_ID.length]).join("");
 }
+
+// ---------------------------------------------------------------------------
+// Lectura y escrituras parciales (semana 3)
+// ---------------------------------------------------------------------------
+
+/** Escritura con transformaciones de campos (p. ej. agregar a un arreglo). */
+export interface TransformacionFirestore {
+  transform: {
+    document: string;
+    fieldTransforms: {
+      fieldPath: string;
+      appendMissingElements?: { values: ValorFirestore[] };
+    }[];
+  };
+  currentDocument?: { exists: boolean };
+}
+
+export function rutaDocumento(proyecto: string, ruta: string): string {
+  return `projects/${proyecto}/databases/(default)/documents/${ruta}`;
+}
+
+/**
+ * Agrega [valores] a un arreglo sin duplicarlos (como arrayUnion). Falla si
+ * el documento no existe.
+ */
+export function agregarAArreglo(
+  proyecto: string,
+  ruta: string,
+  campo: string,
+  valores: string[],
+): TransformacionFirestore {
+  return {
+    transform: {
+      document: rutaDocumento(proyecto, ruta),
+      fieldTransforms: [{
+        fieldPath: campo,
+        appendMissingElements: { values: valores.map((v) => ({ stringValue: v })) },
+      }],
+    },
+    currentDocument: { exists: true },
+  };
+}
+
+/** Valor de la API REST → valor de JavaScript (Timestamp → Date). */
+export function decodificarValor(valor: ValorFirestore): unknown {
+  if ("nullValue" in valor) return null;
+  if ("stringValue" in valor) return valor.stringValue;
+  if ("booleanValue" in valor) return valor.booleanValue;
+  if ("integerValue" in valor) return Number(valor.integerValue);
+  if ("doubleValue" in valor) return valor.doubleValue;
+  if ("timestampValue" in valor) return new Date(String(valor.timestampValue));
+  if ("geoPointValue" in valor) {
+    const g = valor.geoPointValue as { latitude?: number; longitude?: number };
+    return new PuntoGeo(g.latitude ?? 0, g.longitude ?? 0);
+  }
+  if ("arrayValue" in valor) {
+    const valores = (valor.arrayValue as { values?: ValorFirestore[] }).values ?? [];
+    return valores.map(decodificarValor);
+  }
+  if ("mapValue" in valor) {
+    const campos = (valor.mapValue as { fields?: Record<string, ValorFirestore> }).fields ?? {};
+    return decodificarCampos(campos);
+  }
+  return undefined;
+}
+
+/** `fields` de un documento REST → objeto plano. */
+export function decodificarCampos(
+  campos: Record<string, ValorFirestore> | undefined,
+): Record<string, unknown> {
+  const resultado: Record<string, unknown> = {};
+  for (const [campo, valor] of Object.entries(campos ?? {})) {
+    resultado[campo] = decodificarValor(valor);
+  }
+  return resultado;
+}

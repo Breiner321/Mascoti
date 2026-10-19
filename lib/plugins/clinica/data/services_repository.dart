@@ -60,7 +60,7 @@ class ServicesRepository {
               'createdAt': FieldValue.serverTimestamp(),
             })
           : doc.update(fields),
-    );
+    ).then((_) => syncCategories(clinicId));
   }
 
   /// Borrado lógico (RF-05 paso 12): conserva el documento para el historial
@@ -70,7 +70,27 @@ class ServicesRepository {
           'activo': false,
           'updatedAt': FieldValue.serverTimestamp(),
         }),
-      );
+      ).then((_) => syncCategories(clinicId));
+
+  /// Actualiza `clinics/{clinicId}.categoriasServicio` con las categorías de
+  /// los servicios activos, para que el directorio (RF-09) filtre por
+  /// servicio sin leer la subcolección de cada clínica. Si falla, el
+  /// servicio ya quedó guardado: se vuelve a sincronizar en el próximo
+  /// cambio.
+  Future<void> syncCategories(String clinicId) async {
+    try {
+      final active = await _services(clinicId).where('activo', isEqualTo: true).get();
+      final categories = {
+        for (final doc in active.docs) ServiceCategory.fromValue(doc.data()['categoria']),
+      }.toList()
+        ..sort((a, b) => a.index.compareTo(b.index));
+      await _firestore.collection('clinics').doc(clinicId).update({
+        'categoriasServicio': [for (final c in categories) c.value],
+      });
+    } on FirebaseException {
+      // No bloquea al usuario: el catálogo ya se actualizó.
+    }
+  }
 
   /// Citas 'pendiente' o 'confirmada' del servicio (flujo alternativo de
   /// RF-05 al eliminar).
