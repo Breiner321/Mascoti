@@ -18,7 +18,7 @@ final clinicDirectoryRepositoryProvider = Provider<ClinicDirectoryRepository>(
 );
 
 /// Abre un enlace fuera de la app ("Llamar" con tel:, "Cómo llegar" en
-/// Google Maps). Se reemplaza en las pruebas.
+/// la app de mapas). Se reemplaza en las pruebas.
 final directoryUrlOpenerProvider = Provider<Future<bool> Function(Uri)>(
   (ref) => (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
 );

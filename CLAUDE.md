@@ -14,7 +14,7 @@ App móvil (**solo APK Android** por ahora) que conecta **dueños de mascotas** 
 
 - **App:** Flutter (Dart 3) · Material 3 · `flutter_riverpod` (estado + inyección de dependencias) · `go_router` (navegación).
 - **Backend:** Firebase plan gratuito — Auth (proveedor Google), Cloud Firestore, Cloud Messaging. **Supabase** — Storage (bucket `mascoti`) y **Edge Functions en TypeScript** (`supabase/functions/`, Deno), que escriben en Firestore con una cuenta de servicio. Supabase acepta el login de Firebase (Third-party Auth).
-- **Mapas y direcciones:** OpenStreetMap/Photon para direcciones del registro (`core/places`, sin API key). El directorio (RF-09) usa **Google Maps SDK for Android** (`google_maps_flutter`) y **Places API (New)** (`GooglePlacesService` en `core/places`); sus claves van en `android/local.properties` (`MAPS_API_KEY`) y `env/dev.json` (`GOOGLE_PLACES_API_KEY`), nunca en el código (ver `docs/configuracion-inicial.md`, C3).
+- **Mapas y direcciones:** OpenStreetMap (búsqueda con Photon en `core/places`; mapa con `flutter_map`). Sin API key.
 - **Sin generación de código:** no usar `freezed`, `json_serializable` ni `riverpod_generator`. Los modelos son clases inmutables escritas a mano con `fromMap`/`toMap`/`copyWith`.
 - **No hay backend REST propio ni JWT propio.** Las URLs tipo `POST /auth/login` o `PATCH /clinics/{id}` del documento original se traducen a: escritura directa a Firestore protegida por `firestore.rules`, **o** una Edge Function de Supabase cuando se necesita lógica de confianza (transacciones entre colecciones, pagos, PDF, envío de push). Su lógica va en `supabase/functions/_shared/` sin dependencias, con pruebas en `functions/test/`.
 

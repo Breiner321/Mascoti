@@ -78,7 +78,7 @@ void main() {
       ProviderScope(
         overrides: [
           locationServiceProvider.overrideWithValue(fake),
-          placesSearchServiceProvider.overrideWithValue(FakeAddressSearch()),
+          addressSearchServiceProvider.overrideWithValue(FakeAddressSearch()),
           pluginRegistryProvider.overrideWithValue(
             registry ?? PluginRegistry([const DirectorioPlugin()]),
           ),
@@ -86,7 +86,7 @@ void main() {
             queries.add(q);
             return Stream.value(results?.call(q) ?? const []);
           }),
-          // GoogleMap es una vista nativa: en las pruebas, un botón por marcador.
+          // El mapa descarga mosaicos de internet: en las pruebas, un botón por marcador.
           directoryMapBuilderProvider.overrideWithValue(
             (data) => Column(
               children: [

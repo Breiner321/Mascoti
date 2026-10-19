@@ -16,7 +16,7 @@ Criterio de selección: **un solo lenguaje para la app, cero servidores que admi
 | Archivos | **Supabase Storage** (bucket privado `mascoti`) | SQL (políticas) | Fotos de productos, adjuntos del chat, PDF. Acepta el login de Firebase (Third-party Auth). |
 | Lógica de servidor | **Supabase Edge Functions** (`supabase/functions/`) | **TypeScript** (Deno) | Registro atómico + roles, pagos (webhook), push programado (FCM), PDF, vista pública del QR. Escriben en Firestore con su API REST y una cuenta de servicio. |
 | Notificaciones | **Firebase Cloud Messaging** | — | RF-13. |
-| Mapas y direcciones | **OpenStreetMap / Photon** (`core/places`) para direcciones del registro (RF-01). **Directorio (RF-09):** mapa con **Google Maps SDK for Android** (`google_maps_flutter`) y búsqueda con **Places API (New)** (`core/places/google_places_service.dart`), más `geolocator` y `geoflutterfire_plus` (geohash) | Dart | RF-01, RF-09, RF-10. Google Maps/Places necesitan API key y cuenta de facturación (ver `configuracion-inicial.md`, C3); sin la key de Places la búsqueda vuelve a OpenStreetMap. |
+| Mapas y direcciones | **OpenStreetMap**: búsqueda con **Photon** (`core/places`), mapa con `flutter_map` + `geolocator` + `geoflutterfire_plus` (geohash) | Dart | RF-01, RF-09, RF-10. Gratis y sin API key. |
 | Pagos | **Wompi** (sandbox) | TypeScript (webhook) | Pasarela colombiana; RF-12. |
 | Chatbot (opcional) | Árbol de decisión local → Dialogflow ES si hay tiempo | Dart / TS | RF-11 es el primer candidato a recorte. |
 | Pruebas | `flutter_test`, `mocktail`, `fake_cloud_firestore`, `firebase_auth_mocks`; `@firebase/rules-unit-testing` + `vitest` para reglas y la lógica de las Edge Functions; `deno check` | Dart / TS | |
@@ -33,7 +33,7 @@ Se agregan con `flutter pub add <paquete>` cuando se necesiten (así se resuelve
 |---|---|
 | 0–1 | `firebase_core firebase_auth cloud_firestore cloud_functions google_sign_in flutter_riverpod go_router intl` · dev: `mocktail fake_cloud_firestore firebase_auth_mocks` |
 | 2 | `table_calendar` |
-| 3 | `google_maps_flutter geolocator geoflutterfire_plus url_launcher image_picker` (Storage ya está en `core/storage` con `supabase_flutter`) |
+| 3 | `flutter_map latlong2 geolocator geoflutterfire_plus image_picker url_launcher` (Storage ya está en `core/storage` con `supabase_flutter`) |
 | 4 | `firebase_messaging flutter_local_notifications` |
 | 5 | `file_picker` (adjuntos PDF) |
 | 6 | `flutter_image_compress webview_flutter` (checkout Wompi) |

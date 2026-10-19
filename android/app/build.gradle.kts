@@ -1,5 +1,3 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -8,17 +6,6 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
-
-// RF-09: API key de Maps SDK for Android. Cada desarrollador la pone en
-// android/local.properties (no se sube al repo): MAPS_API_KEY=AIza...
-// Ver docs/configuracion-inicial.md. Sin ella el mapa se ve gris.
-val localProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
-    if (file.exists()) file.inputStream().use { load(it) }
-}
-val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY")
-    ?: System.getenv("MAPS_API_KEY")
-    ?: ""
 
 android {
     namespace = "co.mascoti.mascoti"
@@ -43,7 +30,6 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {

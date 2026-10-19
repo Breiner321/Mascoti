@@ -1,8 +1,9 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../core/data/clinics_geo_repository.dart';
 import '../../../core/theme/app_theme.dart';
@@ -24,19 +25,24 @@ class DirectoryMapData {
   final ValueChanged<NearbyClinic> onTapClinic;
 }
 
-/// Construye el mapa. En las pruebas se reemplaza (GoogleMap es una vista
-/// nativa que no existe en `flutter test`).
+/// Construye el mapa. En las pruebas se reemplaza (los mosaicos del mapa se
+/// descargan de internet, y en `flutter test` no hay red).
 final directoryMapBuilderProvider = Provider<Widget Function(DirectoryMapData)>(
   (ref) => (data) => DirectoryMapView(data: data),
 );
 
-/// Mapa de Google centrado en el punto de búsqueda (RF-09 paso 6), con un
-/// marcador por clínica en los colores del tema: morado, y rojo (SOS) las
-/// que atienden emergencias.
+/// Mapa de OpenStreetMap (`flutter_map`) centrado en el punto de búsqueda
+/// (RF-09 paso 6), con un marcador por clínica en los colores del tema:
+/// morado, y rojo (SOS) las que atienden emergencias. No necesita API key.
 class DirectoryMapView extends StatefulWidget {
   const DirectoryMapView({super.key, required this.data});
 
   final DirectoryMapData data;
+
+  /// Mosaicos públicos de OpenStreetMap. Su política de uso exige
+  /// identificar la app (userAgentPackageName) y mostrar la atribución.
+  static const tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  static const userAgent = 'co.mascoti.mascoti';
 
   /// Zoom para que el círculo del radio quepa en la pantalla.
   static double zoomFor(double radiusKm) => 13.5 - log(radiusKm / 2.5) / ln2;
@@ -46,10 +52,8 @@ class DirectoryMapView extends StatefulWidget {
 }
 
 class _DirectoryMapViewState extends State<DirectoryMapView> {
-  GoogleMapController? _controller;
-
-  static final _clinicHue = HSVColor.fromColor(AppColors.primary).hue;
-  static final _emergencyHue = HSVColor.fromColor(AppColors.sos).hue;
+  final _controller = MapController();
+  bool _ready = false;
 
   LatLng get _center => LatLng(widget.data.center.lat, widget.data.center.lng);
 
@@ -58,62 +62,90 @@ class _DirectoryMapViewState extends State<DirectoryMapView> {
     super.didUpdateWidget(old);
     final moved = old.data.center.lat != widget.data.center.lat ||
         old.data.center.lng != widget.data.center.lng;
-    if (moved || old.data.radiusKm != widget.data.radiusKm) {
-      _controller?.animateCamera(
-        CameraUpdate.newLatLngZoom(
-            _center, DirectoryMapView.zoomFor(widget.data.radiusKm)),
-      );
+    if (_ready && (moved || old.data.radiusKm != widget.data.radiusKm)) {
+      _controller.move(_center, DirectoryMapView.zoomFor(widget.data.radiusKm));
     }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final data = widget.data;
-    final markers = <Marker>{
-      for (final n in data.clinics)
-        Marker(
-          markerId: MarkerId(n.clinic.id),
-          position: LatLng(n.clinic.lat, n.clinic.lng),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            n.clinic.atencionEmergencias ? _emergencyHue : _clinicHue,
+    return FlutterMap(
+      mapController: _controller,
+      options: MapOptions(
+        initialCenter: _center,
+        initialZoom: DirectoryMapView.zoomFor(data.radiusKm),
+        minZoom: 5,
+        maxZoom: 18,
+        onMapReady: () => _ready = true,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+        ),
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: DirectoryMapView.tileUrl,
+          userAgentPackageName: DirectoryMapView.userAgent,
+        ),
+        CircleLayer(circles: [
+          CircleMarker(
+            point: _center,
+            radius: data.radiusKm * 1000,
+            useRadiusInMeter: true,
+            color: AppColors.primary.withValues(alpha: 0.06),
+            borderColor: AppColors.primary.withValues(alpha: 0.4),
+            borderStrokeWidth: 1,
           ),
-          onTap: () => data.onTapClinic(n),
+        ]),
+        MarkerLayer(markers: [
+          // Punto de búsqueda: azul con GPS ("estás aquí"); pin sin GPS.
+          Marker(
+            point: _center,
+            width: 24,
+            height: 24,
+            child: data.center.fromGps
+                ? Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.mapUser,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.surface, width: 3),
+                    ),
+                  )
+                : const Icon(Icons.person_pin_circle,
+                    color: AppColors.mapUser, size: 24),
+          ),
+          for (final n in data.clinics)
+            Marker(
+              point: LatLng(n.clinic.lat, n.clinic.lng),
+              width: 44,
+              height: 44,
+              alignment: Alignment.topCenter,
+              child: GestureDetector(
+                onTap: () => data.onTapClinic(n),
+                child: Tooltip(
+                  message: n.clinic.nombre,
+                  child: Icon(
+                    Icons.location_on,
+                    size: 44,
+                    color: n.clinic.atencionEmergencias
+                        ? AppColors.sos
+                        : AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+        ]),
+        const SimpleAttributionWidget(
+          // La librería ya antepone "©".
+          source: Text('colaboradores de OpenStreetMap'),
         ),
-      // Sin GPS no hay punto azul: se marca el lugar buscado.
-      if (!data.center.fromGps)
-        Marker(
-          markerId: const MarkerId('centro'),
-          position: _center,
-          icon:
-              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-          infoWindow: InfoWindow(title: data.center.label),
-        ),
-    };
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(
-          target: _center, zoom: DirectoryMapView.zoomFor(data.radiusKm)),
-      onMapCreated: (controller) => _controller = controller,
-      myLocationEnabled: data.center.fromGps,
-      myLocationButtonEnabled: data.center.fromGps,
-      mapToolbarEnabled: false,
-      zoomControlsEnabled: false,
-      markers: markers,
-      circles: {
-        Circle(
-          circleId: const CircleId('radio'),
-          center: _center,
-          radius: data.radiusKm * 1000,
-          fillColor: AppColors.primary.withValues(alpha: 0.06),
-          strokeColor: AppColors.primary.withValues(alpha: 0.4),
-          strokeWidth: 1,
-        ),
-      },
+      ],
     );
   }
 }

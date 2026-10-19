@@ -6,6 +6,7 @@ import 'package:mascoti/core/domain/clinic_service.dart';
 import 'package:mascoti/core/domain/opening_hours.dart';
 import 'package:mascoti/plugins/directorio/domain/clinic_schedule.dart';
 import 'package:mascoti/plugins/directorio/domain/directory_filters.dart';
+import 'package:mascoti/plugins/directorio/presentation/clinic_public_profile_page.dart';
 
 void main() {
   group('radio', () {
@@ -91,6 +92,22 @@ void main() {
     expect(distanceLabel(0.85), '850 m');
     expect(distanceLabel(2.34), '2,3 km');
     expect(distanceLabel(12.6), '13 km');
+  });
+
+  test('"Cómo llegar" y "Llamar" no necesitan API key', () {
+    const clinic = Clinic(
+      id: 'c1',
+      ownerUid: 'o',
+      nombre: 'Vet Norte',
+      telefono: '604 123 4567',
+      direccion: '',
+      lat: 6.2,
+      lng: -75.5,
+    );
+    expect(ClinicPublicProfilePage.directionsUri(clinic).toString(),
+        'geo:6.2,-75.5?q=6.2,-75.5(Vet%20Norte)');
+    expect(ClinicPublicProfilePage.osmDirectionsUri(clinic).host, 'www.openstreetmap.org');
+    expect(ClinicPublicProfilePage.callUri(clinic.telefono).toString(), 'tel:6041234567');
   });
 
   test('abierto o cerrado según el horario base', () {

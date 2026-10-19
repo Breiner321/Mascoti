@@ -21,24 +21,32 @@ class ClinicPublicProfilePage extends ConsumerWidget {
 
   final String clinicId;
 
-  /// Ruta en Google Maps hasta la clínica (no necesita API key).
+  /// "Cómo llegar": abre la app de mapas del teléfono (Google Maps, OsmAnd…)
+  /// en la clínica. Sin app de mapas, la ruta en OpenStreetMap
+  /// ([osmDirectionsUri]).
   static Uri directionsUri(Clinic clinic) =>
-      Uri.https('www.google.com', '/maps/dir/', {
-        'api': '1',
-        'destination': '${clinic.lat},${clinic.lng}',
-      });
+      Uri.parse('geo:${clinic.lat},${clinic.lng}?q=${clinic.lat},${clinic.lng}'
+          '(${Uri.encodeComponent(clinic.nombre)})');
+
+  static Uri osmDirectionsUri(Clinic clinic) => Uri.https(
+      'www.openstreetmap.org',
+      '/directions',
+      {'route': ';${clinic.lat},${clinic.lng}'});
 
   static Uri callUri(String phone) =>
       Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
 
+  /// Abre el primer enlace que el teléfono pueda abrir; si ninguno, [error].
   Future<void> _open(
-      BuildContext context, WidgetRef ref, Uri uri, String error) async {
+      BuildContext context, WidgetRef ref, List<Uri> uris, String error) async {
     final messenger = ScaffoldMessenger.of(context);
-    var opened = false;
-    try {
-      opened = await ref.read(directoryUrlOpenerProvider)(uri);
-    } catch (_) {}
-    if (!opened) messenger.showSnackBar(SnackBar(content: Text(error)));
+    final opener = ref.read(directoryUrlOpenerProvider);
+    for (final uri in uris) {
+      try {
+        if (await opener(uri)) return;
+      } catch (_) {}
+    }
+    messenger.showSnackBar(SnackBar(content: Text(error)));
   }
 
   @override
@@ -49,10 +57,13 @@ class ClinicPublicProfilePage extends ConsumerWidget {
       body: switch (clinic) {
         AsyncValue(value: final Clinic c) => _Profile(
             clinic: c,
-            onCall: () => _open(context, ref, callUri(c.telefono),
+            onCall: () => _open(context, ref, [callUri(c.telefono)],
                 'No se pudo abrir el teléfono'),
             onDirections: () => _open(
-                context, ref, directionsUri(c), 'No se pudo abrir Google Maps'),
+                context,
+                ref,
+                [directionsUri(c), osmDirectionsUri(c)],
+                'No se pudo abrir el mapa'),
             onSchedule: () => openSchedule(context, ref, c.id),
           ),
         AsyncData() =>

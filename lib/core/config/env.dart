@@ -24,12 +24,4 @@ abstract final class Env {
   /// Normalmente google_sign_in lo lee de google-services.json.
   static const String googleServerClientId =
       String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
-
-  /// Google Places API (New) para buscar dirección o ciudad en el directorio
-  /// (RF-09). Va en env/dev.json; restringida a Places API (New). Sin ella,
-  /// la búsqueda usa OpenStreetMap.
-  static const String googlePlacesApiKey =
-      String.fromEnvironment('GOOGLE_PLACES_API_KEY');
-
-  static bool get hasGooglePlaces => googlePlacesApiKey.isNotEmpty;
 }
