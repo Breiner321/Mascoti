@@ -33,7 +33,7 @@ Se agregan con `flutter pub add <paquete>` cuando se necesiten (así se resuelve
 |---|---|
 | 0–1 | `firebase_core firebase_auth cloud_firestore cloud_functions google_sign_in flutter_riverpod go_router intl` · dev: `mocktail fake_cloud_firestore firebase_auth_mocks` |
 | 2 | `table_calendar` |
-| 3 | `flutter_map latlong2 geolocator geoflutterfire_plus image_picker` (Storage ya está en `core/storage` con `supabase_flutter`) |
+| 3 | `flutter_map latlong2 geolocator geoflutterfire_plus image_picker url_launcher` (Storage ya está en `core/storage` con `supabase_flutter`) |
 | 4 | `firebase_messaging flutter_local_notifications` |
 | 5 | `file_picker` (adjuntos PDF) |
 | 6 | `flutter_image_compress webview_flutter` (checkout Wompi) |
