@@ -8,7 +8,9 @@ import '../places/place_address.dart';
 import '../places/places_providers.dart';
 import '../theme/app_theme.dart';
 
-/// Campo de dirección con autocompletado de OpenStreetMap (RF-01, pasos 9-10).
+/// Campo de dirección con autocompletado (RF-01, pasos 9-10). Por defecto usa
+/// OpenStreetMap ([addressSearchServiceProvider]); el directorio (RF-09) le
+/// pasa Google Places con [service] y [attribution].
 ///
 /// Solo es válido si la dirección se escoge de la lista y tiene coordenadas:
 /// el texto libre o un lugar sin lat/lng muestran
@@ -19,11 +21,21 @@ class AddressAutocompleteField extends ConsumerStatefulWidget {
     this.label = 'Dirección',
     this.onChanged,
     this.enabled = true,
+    this.service,
+    this.attribution = osmAttribution,
   });
 
   final String label;
   final ValueChanged<PlaceAddress?>? onChanged;
   final bool enabled;
+
+  /// Buscador a usar; null = OpenStreetMap.
+  final AddressSearchService? service;
+
+  /// Atribución que exige el proveedor de los datos.
+  final String attribution;
+
+  static const osmAttribution = 'Datos © colaboradores de OpenStreetMap';
 
   static const invalidMessage = 'Selecciona una dirección válida de la lista';
   static const debounce = Duration(milliseconds: 400);
@@ -58,7 +70,8 @@ class _AddressAutocompleteFieldState
     super.dispose();
   }
 
-  AddressSearchService get _service => ref.read(addressSearchServiceProvider);
+  AddressSearchService get _service =>
+      widget.service ?? ref.read(addressSearchServiceProvider);
 
   void _onTextChanged(String text) {
     // Editar el texto invalida la dirección escogida antes.
@@ -216,13 +229,13 @@ class _AddressAutocompleteFieldState
                         s.secondaryText.isEmpty ? null : Text(s.secondaryText),
                     onTap: () => _select(s),
                   ),
-                // Atribución exigida por la licencia de los datos (ODbL).
+                // Atribución exigida por el proveedor (ODbL en OpenStreetMap).
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      'Datos © colaboradores de OpenStreetMap',
+                      widget.attribution,
                       style: Theme.of(context)
                           .textTheme
                           .labelSmall
