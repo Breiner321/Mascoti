@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mascoti/core/data/medical_records_providers.dart';
 import 'package:mascoti/core/domain/pet.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pet_profile_page.dart';
@@ -14,7 +15,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [petProvider('p1').overrideWith((ref) => pet)],
+        overrides: [
+          petProvider('p1').overrideWith((ref) => pet),
+          medicalRecordsProvider('p1').overrideWith((ref) => Stream.value(const [])),
+        ],
         child: MaterialApp(
           theme: AppTheme.light(),
           home: const PetProfilePage(petId: 'p1'),
@@ -24,7 +28,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('muestra los datos, Editar y las pestañas preparadas', (tester) async {
+  testWidgets('muestra los datos, Editar, el historial y la pestaña de documentos', (tester) async {
     await pumpProfile(
       tester,
       Stream.value(const Pet(
@@ -48,6 +52,10 @@ void main() {
     expect(find.text('Documentos'), findsOneWidget);
 
     await tester.tap(find.text('Historial médico'));
+    await tester.pumpAndSettle();
+    expect(find.text('Esta mascota aún no tiene historial médico registrado'), findsOneWidget);
+
+    await tester.tap(find.text('Documentos'));
     await tester.pumpAndSettle();
     expect(find.text('Próximamente'), findsOneWidget);
   });

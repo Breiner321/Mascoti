@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/data/medical_records_providers.dart';
 import '../../../core/domain/clinic.dart';
 import '../../../core/domain/pet.dart';
 import '../../../core/storage/storage_providers.dart';
@@ -76,4 +78,20 @@ final authorizedClinicProvider = StreamProvider.autoDispose.family<Clinic?, Stri
 final patientCodeProvider = FutureProvider.autoDispose.family<String, Pet>(
   (ref, pet) => ref.watch(petsRepositoryProvider).ensurePatientCode(pet),
   retry: (_, __) => null,
+);
+
+/// Enlace temporal (1 h) de un adjunto del historial: (petId, path). Si falla,
+/// el adjunto se muestra como "Archivo no disponible" (RF-08).
+final recordAttachmentUrlProvider =
+    FutureProvider.autoDispose.family<String, (String, String)>(
+  (ref, key) => ref
+      .watch(medicalRecordsRepositoryProvider)
+      .attachmentUrl(petId: key.$1, path: key.$2),
+  retry: (_, __) => null,
+);
+
+/// Abre un enlace fuera de la app (PDF del historial en el visor o el
+/// navegador del teléfono, que permiten verlo y descargarlo).
+final externalUrlOpenerProvider = Provider<Future<bool> Function(Uri)>(
+  (ref) => (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
 );
