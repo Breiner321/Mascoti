@@ -57,6 +57,8 @@ void main() {
     await pumpCard(tester, 'p1');
 
     expect(find.text('MSC-7K4P'), findsOneWidget);
+    expect(find.text('Compártelo con tu clínica para que pueda registrar consultas.'),
+        findsOneWidget);
     expect(find.byTooltip('Copiar código'), findsOneWidget);
     expect(find.text('Vet Norte'), findsOneWidget);
     expect(find.text('Calle 100, Bogotá'), findsOneWidget);

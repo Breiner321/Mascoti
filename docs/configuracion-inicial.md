@@ -90,6 +90,16 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
 
 **Direcciones y mapas:** OpenStreetMap (Photon), gratis y **sin API key**. La UI muestra la atribución "Datos © colaboradores de OpenStreetMap", que exige la licencia de los datos.
 
+## C3. Mapa del directorio (RF-09)
+
+El directorio de clínicas usa **OpenStreetMap** con `flutter_map`: **no necesita API key ni cuenta de facturación**, así que no hay nada que configurar. (Se evaluó Google Maps, pero el equipo no tiene acceso a Google Cloud.)
+
+- **Mosaicos del mapa:** `tile.openstreetmap.org`. Su política de uso exige identificar la app (`userAgentPackageName: co.mascoti.mascoti`, ya configurado) y mostrar la atribución "© colaboradores de OpenStreetMap" (la muestra el mapa). Es para uso moderado: si la app crece, se cambia `DirectoryMapView.tileUrl` por un proveedor propio o pago.
+- **Búsqueda por dirección o ciudad** (sin permiso de ubicación): el mismo buscador Photon de `core/places` que usa el registro de la clínica.
+- **"Cómo llegar":** abre la app de mapas del teléfono (`geo:`); si no hay ninguna, la ruta en openstreetmap.org.
+- **Ubicación en el emulador:** ⋮ → **Location**, escribe una dirección (p. ej. Medellín) y pulsa **Set location**; luego vuelve a abrir la pestaña "Mapa".
+- **Una clínica no aparece:** debe tener `estado: activo` (haber terminado su perfil de atención, RF-04) y el campo `geo`. Revísalo con `npm run verificar-geo` en `functions/`.
+
 ## D. Todos: correr la app
 
 ```powershell
@@ -124,5 +134,6 @@ La interfaz de los emuladores (usuarios, datos, logs) queda en http://localhost:
 | "No se pudo completar el registro" al finalizar | Falta el secreto `FIREBASE_SERVICE_ACCOUNT` o la función no está desplegada (sección C2). Mira los logs en Supabase → Edge Functions → completar-registro. |
 | La app se queda en "Estamos tardando en conectar" | Firestore no está creado o las reglas no están desplegadas (paso B.3 y B.8). |
 | `project is paused` / el registro dejó de funcionar | El plan gratuito de Supabase pausa el proyecto tras 7 días sin uso: reactívalo en el panel de Supabase (**Restore project**). |
+| El mapa del directorio se ve gris o en blanco | El teléfono o emulador no tiene internet, o OpenStreetMap limitó el uso por un momento. La lista de clínicas funciona igual; reintenta más tarde (sección C3). |
 | "El buscador de direcciones no está disponible" | Photon (OpenStreetMap) no respondió o limitó el uso; espera un momento y toca Reintentar. |
 | google_sign_in pide `serverClientId` | Pásalo con `--dart-define=GOOGLE_SERVER_CLIENT_ID=<client ID web>` (Firebase → Authentication → Google → Configuración del SDK web). |

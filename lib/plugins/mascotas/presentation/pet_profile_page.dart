@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../../core/domain/pet.dart';
 import '../../../core/theme/app_theme.dart';
 import '../mascotas_routes.dart';
+import 'date_label.dart';
+import 'medical_history_tab.dart';
 import 'pets_providers.dart';
 import 'widgets/patient_access_card.dart';
 import 'widgets/pet_avatar.dart';
 
-/// Perfil de una mascota: datos, y pestañas preparadas para el historial
-/// médico (RF-08) y los documentos (RF-17/18).
+/// Perfil de una mascota: datos, historial médico (RF-08) y la pestaña
+/// preparada para los documentos (RF-17/18).
 class PetProfilePage extends ConsumerWidget {
   const PetProfilePage({super.key, required this.petId});
 
@@ -48,10 +50,7 @@ class PetProfilePage extends ConsumerWidget {
           AsyncValue(value: final Pet p) => TabBarView(
               children: [
                 _PetDetails(pet: p),
-                const _ComingSoonTab(
-                  icon: Icons.medical_information_outlined,
-                  text: 'Aquí verás las consultas, vacunas y tratamientos de tu mascota.',
-                ),
+                MedicalHistoryTab(petId: p.id),
                 const _ComingSoonTab(
                   icon: Icons.description_outlined,
                   text: 'Aquí encontrarás el carnet de vacunas y la placa QR de tu mascota.',
@@ -117,7 +116,7 @@ class _PetDetails extends StatelessWidget {
           label: 'Fecha de nacimiento',
           value: birth == null
               ? 'Sin registrar'
-              : MaterialLocalizations.of(context).formatMediumDate(birth),
+              : dateLabel(context, birth),
         ),
         _Tags(title: 'Alergias', values: pet.alergias, empty: 'Sin alergias registradas'),
         _Tags(

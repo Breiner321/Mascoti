@@ -110,6 +110,32 @@ void main() {
       expect(timeline.first.isEditable(DateTime.now()), isTrue);
     });
 
+    test('tiempo real: un registro nuevo aparece arriba con el timeline abierto', () async {
+      await repository.createRecord(record(id: 'viejo', fecha: DateTime(2025, 1, 1)), ownerUid: 'ana');
+      final emissions = <List<String>>[];
+      final sub = repository
+          .watchRecords('p6')
+          .listen((records) => emissions.add([for (final r in records) r.id]));
+      await pumpEventQueue();
+
+      await repository.createRecord(record(id: 'nuevo', fecha: DateTime(2026, 9, 1)), ownerUid: 'ana');
+      await pumpEventQueue();
+      await sub.cancel();
+
+      expect(emissions.first, ['viejo']);
+      expect(emissions.last, ['nuevo', 'viejo']);
+    });
+
+    test('el timeline es solo de la mascota pedida', () async {
+      await repository.createRecord(record(id: 'mio'), ownerUid: 'ana');
+      await firestore.collection('pets/otra/medicalRecords').doc('ajeno').set({
+        ...record(id: 'ajeno').toMap(),
+      });
+
+      expect((await repository.watchRecords('p6').first).map((r) => r.id), ['mio']);
+      expect(await repository.watchRecords('sin-historial').first, isEmpty);
+    });
+
     test('próximas dosis del dueño ordenadas por fecha', () async {
       await repository.createRecord(record(id: 'r1'), ownerUid: 'ana');
       await repository.createRecord(
