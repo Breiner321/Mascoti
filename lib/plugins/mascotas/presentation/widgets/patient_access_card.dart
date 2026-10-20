@@ -34,8 +34,7 @@ class PatientAccessCard extends ConsumerWidget {
               style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text(
-            'Dáselo a tu veterinaria para que pueda ver y registrar el historial '
-            'de ${pet.nombre}.',
+            'Compártelo con tu clínica para que pueda registrar consultas.',
             style: textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
           ),
           const SizedBox(height: 12),

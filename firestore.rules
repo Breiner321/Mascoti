@@ -161,6 +161,23 @@ service cloud.firestore {
               && validAnimalTypes(request.resource.data.tiposAnimales));
       }
 
+      // ---------- Pacientes (registros médicos, semana 3) ----------
+      // Nombre del dueño de cada mascota vinculada: la clínica no puede leer
+      // users/{ownerUid}. La app lo guarda con lo que devuelve la Edge
+      // Function vincular-mascota, solo si la mascota ya autorizó a la clínica.
+      match /pacientes/{petId} {
+        allow read: if hasRole('clinica') && isClinicOwner(clinicId);
+        allow create, update: if hasRole('clinica')
+          && isClinicOwner(clinicId)
+          && clinicId in get(/databases/$(database)/documents/pets/$(petId)).data
+               .get('clinicasAutorizadas', [])
+          && request.resource.data.keys().hasOnly(['duenoNombre', 'vinculadoAt'])
+          && request.resource.data.duenoNombre is string
+          && request.resource.data.duenoNombre.size() <= 100
+          && request.resource.data.vinculadoAt == request.time;
+        allow delete: if false;
+      }
+
       // ---------- Catálogo de servicios (RF-05) ----------
       match /services/{serviceId} {
         allow read: if signedIn();
