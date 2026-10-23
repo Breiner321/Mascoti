@@ -424,3 +424,9 @@ verify_jwt = false
 
 [functions.adjuntos-historial]
 verify_jwt = false
+
+[functions.citas]
+verify_jwt = false
+
+[functions.tareas-programadas]
+verify_jwt = false

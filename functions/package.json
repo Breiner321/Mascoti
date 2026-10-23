@@ -8,7 +8,7 @@
   "scripts": {
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-mascoti \"vitest run\"",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-mascoti \"vitest run --no-file-parallelism\"",
     "suspender": "node admin/suspender-cuenta.mjs",
     "verificar-geo": "node admin/verificar-geo-clinicas.mjs",
     "seed:historial": "node admin/seed-historial.mjs"

@@ -12,5 +12,5 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["test", "../supabase/functions/_shared/adjuntos.ts", "../supabase/functions/_shared/cuenta_servicio.ts", "../supabase/functions/_shared/errores.ts", "../supabase/functions/_shared/firestore.ts", "../supabase/functions/_shared/geohash.ts", "../supabase/functions/_shared/registro.ts", "../supabase/functions/_shared/validacion.ts", "../supabase/functions/_shared/vinculacion.ts"]
+  "include": ["test", "../supabase/functions/_shared/adjuntos.ts", "../supabase/functions/_shared/citas.ts", "../supabase/functions/_shared/cliente_firestore.ts", "../supabase/functions/_shared/estados_cita.ts", "../supabase/functions/_shared/hora_bogota.ts", "../supabase/functions/_shared/notificaciones.ts", "../supabase/functions/_shared/cuenta_servicio.ts", "../supabase/functions/_shared/errores.ts", "../supabase/functions/_shared/firestore.ts", "../supabase/functions/_shared/geohash.ts", "../supabase/functions/_shared/registro.ts", "../supabase/functions/_shared/validacion.ts", "../supabase/functions/_shared/vinculacion.ts"]
 }

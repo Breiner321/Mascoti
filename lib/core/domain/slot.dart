@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../format/bogota_time.dart';
+
 /// Estado de una franja (RF-06, RF-14). [value] se guarda en Firestore.
 enum SlotStatus {
   disponible('disponible', 'Disponible'),
@@ -38,8 +40,9 @@ class Slot {
     this.precio,
   });
 
-  /// Construye la franja calculando [inicio] (hora local) a partir de
-  /// [fecha] 'YYYY-MM-DD' y [hora] 'HH:mm'.
+  /// Construye la franja calculando [inicio] en hora de Bogotá a partir de
+  /// [fecha] 'YYYY-MM-DD' y [hora] 'HH:mm' (no depende de la zona horaria del
+  /// teléfono). Lanza [FormatException] si el formato no sirve.
   factory Slot.at({
     required String fecha,
     required String hora,
@@ -50,7 +53,8 @@ class Slot {
       Slot(
         fecha: fecha,
         hora: hora,
-        inicio: DateTime.parse('${fecha}T$hora:00'),
+        inicio: BogotaTime.tryParse(fecha, hora) ??
+            (throw FormatException('Fecha u hora inválida', '$fecha $hora')),
         estado: estado,
         serviceId: serviceId,
         precio: precio,
@@ -62,8 +66,8 @@ class Slot {
     return Slot(
       fecha: fecha,
       hora: hora,
-      inicio: (map['inicio'] as Timestamp?)?.toDate() ??
-          DateTime.tryParse('${fecha}T$hora:00') ??
+      inicio: (map['inicio'] as Timestamp?)?.toDate().toUtc() ??
+          BogotaTime.tryParse(fecha, hora) ??
           DateTime.fromMillisecondsSinceEpoch(0),
       estado: SlotStatus.fromValue(map['estado']),
       serviceId: map['serviceId'] as String?,
@@ -76,6 +80,8 @@ class Slot {
 
   /// 'HH:mm' (24 h).
   final String hora;
+
+  /// Instante de inicio (en UTC), calculado en hora de Bogotá.
   final DateTime inicio;
   final SlotStatus estado;
 
