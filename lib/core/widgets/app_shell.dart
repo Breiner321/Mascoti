@@ -6,6 +6,7 @@ import '../auth/auth_providers.dart';
 import '../auth/domain/app_user.dart';
 import '../kernel/mascoti_plugin.dart';
 import '../kernel/plugin_registry.dart';
+import '../notificaciones/presentation/notification_bell.dart';
 import '../router/core_routes.dart';
 import '../theme/app_theme.dart';
 import 'brand_logo.dart';
@@ -71,8 +72,8 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-/// Encabezado morado de los mockups: logo a la izquierda; carrito, SOS y
-/// perfil a la derecha. El perfil no está en el mockup, pero es el único
+/// Encabezado morado de los mockups: logo a la izquierda; carrito, SOS,
+/// notificaciones (RF-13) y perfil a la derecha. El perfil no está en el mockup, pero es el único
 /// camino a "Cerrar sesión" (RF-03).
 class _ShellHeader extends StatelessWidget implements PreferredSizeWidget {
   const _ShellHeader({required this.showCart, required this.showSos});
@@ -107,6 +108,7 @@ class _ShellHeader extends StatelessWidget implements PreferredSizeWidget {
                     onPressed: () => context.push('/tienda/carrito'),
                   ),
                 if (showSos) const SosButton(),
+                const NotificationBell(),
                 _HeaderButton(
                   tooltip: 'Perfil',
                   icon: Icons.account_circle_outlined,

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mascoti/core/format/bogota_time.dart';
 import 'package:mascoti/core/domain/slot.dart';
 import 'package:mascoti/plugins/clinica/data/slots_repository.dart';
 import 'package:mascoti/plugins/clinica/domain/day_schedule.dart';
@@ -18,7 +19,7 @@ void main() {
       firestore.doc('clinics/c1/slots/${fecha}_$hora').set({
         'fecha': fecha,
         'hora': hora,
-        'inicio': Timestamp.fromDate(DateTime.parse('${fecha}T$hora:00')),
+        'inicio': Timestamp.fromDate(BogotaTime.tryParse(fecha, hora)!),
         ...extra,
       });
 
@@ -78,7 +79,7 @@ void main() {
     expect(ocho['precio'], 60000, reason: 'copia del precio del servicio');
     expect(ocho['fecha'], '2026-10-20');
     expect(ocho['hora'], '08:00');
-    expect((ocho['inicio'] as Timestamp).toDate(), DateTime(2026, 10, 20, 8));
+    expect((ocho['inicio'] as Timestamp).toDate().toUtc(), BogotaTime.at(2026, 10, 20, 8));
 
     final bloqueo = byId['2026-10-20_10:30']!;
     expect(bloqueo['estado'], 'no_disponible');

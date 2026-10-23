@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/domain/slot.dart';
+import 'package:mascoti/core/format/bogota_time.dart';
 
 void main() {
   test('Slot.at calcula inicio e id determinístico', () {
@@ -11,7 +12,11 @@ void main() {
       serviceId: 's1',
       precio: 45000,
     );
-    expect(slot.inicio, DateTime(2026, 10, 15, 9, 30));
+    // 9:30 a. m. en Bogotá = 14:30 UTC, sin importar la zona del teléfono.
+    expect(slot.inicio, DateTime.utc(2026, 10, 15, 14, 30));
+    expect(slot.inicio, BogotaTime.at(2026, 10, 15, 9, 30));
+    expect(() => Slot.at(fecha: '2026-02-30', hora: '09:00', estado: SlotStatus.disponible),
+        throwsFormatException);
     expect(slot.id, '2026-10-15_09:30');
     expect(Slot.idFor('2026-10-15', '09:30'), slot.id);
   });
@@ -40,7 +45,7 @@ void main() {
     expect(slot.serviceId, isNull);
     expect(slot.precio, isNull);
     // Sin `inicio` guardado, se calcula de fecha + hora.
-    expect(slot.inicio, DateTime(2026, 10, 15, 12));
+    expect(slot.inicio, BogotaTime.at(2026, 10, 15, 12));
   });
 
   test('estados: valores de Firestore y bloqueo de edición (RF-06)', () {

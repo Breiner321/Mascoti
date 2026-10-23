@@ -2,9 +2,18 @@
 // servicio de Firebase guardada en el secreto FIREBASE_SERVICE_ACCOUNT.
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.9.6";
 
+import { ClienteFirestore } from "./cliente_firestore.ts";
 import type { CuentaServicio } from "./cuenta_servicio.ts";
 import {
+  type DependenciasNotificaciones,
+  esTokenInvalido,
+  type MensajePush,
+  mensajeFcm,
+  type ResultadoPush,
+} from "./notificaciones.ts";
+import {
   decodificarCampos,
+  nuevoIdFirestore,
   type EscrituraFirestore,
   type TransformacionFirestore,
   type ValorFirestore,
@@ -65,6 +74,49 @@ async function tokenDeAcceso(cuenta: CuentaServicio): Promise<string> {
   const { access_token, expires_in } = await respuesta.json();
   tokenEnCache = { valor: access_token, vence: ahora + Number(expires_in ?? 3600) };
   return access_token;
+}
+
+/** Cliente REST de Firestore autenticado con la cuenta de servicio. */
+export function clienteFirestore(cuenta: CuentaServicio): ClienteFirestore {
+  return new ClienteFirestore(
+    cuenta.project_id,
+    "https://firestore.googleapis.com/v1",
+    () => tokenDeAcceso(cuenta),
+  );
+}
+
+/** Dependencias reales de las notificaciones (RF-13). */
+export function dependenciasNotificaciones(cuenta: CuentaServicio): DependenciasNotificaciones {
+  return {
+    db: clienteFirestore(cuenta),
+    enviarPush: (token, mensaje) => enviarPushFcm(cuenta, token, mensaje),
+    ahora: () => new Date(),
+    nuevoId: () => nuevoIdFirestore((n) => crypto.getRandomValues(new Uint8Array(n))),
+    log: console.warn,
+  };
+}
+
+/** Push a un dispositivo con FCM HTTP v1 (gratis en el plan Spark). */
+export async function enviarPushFcm(
+  cuenta: CuentaServicio,
+  token: string,
+  mensaje: MensajePush,
+): Promise<ResultadoPush> {
+  const respuesta = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${cuenta.project_id}/messages:send`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${await tokenDeAcceso(cuenta)}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(mensajeFcm(token, mensaje)),
+    },
+  );
+  if (respuesta.ok) return "ok";
+  const texto = await respuesta.text();
+  if (esTokenInvalido(respuesta.status, texto)) return "token-invalido";
+  throw new Error(`FCM ${respuesta.status}: ${texto}`);
 }
 
 /** Commit atómico de Firestore. "ya-existe" si falla una precondición exists:false. */

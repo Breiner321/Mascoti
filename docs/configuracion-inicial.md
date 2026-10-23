@@ -68,6 +68,7 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    supabase db query --linked -f supabase/migrations/20261015000000_storage_mascotas.sql
    supabase db query --linked -f supabase/migrations/20261016000000_limite_vinculacion.sql
    supabase db query --linked -f supabase/migrations/20261016010000_storage_registros.sql
+   supabase db query --linked -f supabase/migrations/20261023000000_tareas_programadas.sql   # ver paso 5
    ```
    O pega cada archivo en **SQL Editor** del panel. Se pueden ejecutar varias veces sin problema.
 3. **Cuenta de servicio de Firebase** (la Edge Function la usa para escribir en Firestore): Firebase → Configuración del proyecto → Cuentas de servicio → **Generar nueva clave privada**. Guarda el JSON **fuera del repositorio** y cárgalo como secreto. Se pasa en **Base64** porque PowerShell rompe el JSON al enviarlo como argumento (error `Invalid secret pair`):
@@ -80,7 +81,20 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    supabase functions deploy completar-registro --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy vincular-mascota --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy adjuntos-historial --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy citas --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy tareas-programadas --project-ref tahnazumbqsupzpusrba --use-api
    ```
+5. **Tareas programadas** (no-show y solicitudes expiradas cada 30 min; recordatorios diarios, RF-13). Las ejecuta pg_cron en Supabase llamando a `tareas-programadas`, protegida con un secreto compartido:
+   ```powershell
+   # Un valor largo y aleatorio; NO lo subas al repo.
+   $secreto = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }) -as [byte[]])
+   supabase secrets set --project-ref tahnazumbqsupzpusrba CRON_SECRET=$secreto
+   ```
+   En **SQL Editor** guarda el mismo valor en el Vault (una vez) y luego aplica la migración:
+   ```sql
+   select vault.create_secret('<el mismo valor>', 'cron_secret');
+   ```
+   Revisa las ejecuciones en **Integrations → Cron** (o `select * from cron.job_run_details order by start_time desc limit 10;`).
 
 **Todos, en su computador:**
 1. Copia `env/dev.example.json` como `env/dev.json` y pon la **publishable key** (`sb_publishable_...`, en Supabase → Project Settings → API Keys). Es pública; **nunca** pongas ahí la *secret* / *service_role* key.
@@ -99,6 +113,24 @@ El directorio de clínicas usa **OpenStreetMap** con `flutter_map`: **no necesit
 - **"Cómo llegar":** abre la app de mapas del teléfono (`geo:`); si no hay ninguna, la ruta en openstreetmap.org.
 - **Ubicación en el emulador:** ⋮ → **Location**, escribe una dirección (p. ej. Medellín) y pulsa **Set location**; luego vuelve a abrir la pestaña "Mapa".
 - **Una clínica no aparece:** debe tener `estado: activo` (haber terminado su perfil de atención, RF-04) y el campo `geo`. Revísalo con `npm run verificar-geo` en `functions/`.
+
+## C4. Notificaciones push (RF-13)
+
+No hay que configurar nada en Firebase: FCM viene con el proyecto y es gratis en el plan Spark. Las Edge Functions envían los push con la cuenta de servicio (secreto `FIREBASE_SERVICE_ACCOUNT`).
+
+**En el emulador de Android:** usa una imagen **con Google Play** (en Device Manager, la columna "Play Store" debe tener el ícono). Sin Google Play no hay token FCM y solo funciona el centro de notificaciones de la app.
+1. Corre la app, inicia sesión y acepta el permiso de notificaciones (Android 13+).
+2. Revisa en Firestore `users/{uid}/devices`: debe haber un documento con `fcmToken` y `valido: true`.
+3. Para probar el ciclo completo usa dos sesiones (un dueño y una clínica, p. ej. emulador + celular). Al solicitar, aprobar, rechazar o cancelar una cita llega el push al otro.
+4. Prueba los tres casos: app abierta (aparece arriba), en segundo plano y cerrada (en la bandeja del sistema). Al tocarla debe abrir la cita o el perfil de la mascota.
+5. Para enviar un push manual a un token: Firebase → **Messaging → Nueva campaña → Mensaje de prueba**, pega el `fcmToken`. Agrega los datos personalizados `tipo = cita_aprobada` y `referenciaId = <id de una cita>` para probar la navegación.
+
+**En un celular real:** instala el APK (`flutter build apk --release` o `flutter run`), inicia sesión y acepta el permiso. Si no llegan, revisa en Ajustes → Apps → Mascoti → Notificaciones que estén activas (y que el ahorro de batería no la restrinja).
+
+**Recordatorios de las 8:00 a. m.:** para probarlos sin esperar, llama a la tarea a mano (con el mismo `CRON_SECRET`):
+```powershell
+curl.exe -X POST https://tahnazumbqsupzpusrba.supabase.co/functions/v1/tareas-programadas -H "x-cron-secret: <CRON_SECRET>" -H "Content-Type: application/json" -d '{\"tarea\":\"recordatorios\"}'
+```
 
 ## D. Todos: correr la app
 
@@ -136,4 +168,5 @@ La interfaz de los emuladores (usuarios, datos, logs) queda en http://localhost:
 | `project is paused` / el registro dejó de funcionar | El plan gratuito de Supabase pausa el proyecto tras 7 días sin uso: reactívalo en el panel de Supabase (**Restore project**). |
 | El mapa del directorio se ve gris o en blanco | El teléfono o emulador no tiene internet, o OpenStreetMap limitó el uso por un momento. La lista de clínicas funciona igual; reintenta más tarde (sección C3). |
 | "El buscador de direcciones no está disponible" | Photon (OpenStreetMap) no respondió o limitó el uso; espera un momento y toca Reintentar. |
+| No llegan las notificaciones push | Emulador sin Google Play, permiso denegado o `valido: false` en `users/{uid}/devices` (cierra sesión y vuelve a entrar para registrar el token). Mira los logs de la Edge Function `citas` o `tareas-programadas` en Supabase (sección C4). |
 | google_sign_in pide `serverClientId` | Pásalo con `--dart-define=GOOGLE_SERVER_CLIENT_ID=<client ID web>` (Firebase → Authentication → Google → Configuración del SDK web). |
