@@ -2,11 +2,18 @@
 // solicitarCita, responderCita, cancelarCita y completarCita (el plan gratuito
 // de Firebase no permite Cloud Functions). Cuerpo: {accion, ...}.
 // La lógica está en ../_shared/citas.ts (con pruebas en functions/test/).
+// Cada cambio avisa a quien corresponde (RF-13) con ../_shared/notificaciones.ts:
+// reemplaza al trigger onDocumentUpdated, que no existe sin Cloud Functions.
 import { ejecutarAccionCita } from "../_shared/citas.ts";
 import { leerCuentaServicio } from "../_shared/cuenta_servicio.ts";
 import { ErrorFuncion } from "../_shared/errores.ts";
 import { nuevoIdFirestore } from "../_shared/firestore.ts";
-import { clienteFirestore, verificarTokenFirebase } from "../_shared/google.ts";
+import {
+  clienteFirestore,
+  dependenciasNotificaciones,
+  verificarTokenFirebase,
+} from "../_shared/google.ts";
+import { notificarCambioCita } from "../_shared/notificaciones.ts";
 
 const PROYECTO_FIREBASE = Deno.env.get("FIREBASE_PROJECT_ID") ?? "mascoti-b27cf";
 
@@ -30,12 +37,15 @@ Deno.serve(async (req) => {
 
   try {
     const cuerpo = await req.json().catch(() => null);
+    const cuenta = leerCuentaServicio(Deno.env.get("FIREBASE_SERVICE_ACCOUNT"));
+    const notificaciones = dependenciasNotificaciones(cuenta);
     const resultado = await ejecutarAccionCita(
       {
-        db: clienteFirestore(leerCuentaServicio(Deno.env.get("FIREBASE_SERVICE_ACCOUNT"))),
+        db: clienteFirestore(cuenta),
         verificarToken: (token) => verificarTokenFirebase(token, PROYECTO_FIREBASE),
         ahora: () => new Date(),
         nuevoId: () => nuevoIdFirestore((n) => crypto.getRandomValues(new Uint8Array(n))),
+        alCambiar: (cambio) => notificarCambioCita(notificaciones, cambio),
         log: console.warn,
       },
       req.headers.get("Authorization"),

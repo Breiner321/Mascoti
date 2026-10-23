@@ -62,9 +62,18 @@ service cloud.firestore {
         && request.resource.data.get('onboardingVisto', false) is bool;
 
       // Tokens FCM (RF-13). Borrar el propio token se permite siempre (logout).
+      // La app siempre lo guarda como válido; solo el servidor lo marca
+      // valido=false cuando FCM lo rechaza.
       match /devices/{deviceId} {
         allow read, delete: if isSelf(uid);
-        allow create, update: if isSelf(uid) && isActive();
+        allow create, update: if isSelf(uid) && isActive()
+          && request.resource.data.keys().hasOnly(['fcmToken', 'plataforma', 'updatedAt', 'valido'])
+          && request.resource.data.fcmToken is string
+          && request.resource.data.fcmToken.size() > 0
+          && request.resource.data.fcmToken.size() <= 4096
+          && request.resource.data.plataforma in ['android', 'ios', 'web']
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.valido == true;
       }
     }
 
@@ -495,6 +504,17 @@ service cloud.firestore {
         && (resource.data.ownerUid == request.auth.uid
             || (hasRole('clinica') && resource.data.clinicId == userData().clinicId));
       allow write: if false;
+    }
+
+    // ---------- Centro de notificaciones (RF-13) ----------
+    // Las crea solo el servidor (Edge Functions). Cada usuario lee las suyas
+    // y solo puede marcarlas como leídas.
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && onlyChanges(['leido'])
+        && request.resource.data.leido == true;
+      allow create, delete: if false;
     }
 
     // ---------- Todo lo demás está cerrado por defecto ----------

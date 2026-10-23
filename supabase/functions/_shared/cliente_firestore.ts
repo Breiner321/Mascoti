@@ -87,7 +87,8 @@ export class ClienteFirestore implements BaseDatos {
   }
 
   async consultar(consulta: Consulta): Promise<DocumentoLeido[]> {
-    const respuesta = await fetch(`${this.documentos}:runQuery`, {
+    const padre = consulta.padre ? `/${consulta.padre}` : "";
+    const respuesta = await fetch(`${this.documentos}${padre}:runQuery`, {
       method: "POST",
       headers: await this.encabezados(),
       body: JSON.stringify({ structuredQuery: consultaEstructurada(consulta) }),

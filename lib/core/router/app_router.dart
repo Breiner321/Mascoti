@@ -10,6 +10,7 @@ import '../auth/presentation/splash_page.dart';
 import '../auth/presentation/suspended_page.dart';
 import '../auth/presentation/welcome_page.dart';
 import '../kernel/plugin_registry.dart';
+import '../notificaciones/presentation/notifications_page.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/module_placeholder.dart';
 import 'core_routes.dart';
@@ -80,6 +81,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: CoreRoutes.profile,
             builder: (context, state) => const ProfilePage(),
+          ),
+          GoRoute(
+            path: CoreRoutes.notifications,
+            builder: (context, state) => const NotificationsPage(),
           ),
           ...pluginRoutes.where((route) => !isFullScreen(route)),
         ],

@@ -24,7 +24,7 @@ Convenciones: nombres de campos en español como en los RF; fechas como `Timesta
 | createdAt, lastLoginAt | Timestamp | |
 | estadoActualizadoEn | Timestamp? | lo pone el script de suspensión |
 
-Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13) · `cart/{productId}` `{clinicId, cantidad, addedAt}` (RF-12) · `favoriteClinics/{clinicId}` (RF-10).
+Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13: `deviceId` es un id aleatorio por instalación guardado en el teléfono; la app lo guarda siempre con `valido: true` y `updatedAt` = hora del servidor, y lo borra al cerrar sesión; solo el servidor lo marca `valido: false` cuando FCM rechaza el token; `DeviceRegistry` en `lib/core/notificaciones`) · `cart/{productId}` `{clinicId, cantidad, addedAt}` (RF-12) · `favoriteClinics/{clinicId}` (RF-10).
 
 ## `clinics/{clinicId}` — RF-01, RF-04, RF-09
 
@@ -108,9 +108,14 @@ Subcolección `messages/{messageId}`: `{senderUid, tipo:'texto'|'adjunto', texto
 
 `{ownerUid, clinicId, items:[{productId, nombre, precio, cantidad}], total, direccionEntrega, estado:'confirmado'|'preparando'|'entregado'|'cancelado', pagoRef, createdAt}`
 
-## `notifications/{notificationId}` — RF-13
+## `notifications/{notificationId}` — RF-13 · *la crea solo el servidor*
 
-`{uid, tipo:'recordatorio_cita'|'vacuna'|'cita_aprobada'|'cita_rechazada'|'pedido'|'mensaje', titulo, cuerpo, referenciaId, leido, createdAt}`
+`{uid, tipo, titulo, cuerpo, referenciaId, leido, createdAt}`
+
+- `tipo ∈ cita_nueva, cita_aprobada, cita_rechazada, cita_cancelada, recordatorio_cita, vacuna, pedido, mensaje` (`NotificationType` en Dart, `TipoNotificacion` en TS).
+- `referenciaId`: la cita (`appointmentId`) en los tipos de citas; la **mascota** (`petId`) en `vacuna`. El push lleva lo mismo en `data: {tipo, referenciaId, notificationId}` y la app navega con eso (`/reservas/:id` o `/mascotas/perfil/:petId`; si la ruta no existe, al inicio).
+- La crea `enviarNotificacion` (`supabase/functions/_shared/notificaciones.ts`), **siempre**, antes de enviar el push: aunque el usuario niegue el permiso, la ve en el centro de notificaciones. Los recordatorios usan ids fijos (`recordatorio_{appointmentId}`, `vacuna_{vacunaProgramadaId}`) para no duplicarse.
+- Reglas: cada usuario lee las suyas y solo puede cambiar `leido` a `true`; nadie más escribe.
 
 ## `qrTags/{qrId}` — RF-17
 
@@ -152,7 +157,7 @@ Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
 
 - `appointments`: `clinicId ASC, estado ASC, inicio ASC` (bandeja) · `ownerUid ASC, inicio DESC` (mis citas) · `clinicId ASC, inicio ASC` (agenda) · `estado ASC, inicio ASC` (tarea programada)
 - `slots` (collection group): `fecha ASC, estado ASC`
-- `notifications`: `uid ASC, createdAt DESC`
+- `notifications`: `uid ASC, createdAt DESC` (el contador de no leídas, `uid ==` y `leido ==`, no necesita índice compuesto)
 - `clinics`: `estado ASC, geo.geohash ASC` (búsqueda geográfica de `ClinicsGeoRepository`, `lib/core/data`)
 - `vacunasProgramadas`: `ownerUid ASC, fechaProximaDosis ASC` · `notificado ASC, fechaProximaDosis ASC`
 

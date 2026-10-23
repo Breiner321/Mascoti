@@ -121,6 +121,7 @@ plugins/clinica/
 | Transacciones entre colecciones o datos de confianza | **Edge Function** de Supabase (`supabase/functions/`) | `completar-registro` (RF-01), `citas` (RF-14: solicitar, responder, cancelar, completar) |
 | Reacciones a cambios | Dentro de la Edge Function que hace el cambio (no hay triggers de Firestore en el plan gratuito) | stock 0 → `agotado` en la función de pago (RF-07); push al aprobar cita |
 | Tareas programadas | **pg_cron** de Supabase que llama a una Edge Function | `tareas-programadas`: recordatorios (RF-13), no-show y expiradas (RF-14) |
+| Push (FCM) | Edge Function con **FCM HTTP v1** y la cuenta de servicio (`enviarNotificacion` en `_shared/notificaciones.ts`) | avisos de citas, recordatorios; cliente en `lib/core/notificaciones` |
 | Integraciones externas con secretos | **Edge Function** con secretos de Supabase (`supabase secrets set`) | webhook Wompi (RF-12), PDF (RF-18), página pública del QR (RF-17) |
 | Archivos | App → **Supabase Storage** con `StorageRepository` (`core/storage`) | fotos de mascotas, adjuntos del chat |
 | Tareas de administración | Scripts en `functions/admin/` con la cuenta de servicio | suspender una cuenta (RF-02) |

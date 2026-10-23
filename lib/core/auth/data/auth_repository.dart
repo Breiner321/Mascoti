@@ -16,7 +16,9 @@ class AuthRepository {
     FirebaseFirestore? firestore,
     required RegistrationApi registrationApi,
     GoogleSignIn? googleSignIn,
+    Future<void> Function()? beforeSignOut,
   })  : _auth = auth ?? FirebaseAuth.instance,
+        _beforeSignOut = beforeSignOut,
         _firestore = firestore ?? FirebaseFirestore.instance,
         _registrationApi = registrationApi,
         _googleSignIn = googleSignIn ?? GoogleSignIn.instance;
@@ -25,6 +27,10 @@ class AuthRepository {
   final FirebaseFirestore _firestore;
   final RegistrationApi _registrationApi;
   final GoogleSignIn _googleSignIn;
+
+  /// Se ejecuta antes de salir, con la sesión todavía activa: borra el token
+  /// FCM de users/{uid}/devices (RF-13). Sus errores no impiden salir.
+  final Future<void> Function()? _beforeSignOut;
 
   static const _timeout = Duration(seconds: 10);
   static const _signOutTimeout = Duration(seconds: 5);
@@ -101,8 +107,14 @@ class AuthRepository {
   ///
   /// Sin conexión, Google puede fallar o no responder: igual se cierra la
   /// sesión de Firebase (el logout local tiene prioridad).
-  // TODO(RF-13): borrar el token FCM de users/{uid}/devices antes de salir.
+  /// Antes de salir borra el token FCM del dispositivo ([beforeSignOut]),
+  /// porque después las reglas ya no lo permiten.
   Future<void> signOut() async {
+    try {
+      await _beforeSignOut?.call().timeout(_signOutTimeout);
+    } catch (_) {
+      // Sin red: el servidor marca el token inválido cuando FCM lo rechace.
+    }
     try {
       await _googleSignIn.signOut().timeout(_signOutTimeout);
     } catch (_) {

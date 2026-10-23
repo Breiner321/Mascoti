@@ -845,4 +845,56 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       await assertFails(updateDoc(doc(vet2, "clinics/c2/slots/2026-11-05_09:30"), { estado: "ocupado" }));
     });
   });
+
+  describe("notificaciones y dispositivos (RF-13)", () => {
+    beforeEach(async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        const n = { tipo: "cita_aprobada", titulo: "T", cuerpo: "C", referenciaId: "a1", leido: false,
+          createdAt: new Date() };
+        await setDoc(doc(db, "notifications/n1"), { ...n, uid: "ana" });
+        await setDoc(doc(db, "notifications/n2"), { ...n, uid: "vet" });
+      });
+    });
+
+    it("cada usuario lee solo las suyas", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertSucceeds(getDoc(doc(ana, "notifications/n1")));
+      await assertSucceeds(getDocs(query(collection(ana, "notifications"),
+        where("uid", "==", "ana"), orderBy("createdAt", "desc"))));
+      await assertSucceeds(getDocs(query(collection(ana, "notifications"),
+        where("uid", "==", "ana"), where("leido", "==", false))));
+      await assertFails(getDoc(doc(ana, "notifications/n2")));
+      await assertFails(getDocs(collection(ana, "notifications")));
+      await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "notifications/n1")));
+    });
+
+    it("solo puede marcarlas como leídas; no crea, ni borra, ni cambia otros campos", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertSucceeds(updateDoc(doc(ana, "notifications/n1"), { leido: true }));
+      await assertFails(updateDoc(doc(ana, "notifications/n1"), { leido: false }));
+      await assertFails(updateDoc(doc(ana, "notifications/n1"), { titulo: "Otro" }));
+      await assertFails(updateDoc(doc(ana, "notifications/n1"), { uid: "beto" }));
+      await assertFails(updateDoc(doc(ana, "notifications/n2"), { leido: true }));
+      await assertFails(setDoc(doc(ana, "notifications/n3"), {
+        uid: "ana", tipo: "vacuna", titulo: "T", cuerpo: "C", referenciaId: "p1", leido: false,
+      }));
+      await assertFails(deleteDoc(doc(ana, "notifications/n1")));
+    });
+
+    it("registrar el token del dispositivo: válido, con hora del servidor y solo los campos previstos", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      const token = { fcmToken: "tok", plataforma: "android", updatedAt: serverTimestamp(), valido: true };
+      await assertSucceeds(setDoc(doc(ana, "users/ana/devices/d1"), token));
+      await assertSucceeds(setDoc(doc(ana, "users/ana/devices/d1"), { ...token, fcmToken: "tok2" }));
+      await assertSucceeds(getDoc(doc(ana, "users/ana/devices/d1")));
+      await assertFails(setDoc(doc(ana, "users/ana/devices/d2"), { ...token, valido: false }));
+      await assertFails(setDoc(doc(ana, "users/ana/devices/d2"), { ...token, fcmToken: "" }));
+      await assertFails(setDoc(doc(ana, "users/ana/devices/d2"), { ...token, extra: 1 }));
+      await assertFails(setDoc(doc(ana, "users/ana/devices/d2"), { ...token, updatedAt: new Date(0) }));
+      await assertFails(setDoc(doc(ana, "users/vet/devices/d1"), token));
+      await assertFails(getDoc(doc(ana, "users/vet/devices/d1")));
+      await assertSucceeds(deleteDoc(doc(ana, "users/ana/devices/d1")));
+    });
+  });
 });

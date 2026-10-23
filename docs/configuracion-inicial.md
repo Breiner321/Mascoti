@@ -114,6 +114,24 @@ El directorio de clínicas usa **OpenStreetMap** con `flutter_map`: **no necesit
 - **Ubicación en el emulador:** ⋮ → **Location**, escribe una dirección (p. ej. Medellín) y pulsa **Set location**; luego vuelve a abrir la pestaña "Mapa".
 - **Una clínica no aparece:** debe tener `estado: activo` (haber terminado su perfil de atención, RF-04) y el campo `geo`. Revísalo con `npm run verificar-geo` en `functions/`.
 
+## C4. Notificaciones push (RF-13)
+
+No hay que configurar nada en Firebase: FCM viene con el proyecto y es gratis en el plan Spark. Las Edge Functions envían los push con la cuenta de servicio (secreto `FIREBASE_SERVICE_ACCOUNT`).
+
+**En el emulador de Android:** usa una imagen **con Google Play** (en Device Manager, la columna "Play Store" debe tener el ícono). Sin Google Play no hay token FCM y solo funciona el centro de notificaciones de la app.
+1. Corre la app, inicia sesión y acepta el permiso de notificaciones (Android 13+).
+2. Revisa en Firestore `users/{uid}/devices`: debe haber un documento con `fcmToken` y `valido: true`.
+3. Para probar el ciclo completo usa dos sesiones (un dueño y una clínica, p. ej. emulador + celular). Al solicitar, aprobar, rechazar o cancelar una cita llega el push al otro.
+4. Prueba los tres casos: app abierta (aparece arriba), en segundo plano y cerrada (en la bandeja del sistema). Al tocarla debe abrir la cita o el perfil de la mascota.
+5. Para enviar un push manual a un token: Firebase → **Messaging → Nueva campaña → Mensaje de prueba**, pega el `fcmToken`. Agrega los datos personalizados `tipo = cita_aprobada` y `referenciaId = <id de una cita>` para probar la navegación.
+
+**En un celular real:** instala el APK (`flutter build apk --release` o `flutter run`), inicia sesión y acepta el permiso. Si no llegan, revisa en Ajustes → Apps → Mascoti → Notificaciones que estén activas (y que el ahorro de batería no la restrinja).
+
+**Recordatorios de las 8:00 a. m.:** para probarlos sin esperar, llama a la tarea a mano (con el mismo `CRON_SECRET`):
+```powershell
+curl.exe -X POST https://tahnazumbqsupzpusrba.supabase.co/functions/v1/tareas-programadas -H "x-cron-secret: <CRON_SECRET>" -H "Content-Type: application/json" -d '{\"tarea\":\"recordatorios\"}'
+```
+
 ## D. Todos: correr la app
 
 ```powershell
@@ -150,4 +168,5 @@ La interfaz de los emuladores (usuarios, datos, logs) queda en http://localhost:
 | `project is paused` / el registro dejó de funcionar | El plan gratuito de Supabase pausa el proyecto tras 7 días sin uso: reactívalo en el panel de Supabase (**Restore project**). |
 | El mapa del directorio se ve gris o en blanco | El teléfono o emulador no tiene internet, o OpenStreetMap limitó el uso por un momento. La lista de clínicas funciona igual; reintenta más tarde (sección C3). |
 | "El buscador de direcciones no está disponible" | Photon (OpenStreetMap) no respondió o limitó el uso; espera un momento y toca Reintentar. |
+| No llegan las notificaciones push | Emulador sin Google Play, permiso denegado o `valido: false` en `users/{uid}/devices` (cierra sesión y vuelve a entrar para registrar el token). Mira los logs de la Edge Function `citas` o `tareas-programadas` en Supabase (sección C4). |
 | google_sign_in pide `serverClientId` | Pásalo con `--dart-define=GOOGLE_SERVER_CLIENT_ID=<client ID web>` (Firebase → Authentication → Google → Configuración del SDK web). |

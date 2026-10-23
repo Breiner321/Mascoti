@@ -34,3 +34,7 @@ revoke all on function public.ejecutar_tarea_programada(text) from public, anon,
 
 -- RF-14: cada 30 min, citas no asistidas y solicitudes expiradas.
 select cron.schedule('citas-vencidas', '*/30 * * * *', $$select public.ejecutar_tarea_programada('vencidas')$$);
+
+-- RF-13: recordatorios diarios a las 8:00 a. m. hora Colombia = 13:00 UTC
+-- (Colombia no tiene horario de verano).
+select cron.schedule('recordatorios-diarios', '0 13 * * *', $$select public.ejecutar_tarea_programada('recordatorios')$$);

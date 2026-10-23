@@ -5,7 +5,15 @@ import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.
 import { ClienteFirestore } from "./cliente_firestore.ts";
 import type { CuentaServicio } from "./cuenta_servicio.ts";
 import {
+  type DependenciasNotificaciones,
+  esTokenInvalido,
+  type MensajePush,
+  mensajeFcm,
+  type ResultadoPush,
+} from "./notificaciones.ts";
+import {
   decodificarCampos,
+  nuevoIdFirestore,
   type EscrituraFirestore,
   type TransformacionFirestore,
   type ValorFirestore,
@@ -75,6 +83,40 @@ export function clienteFirestore(cuenta: CuentaServicio): ClienteFirestore {
     "https://firestore.googleapis.com/v1",
     () => tokenDeAcceso(cuenta),
   );
+}
+
+/** Dependencias reales de las notificaciones (RF-13). */
+export function dependenciasNotificaciones(cuenta: CuentaServicio): DependenciasNotificaciones {
+  return {
+    db: clienteFirestore(cuenta),
+    enviarPush: (token, mensaje) => enviarPushFcm(cuenta, token, mensaje),
+    ahora: () => new Date(),
+    nuevoId: () => nuevoIdFirestore((n) => crypto.getRandomValues(new Uint8Array(n))),
+    log: console.warn,
+  };
+}
+
+/** Push a un dispositivo con FCM HTTP v1 (gratis en el plan Spark). */
+export async function enviarPushFcm(
+  cuenta: CuentaServicio,
+  token: string,
+  mensaje: MensajePush,
+): Promise<ResultadoPush> {
+  const respuesta = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${cuenta.project_id}/messages:send`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${await tokenDeAcceso(cuenta)}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(mensajeFcm(token, mensaje)),
+    },
+  );
+  if (respuesta.ok) return "ok";
+  const texto = await respuesta.text();
+  if (esTokenInvalido(respuesta.status, texto)) return "token-invalido";
+  throw new Error(`FCM ${respuesta.status}: ${texto}`);
 }
 
 /** Commit atómico de Firestore. "ya-existe" si falla una precondición exists:false. */

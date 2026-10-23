@@ -218,8 +218,10 @@ export interface Filtro {
   valor: ValorCampo;
 }
 
-/** Consulta simple sobre una colección de primer nivel (filtros AND). */
+/** Consulta simple sobre una colección (filtros AND). */
 export interface Consulta {
+  /** Para una subcolección, el documento padre (p. ej. `users/ana`). */
+  padre?: string;
   coleccion: string;
   filtros: Filtro[];
   ordenarPor?: string;
