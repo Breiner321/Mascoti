@@ -68,6 +68,7 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    supabase db query --linked -f supabase/migrations/20261015000000_storage_mascotas.sql
    supabase db query --linked -f supabase/migrations/20261016000000_limite_vinculacion.sql
    supabase db query --linked -f supabase/migrations/20261016010000_storage_registros.sql
+   supabase db query --linked -f supabase/migrations/20261023000000_tareas_programadas.sql   # ver paso 5
    ```
    O pega cada archivo en **SQL Editor** del panel. Se pueden ejecutar varias veces sin problema.
 3. **Cuenta de servicio de Firebase** (la Edge Function la usa para escribir en Firestore): Firebase → Configuración del proyecto → Cuentas de servicio → **Generar nueva clave privada**. Guarda el JSON **fuera del repositorio** y cárgalo como secreto. Se pasa en **Base64** porque PowerShell rompe el JSON al enviarlo como argumento (error `Invalid secret pair`):
@@ -80,7 +81,20 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    supabase functions deploy completar-registro --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy vincular-mascota --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy adjuntos-historial --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy citas --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy tareas-programadas --project-ref tahnazumbqsupzpusrba --use-api
    ```
+5. **Tareas programadas** (no-show y solicitudes expiradas cada 30 min; recordatorios diarios, RF-13). Las ejecuta pg_cron en Supabase llamando a `tareas-programadas`, protegida con un secreto compartido:
+   ```powershell
+   # Un valor largo y aleatorio; NO lo subas al repo.
+   $secreto = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }) -as [byte[]])
+   supabase secrets set --project-ref tahnazumbqsupzpusrba CRON_SECRET=$secreto
+   ```
+   En **SQL Editor** guarda el mismo valor en el Vault (una vez) y luego aplica la migración:
+   ```sql
+   select vault.create_secret('<el mismo valor>', 'cron_secret');
+   ```
+   Revisa las ejecuciones en **Integrations → Cron** (o `select * from cron.job_run_details order by start_time desc limit 10;`).
 
 **Todos, en su computador:**
 1. Copia `env/dev.example.json` como `env/dev.json` y pon la **publishable key** (`sb_publishable_...`, en Supabase → Project Settings → API Keys). Es pública; **nunca** pongas ahí la *secret* / *service_role* key.

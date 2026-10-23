@@ -69,7 +69,7 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 | RF-11 | ⬜ | |
 | RF-12 | ⬜ | |
 | RF-13 | ⬜ | |
-| RF-14 | ⬜ | |
+| RF-14 | 🟨 | backend (Dev A): Edge Function `citas` (solicitar, responder, cancelar, completar) con transacción optimista y prueba de carrera en el emulador; tarea cada 30 min (`no_asistio`, `expirada`) con pg_cron; modelo `Appointment` con máquina de estados; `AppointmentsRepository` (mis citas, solicitudes pendientes, agenda del día, acciones) en `lib/core/data`; reglas e índices. Falta: pantallas del dueño (Dev C) y de la clínica (Dev B) |
 | RF-15 | ⬜ | |
 | RF-16 | ⬜ | |
 | RF-17 | ⬜ | |

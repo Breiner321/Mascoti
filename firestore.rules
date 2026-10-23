@@ -487,6 +487,16 @@ service cloud.firestore {
              + duration.value(24, 'h');
     }
 
+    // ---------- Citas (RF-14) ----------
+    // Solo la Edge Function `citas` (y la tarea programada) las crea o cambia
+    // su estado, con transacciones. Leen el dueño de la cita y la clínica.
+    match /appointments/{appointmentId} {
+      allow read: if isActive()
+        && (resource.data.ownerUid == request.auth.uid
+            || (hasRole('clinica') && resource.data.clinicId == userData().clinicId));
+      allow write: if false;
+    }
+
     // ---------- Todo lo demás está cerrado por defecto ----------
     match /{document=**} {
       allow read, write: if false;

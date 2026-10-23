@@ -2,6 +2,7 @@
 // servicio de Firebase guardada en el secreto FIREBASE_SERVICE_ACCOUNT.
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.9.6";
 
+import { ClienteFirestore } from "./cliente_firestore.ts";
 import type { CuentaServicio } from "./cuenta_servicio.ts";
 import {
   decodificarCampos,
@@ -65,6 +66,15 @@ async function tokenDeAcceso(cuenta: CuentaServicio): Promise<string> {
   const { access_token, expires_in } = await respuesta.json();
   tokenEnCache = { valor: access_token, vence: ahora + Number(expires_in ?? 3600) };
   return access_token;
+}
+
+/** Cliente REST de Firestore autenticado con la cuenta de servicio. */
+export function clienteFirestore(cuenta: CuentaServicio): ClienteFirestore {
+  return new ClienteFirestore(
+    cuenta.project_id,
+    "https://firestore.googleapis.com/v1",
+    () => tokenDeAcceso(cuenta),
+  );
 }
 
 /** Commit atómico de Firestore. "ya-existe" si falla una precondición exists:false. */
