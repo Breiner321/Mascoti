@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
+import 'package:mascoti/core/domain/appointment.dart';
+import 'package:mascoti/core/format/bogota_time.dart';
 import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mascoti/core/domain/pet.dart';
 import 'package:mascoti/plugins/mascotas/mascotas_plugin.dart';
+import 'package:mascoti/plugins/mascotas/presentation/next_appointment_provider.dart';
 import 'package:mascoti/plugins/mascotas/presentation/owner_home_page.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pets_providers.dart';
 import 'package:mascoti/plugins/mascotas/presentation/widgets/shortcut_tile.dart';
@@ -23,6 +26,7 @@ void main() {
     WidgetTester tester, {
     required Stream<List<Pet>> pets,
     PluginRegistry? registry,
+    Appointment? next,
   }) async {
     tester.view.physicalSize = const Size(1080, 2600);
     tester.view.devicePixelRatio = 1;
@@ -33,6 +37,7 @@ void main() {
         overrides: [
           pluginRegistryProvider.overrideWithValue(registry ?? todayRegistry),
           myPetsProvider.overrideWith((ref) => pets),
+          nextAppointmentProvider.overrideWithValue(next),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
@@ -161,5 +166,62 @@ void main() {
     expect(find.text('Luna'), findsOneWidget);
     expect(find.text('Perro'), findsOneWidget);
     expect(find.text('Michi'), findsNothing);
+  });
+
+  testWidgets('"Próxima cita" muestra la próxima pendiente o confirmada', (tester) async {
+    await pumpHome(
+      tester,
+      pets: Stream.value(const []),
+      next: Appointment(
+        id: 'a1',
+        clinicId: 'c1',
+        clinicNombre: 'Clínica Norte',
+        ownerUid: 'u1',
+        petId: 'p1',
+        petNombre: 'Luna',
+        serviceId: 's1',
+        serviceNombre: 'Consulta',
+        precioAcordado: 45000,
+        slotId: '2026-11-06_09:00',
+        fecha: '2026-11-06',
+        hora: '09:00',
+        inicio: BogotaTime.at(2026, 11, 6, 9),
+        estado: AppointmentStatus.confirmada,
+      ),
+    );
+
+    expect(find.text('Próxima cita'), findsOneWidget);
+    expect(find.text('6 nov · 9:00 a. m.'), findsOneWidget);
+    expect(find.text('Luna · Clínica Norte'), findsOneWidget);
+    expect(find.text('Confirmada'), findsOneWidget);
+    expect(find.text('Sin citas · Agendar'), findsNothing);
+  });
+
+  test('nextAppointmentOf: la activa más cercana que no ha empezado', () {
+    Appointment a(String id, int day, AppointmentStatus estado) => Appointment(
+          id: id,
+          clinicId: 'c1',
+          clinicNombre: 'C',
+          ownerUid: 'u1',
+          petId: 'p1',
+          petNombre: 'Luna',
+          serviceId: 's1',
+          serviceNombre: 'Consulta',
+          precioAcordado: 1,
+          slotId: '',
+          fecha: '',
+          hora: '09:00',
+          inicio: BogotaTime.at(2026, 11, day, 9),
+          estado: estado,
+        );
+    final now = BogotaTime.at(2026, 11, 5, 12);
+    final list = [
+      a('pasada', 4, AppointmentStatus.confirmada),
+      a('cancelada', 6, AppointmentStatus.cancelada),
+      a('lejana', 9, AppointmentStatus.confirmada),
+      a('cercana', 7, AppointmentStatus.pendiente),
+    ];
+    expect(nextAppointmentOf(list, now)?.id, 'cercana');
+    expect(nextAppointmentOf(const [], now), isNull);
   });
 }

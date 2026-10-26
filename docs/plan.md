@@ -58,7 +58,7 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 |---|---|---|
 | RF-01 | 🟨 | backend, interfaz de registro (LOGIN + Places), paso obligatorio de la clínica, home y onboarding del dueño. Direcciones con OpenStreetMap; registro con la Edge Function `completar-registro`. Falta: secreto de Supabase y prueba de punta a punta |
 | RF-02 | 🟨 | errores tipados, suspensión (reglas + Function) y pruebas |
-| RF-03 | 🟨 | logout local sin red; falta borrar token FCM (RF-13) |
+| RF-03 | ✅ | logout local sin red; borra el token FCM del dispositivo antes de salir (RF-13) |
 | RF-04 | 🟨 | pantalla `/clinica/perfil-atencion` (especies, emergencias, horario base), `ClinicRepository` en tiempo real, paso de `incompleto` a `activo`, enlace desde el perfil y la agenda, pruebas. Falta: prueba de punta a punta en el emulador con Firebase |
 | RF-05 | 🟨 | `/clinica/servicios`: lista en tiempo real, formulario crear/editar en bottom sheet, borrado lógico con confirmación, animación y snackbar, reintento ante fallo de red; `ServicesRepository` y pruebas. Falta: advertencia de citas activas (TODO, depende de RF-14) y prueba de punta a punta |
 | RF-06 | 🟨 | agenda "Mi día": calendario (`table_calendar`), franjas según `horarioBase`, selección múltiple Disponible (con servicio y copia del precio) / No disponible / Quitar, guardado en `WriteBatch`, validación de solapamientos por duración del servicio, franjas ocupadas y pasadas de solo lectura; lógica pura en `plugins/clinica/domain/day_schedule.dart` con pruebas. Falta: lista de citas del día (RF-14) y prueba de punta a punta |
@@ -68,8 +68,8 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 | RF-10 | ⬜ | |
 | RF-11 | ⬜ | |
 | RF-12 | ⬜ | |
-| RF-13 | ⬜ | |
-| RF-14 | ⬜ | |
+| RF-13 | 🟨 | (Dev A) cliente en `lib/core/notificaciones`: permiso, token en `users/{uid}/devices` con `onTokenRefresh`, borrado al cerrar sesión, navegación al tocar (app cerrada, en segundo plano o abierta), campana con contador y `/notificaciones`; servidor: `enviarNotificacion` (documento + push FCM v1, tokens inválidos), avisos de cada cambio de cita, recordatorios diarios 8:00 a. m. (citas de mañana, vacunas en 3 días) sin duplicados; reglas y pruebas. Falta: probar push en un celular real con el ciclo completo |
+| RF-14 | 🟨 | backend (Dev A): Edge Function `citas` (solicitar, responder, cancelar, completar) con transacción optimista y prueba de carrera en el emulador; tarea cada 30 min (`no_asistio`, `expirada`) con pg_cron; modelo `Appointment` con máquina de estados; `AppointmentsRepository` (mis citas, solicitudes pendientes, agenda del día, acciones) en `lib/core/data`; reglas e índices. Lado dueño (Dev C): `/reservas/nueva` (servicios con precio, mascota, calendario con días disponibles, horas en tiempo real, comentario; sin clínica → "Tus clínicas" o mapa), confirmación con aviso del historial y manejo de horario tomado, "Mis citas" (Próximas/Historial con chip de estado), detalle `/reservas/:id` (Cómo llegar, Llamar, Cancelar hasta 2 h antes) y tarjeta "Próxima cita" del home; lógica en `plugins/reservas/presentation/dueno/booking_logic.dart` con pruebas. Falta: pantallas de la clínica (Dev B), favoritas (RF-10) y prueba de punta a punta |
 | RF-15 | ⬜ | |
 | RF-16 | ⬜ | |
 | RF-17 | ⬜ | |

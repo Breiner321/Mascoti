@@ -2,9 +2,11 @@
 
 Fuente única de verdad del esquema. **Todo PR que agregue o cambie colecciones o campos debe actualizar este archivo y `firestore.rules`.**
 
-Modelos en Dart: `lib/core/domain/` (`Clinic`, `ClinicService`, `Slot`, `Pet`), compartidos por todos los plugins. Los enums guardan en Firestore el valor en español de esta página.
+Modelos en Dart: `lib/core/domain/` (`Clinic`, `ClinicService`, `Slot`, `Pet`, `MedicalRecord`, `Appointment`), compartidos por todos los plugins. Los enums guardan en Firestore el valor en español de esta página.
 
 Horas (`hora`, `horarioBase.apertura/cierre`): se **guardan** en 24 h `HH:mm`; la app las **muestra** en 12 h con a. m./p. m. (`TimeFormat` en `lib/core/format`).
+
+**Zona horaria:** todas las fechas de agenda y citas se calculan en hora de Colombia (**America/Bogota, UTC−5 sin horario de verano**), aunque el teléfono esté en otra zona: `BogotaTime` en `lib/core/format` y `hora_bogota.ts` en las Edge Functions.
 
 Convenciones: nombres de campos en español como en los RF; fechas como `Timestamp`; dinero en COP como `number` entero (sin decimales) salvo que el RF diga otra cosa; ids generados por Firestore salvo que se indique.
 
@@ -22,7 +24,7 @@ Convenciones: nombres de campos en español como en los RF; fechas como `Timesta
 | createdAt, lastLoginAt | Timestamp | |
 | estadoActualizadoEn | Timestamp? | lo pone el script de suspensión |
 
-Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13) · `cart/{productId}` `{clinicId, cantidad, addedAt}` (RF-12) · `favoriteClinics/{clinicId}` (RF-10).
+Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13: `deviceId` es un id aleatorio por instalación guardado en el teléfono; la app lo guarda siempre con `valido: true` y `updatedAt` = hora del servidor, y lo borra al cerrar sesión; solo el servidor lo marca `valido: false` cuando FCM rechaza el token; `DeviceRegistry` en `lib/core/notificaciones`) · `cart/{productId}` `{clinicId, cantidad, addedAt}` (RF-12) · `favoriteClinics/{clinicId}` (RF-10).
 
 ## `clinics/{clinicId}` — RF-01, RF-04, RF-09
 
@@ -42,7 +44,7 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 
 Subcolecciones:
 - `services/{serviceId}` — RF-05: `{nombre, categoria, descripcion, precio, duracionMin, activo, createdAt, updatedAt}`; `precio` en COP: la app solo envía enteros (decisión del equipo; el RF permitía 2 decimales) y las reglas aceptan cualquier número > 0; `categoria ∈ vacunacion, peluqueria, bano, cirugia, consulta_general, otro`.
-- `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — RF-06: `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados. Una franja `disponible` ocupa de `hora` a `hora + duracionMin` del servicio: las franjas que quedan dentro de ese rango no tienen documento (la app las muestra como "cubiertas") y la app no permite guardar si el rango pisa otra franja o pasa del cierre (`DaySchedule.conflicts`). Una franja sin documento no se ofrece a los dueños.
+- `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — RF-06: `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `inicio` = `fecha` + `hora` en hora de Bogotá (`Slot.at`); el servidor no confía en él y lo recalcula al agendar; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados. Una franja `disponible` ocupa de `hora` a `hora + duracionMin` del servicio: las franjas que quedan dentro de ese rango no tienen documento (la app las muestra como "cubiertas") y la app no permite guardar si el rango pisa otra franja o pasa del cierre (`DaySchedule.conflicts`). Una franja sin documento no se ofrece a los dueños.
 - `pacientes/{petId}` — registros médicos (semana 3): `{duenoNombre, vinculadoAt}`. Nombre del dueño de cada mascota vinculada, para la lista "Pacientes" de la clínica (la clínica no puede leer `users/{ownerUid}`). La app lo guarda con lo que devuelve la Edge Function `vincular-mascota`; las reglas solo dejan escribir a la clínica dueña y si la mascota ya la tiene en `clinicasAutorizadas`. La lista de pacientes sale de `pets where clinicasAutorizadas array-contains clinicId` (índice automático de un campo); este documento solo aporta el nombre.
 - `products/{productId}` — RF-07: `{nombre, categoria, descripcion, precio, stock, fotoUrl, estado:'activo'|'agotado'|'inactivo', createdAt}`.
 
@@ -79,10 +81,23 @@ Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**;
 
 Tabla `public.intentos_vinculacion (clinic_id, intentado_en)` y función `registrar_intento_vinculacion`: máximo **10 búsquedas de código por clínica por hora**. Solo la usa la Edge Function (RLS sin políticas). No guarda datos de la app. Migración: `supabase/migrations/20261016000000_limite_vinculacion.sql`.
 
-## `appointments/{appointmentId}` — RF-14
+## `appointments/{appointmentId}` — RF-14 · *solo la escribe el servidor*
 
-`{clinicId, clinicNombre, ownerUid, petId, petNombre, serviceId, serviceNombre, precioAcordado, slotId, inicio:Timestamp, comentario, estado, motivoRechazo?, motivoCancelacion?, createdAt, updatedAt}`
-`estado ∈ pendiente, confirmada, rechazada, cancelada, completada, no_asistio`
+Modelo `Appointment` (`lib/core/domain`), repositorio `AppointmentsRepository` (`lib/core/data`). La crea y la cambia **solo** la Edge Function `citas` (y la tarea programada); las reglas niegan toda escritura desde la app. La leen el dueño de la cita y la clínica (activos).
+
+`{clinicId, clinicNombre, clinicOwnerUid, ownerUid, ownerNombre, petId, petNombre, serviceId, serviceNombre, precioAcordado, duracionMin?, slotId, fecha, hora, inicio:Timestamp, comentario, estado, motivoRechazo?, motivoCancelacion?, canceladoPor?, createdAt, updatedAt}`
+
+- `estado ∈ pendiente, confirmada, rechazada, cancelada, expirada, completada, no_asistio`. Transiciones (`canTransition` en Dart, `puedeTransicionar` en TS, con pruebas de las 49 combinaciones):
+  - `pendiente → confirmada | rechazada | cancelada | expirada`
+  - `confirmada → completada | cancelada | no_asistio`
+  - los demás son finales.
+- `expirada` (no está en el RF): solicitud que la clínica no respondió antes de la hora; la tarea programada la marca y libera la franja.
+- `clinicNombre`, `ownerNombre`, `petNombre`, `serviceNombre`, `precioAcordado`, `duracionMin`: copias al momento de solicitar (la clínica no puede leer `users`; el precio no cambia si la clínica lo cambia después).
+- `clinicOwnerUid`: a quién avisar en la clínica (RF-13).
+- `fecha` `YYYY-MM-DD`, `hora` `HH:mm` e `inicio` en hora de Bogotá; `inicio` lo calcula el servidor desde la franja.
+- `motivoRechazo` (obligatorio al rechazar), `motivoCancelacion` (obligatorio si cancela la clínica), `canceladoPor ∈ dueno, clinica`. Motivos de 1–300 caracteres; `comentario` hasta 500.
+
+Al solicitar, en **un solo commit**: crea la cita `pendiente`, la franja pasa a `reservado_temporal` y el `clinicId` se agrega a `pets/{petId}.clinicasAutorizadas` (RF-14 paso 8: la clínica puede ver el historial). Aprobar → franja `ocupado`; rechazar, cancelar o expirar → franja `disponible`.
 
 ## `chats/{ownerUid_clinicId}` — RF-15
 
@@ -93,9 +108,14 @@ Subcolección `messages/{messageId}`: `{senderUid, tipo:'texto'|'adjunto', texto
 
 `{ownerUid, clinicId, items:[{productId, nombre, precio, cantidad}], total, direccionEntrega, estado:'confirmado'|'preparando'|'entregado'|'cancelado', pagoRef, createdAt}`
 
-## `notifications/{notificationId}` — RF-13
+## `notifications/{notificationId}` — RF-13 · *la crea solo el servidor*
 
-`{uid, tipo:'recordatorio_cita'|'vacuna'|'cita_aprobada'|'cita_rechazada'|'pedido'|'mensaje', titulo, cuerpo, referenciaId, leido, createdAt}`
+`{uid, tipo, titulo, cuerpo, referenciaId, leido, createdAt}`
+
+- `tipo ∈ cita_nueva, cita_aprobada, cita_rechazada, cita_cancelada, recordatorio_cita, vacuna, pedido, mensaje` (`NotificationType` en Dart, `TipoNotificacion` en TS).
+- `referenciaId`: la cita (`appointmentId`) en los tipos de citas; la **mascota** (`petId`) en `vacuna`. El push lleva lo mismo en `data: {tipo, referenciaId, notificationId}` y la app navega con eso (`/reservas/:id` o `/mascotas/perfil/:petId`; si la ruta no existe, al inicio).
+- La crea `enviarNotificacion` (`supabase/functions/_shared/notificaciones.ts`), **siempre**, antes de enviar el push: aunque el usuario niegue el permiso, la ve en el centro de notificaciones. Los recordatorios usan ids fijos (`recordatorio_{appointmentId}`, `vacuna_{vacunaProgramadaId}`) para no duplicarse.
+- Reglas: cada usuario lee las suyas y solo puede cambiar `leido` a `true`; nadie más escribe.
 
 ## `qrTags/{qrId}` — RF-17
 
@@ -135,9 +155,9 @@ Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
 
 ## Índices compuestos previstos (`firestore.indexes.json`)
 
-- `appointments`: `clinicId ASC, estado ASC, inicio ASC` · `ownerUid ASC, inicio DESC`
+- `appointments`: `clinicId ASC, estado ASC, inicio ASC` (bandeja) · `ownerUid ASC, inicio DESC` (mis citas) · `clinicId ASC, inicio ASC` (agenda) · `estado ASC, inicio ASC` (tarea programada)
 - `slots` (collection group): `fecha ASC, estado ASC`
-- `notifications`: `uid ASC, createdAt DESC`
+- `notifications`: `uid ASC, createdAt DESC` (el contador de no leídas, `uid ==` y `leido ==`, no necesita índice compuesto)
 - `clinics`: `estado ASC, geo.geohash ASC` (búsqueda geográfica de `ClinicsGeoRepository`, `lib/core/data`)
 - `vacunasProgramadas`: `ownerUid ASC, fechaProximaDosis ASC` · `notificado ASC, fechaProximaDosis ASC`
 

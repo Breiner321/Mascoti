@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mascoti/core/format/bogota_time.dart';
 import 'package:mascoti/core/domain/opening_hours.dart';
 import 'package:mascoti/core/domain/slot.dart';
 import 'package:mascoti/plugins/clinica/domain/day_schedule.dart';
@@ -88,7 +89,7 @@ void main() {
       expect(result['08:30']!.estado, SlotStatus.disponible);
       expect(result['08:30']!.serviceId, 'vacuna');
       expect(result['08:30']!.precio, 30000);
-      expect(result['08:30']!.inicio, DateTime(2026, 10, 20, 8, 30));
+      expect(result['08:30']!.inicio, BogotaTime.at(2026, 10, 20, 8, 30));
       expect(result['09:00']!.serviceId, 'consulta');
       expect(result['10:00']!.estado, SlotStatus.noDisponible);
       expect(result['10:00']!.serviceId, isNull);

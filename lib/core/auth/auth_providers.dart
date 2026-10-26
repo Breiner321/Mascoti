@@ -1,15 +1,20 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../notificaciones/push/push_providers.dart';
 import '../supabase/supabase_providers.dart';
 import 'data/auth_repository.dart';
 import 'data/registration_api.dart';
 import 'domain/app_user.dart';
 import 'domain/session_state.dart';
 
-final authRepositoryProvider = Provider<AuthRepository>(
+// Tipo explícito: el cierre de sesión lee el push (RF-13), que depende del
+// router y este de la sesión; sin él, Dart no puede inferir el ciclo.
+final Provider<AuthRepository> authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepository(
     registrationApi: RegistrationApi(ref.watch(supabaseClientProvider)?.functions),
+    // RF-13: se lee al cerrar sesión (no al crear el repositorio).
+    beforeSignOut: () => ref.read(pushNotificationsControllerProvider).signedOut(),
   ),
 );
 

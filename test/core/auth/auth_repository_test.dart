@@ -206,6 +206,44 @@ void main() {
         verify(() => auth.signOut()).called(1);
       });
     });
+
+    test('RF-13: borra el token del dispositivo ANTES de salir de Firebase', () async {
+      final calls = <String>[];
+      when(() => google.signOut()).thenAnswer((_) async {});
+      when(() => auth.signOut()).thenAnswer((_) async => calls.add('auth'));
+      repository = AuthRepository(
+        auth: auth,
+        firestore: firestore,
+        registrationApi: registrationApi,
+        googleSignIn: google,
+        beforeSignOut: () async => calls.add('token'),
+      );
+
+      await repository.signOut();
+
+      expect(calls, ['token', 'auth']);
+    });
+
+    test('RF-13: si borrar el token falla o no responde, igual cierra sesión', () {
+      fakeAsync((async) {
+        when(() => google.signOut()).thenAnswer((_) async {});
+        when(() => auth.signOut()).thenAnswer((_) async {});
+        repository = AuthRepository(
+          auth: auth,
+          firestore: firestore,
+          registrationApi: registrationApi,
+          googleSignIn: google,
+          beforeSignOut: () => Completer<void>().future,
+        );
+
+        var done = false;
+        repository.signOut().then((_) => done = true);
+        async.elapse(const Duration(seconds: 6));
+
+        expect(done, isTrue);
+        verify(() => auth.signOut()).called(1);
+      });
+    });
   });
 
   group('watchUserProfile', () {

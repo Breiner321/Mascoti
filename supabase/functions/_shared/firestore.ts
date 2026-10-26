@@ -18,16 +18,21 @@ export type ValorCampo =
   | boolean
   | null
   | PuntoGeo
+  | Date
   | typeof HORA_SERVIDOR
   | ValorCampo[]
   | { [campo: string]: ValorCampo };
 
 export type ValorFirestore = Record<string, unknown>;
 
+/** Precondición de una escritura: que exista (o no), o que no haya cambiado. */
+export type Precondicion = { exists: boolean } | { updateTime: string };
+
 export interface EscrituraFirestore {
   update: { name: string; fields: Record<string, ValorFirestore> };
+  updateMask?: { fieldPaths: string[] };
   updateTransforms?: { fieldPath: string; setToServerValue: "REQUEST_TIME" }[];
-  currentDocument?: { exists: boolean };
+  currentDocument?: Precondicion;
 }
 
 export function valorFirestore(valor: ValorCampo): ValorFirestore {
@@ -39,6 +44,7 @@ export function valorFirestore(valor: ValorCampo): ValorFirestore {
       ? { integerValue: String(valor) }
       : { doubleValue: valor };
   }
+  if (valor instanceof Date) return { timestampValue: valor.toISOString() };
   if (valor instanceof PuntoGeo) {
     return { geoPointValue: { latitude: valor.lat, longitude: valor.lng } };
   }
@@ -51,7 +57,7 @@ export function valorFirestore(valor: ValorCampo): ValorFirestore {
   throw new Error("HORA_SERVIDOR solo se permite como campo de primer nivel");
 }
 
-function camposFirestore(campos: { [campo: string]: ValorCampo }) {
+export function camposFirestore(campos: { [campo: string]: ValorCampo }) {
   const resultado: Record<string, ValorFirestore> = {};
   for (const [campo, valor] of Object.entries(campos)) {
     if (valor !== HORA_SERVIDOR) resultado[campo] = valorFirestore(valor);
@@ -162,4 +168,78 @@ export function decodificarCampos(
     resultado[campo] = decodificarValor(valor);
   }
   return resultado;
+}
+
+// ---------------------------------------------------------------------------
+// Actualizaciones parciales y consultas (semana 4: citas)
+// ---------------------------------------------------------------------------
+
+/**
+ * Escritura que cambia SOLO [campos] de un documento existente. Con
+ * `{updateTime}` falla si alguien lo modificó después de leerlo (transacción
+ * optimista). Un campo con valor `undefined` se borra del documento.
+ */
+export function actualizarCampos(
+  proyecto: string,
+  ruta: string,
+  campos: { [campo: string]: ValorCampo | undefined },
+  precondicion: Precondicion = { exists: true },
+): EscrituraFirestore {
+  const horas = Object.entries(campos)
+    .filter(([, valor]) => valor === HORA_SERVIDOR)
+    .map(([campo]) => ({ fieldPath: campo, setToServerValue: "REQUEST_TIME" as const }));
+  const presentes: { [campo: string]: ValorCampo } = {};
+  for (const [campo, valor] of Object.entries(campos)) {
+    if (valor !== undefined) presentes[campo] = valor;
+  }
+  return {
+    update: { name: rutaDocumento(proyecto, ruta), fields: camposFirestore(presentes) },
+    updateMask: {
+      fieldPaths: Object.entries(campos)
+        .filter(([, valor]) => valor !== HORA_SERVIDOR)
+        .map(([campo]) => campo),
+    },
+    ...(horas.length > 0 ? { updateTransforms: horas } : {}),
+    currentDocument: precondicion,
+  };
+}
+
+export type OperadorFiltro =
+  | "EQUAL"
+  | "LESS_THAN"
+  | "LESS_THAN_OR_EQUAL"
+  | "GREATER_THAN"
+  | "GREATER_THAN_OR_EQUAL";
+
+/** Filtro `campo operador valor` de una consulta. */
+export interface Filtro {
+  campo: string;
+  op: OperadorFiltro;
+  valor: ValorCampo;
+}
+
+/** Consulta simple sobre una colección (filtros AND). */
+export interface Consulta {
+  /** Para una subcolección, el documento padre (p. ej. `users/ana`). */
+  padre?: string;
+  coleccion: string;
+  filtros: Filtro[];
+  ordenarPor?: string;
+  limite?: number;
+}
+
+/** Consulta → `structuredQuery` de la API REST (`documents:runQuery`). */
+export function consultaEstructurada(consulta: Consulta): Record<string, unknown> {
+  const filtros = consulta.filtros.map((f) => ({
+    fieldFilter: { field: { fieldPath: f.campo }, op: f.op, value: valorFirestore(f.valor) },
+  }));
+  return {
+    from: [{ collectionId: consulta.coleccion }],
+    ...(filtros.length === 1 ? { where: filtros[0] } : {}),
+    ...(filtros.length > 1 ? { where: { compositeFilter: { op: "AND", filters: filtros } } } : {}),
+    ...(consulta.ordenarPor
+      ? { orderBy: [{ field: { fieldPath: consulta.ordenarPor }, direction: "ASCENDING" }] }
+      : {}),
+    ...(consulta.limite ? { limit: consulta.limite } : {}),
+  };
 }

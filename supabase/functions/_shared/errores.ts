@@ -1,6 +1,6 @@
 /**
- * Códigos de error que entiende la app (RegistrationFailure, PetLinkFailure
- * en Dart). El cuerpo de la respuesta es `{error: {code, message}}`.
+ * Códigos de error que entiende la app (RegistrationFailure, PetLinkFailure,
+ * AppointmentFailure en Dart). El cuerpo de la respuesta es `{error: {code, message}}`.
  */
 export type CodigoError =
   | "unauthenticated"
@@ -10,6 +10,7 @@ export type CodigoError =
   | "already-exists"
   | "failed-precondition"
   | "resource-exhausted"
+  | "aborted"
   | "internal";
 
 const ESTADO_HTTP: Record<CodigoError, number> = {
@@ -20,6 +21,8 @@ const ESTADO_HTTP: Record<CodigoError, number> = {
   "already-exists": 409,
   "failed-precondition": 412,
   "resource-exhausted": 429,
+  // Otro usuario ganó la carrera (p. ej. el horario ya no está libre).
+  "aborted": 409,
   "internal": 500,
 };
 
