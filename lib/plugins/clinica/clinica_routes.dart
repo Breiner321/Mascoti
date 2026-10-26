@@ -14,6 +14,9 @@ abstract final class ClinicaRoutes {
   static const recordPattern = '/clinica/pacientes/:petId/consulta/:recordId';
 
   static String patient(String petId) => '$patients/$petId';
-  static String newRecord(String petId) => '$patients/$petId/consulta';
+  static String newRecord(String petId, {String? appointmentId}) =>
+      appointmentId == null
+          ? '$patients/$petId/consulta'
+          : '$patients/$petId/consulta?appointmentId=$appointmentId';
   static String record(String petId, String recordId) => '$patients/$petId/consulta/$recordId';
 }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/kernel/plugin_registry.dart';
 import '../mascotas_routes.dart';
 import 'home_shortcuts.dart';
+import 'next_appointment_provider.dart';
 import 'pets_providers.dart';
 import 'widgets/health_card_tile.dart';
 import 'widgets/next_appointment_card.dart';
@@ -24,6 +25,7 @@ class OwnerHomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(pluginRegistryProvider);
     final pets = ref.watch(myPetsProvider);
+    final next = ref.watch(nextAppointmentProvider);
 
     VoidCallback? open(HomeShortcut shortcut) => shortcut.isAvailable(registry)
         ? () => context.push(shortcut.path)
@@ -50,6 +52,10 @@ class OwnerHomePage extends ConsumerWidget {
                 Expanded(
                   child: NextAppointmentCard(
                     onSchedule: open(HomeShortcuts.schedule),
+                    appointment: next,
+                    onOpen: next == null || !registry.hasRoute('/reservas/${next.id}')
+                        ? null
+                        : () => context.push('/reservas/${next.id}'),
                   ),
                 ),
                 const SizedBox(width: 12),

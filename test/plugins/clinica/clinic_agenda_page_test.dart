@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mascoti/core/auth/auth_providers.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
+import 'package:mascoti/core/data/appointments_providers.dart';
+import 'package:mascoti/core/data/appointments_repository.dart';
 import 'package:mascoti/plugins/clinica/clinica_routes.dart';
 import 'package:mascoti/plugins/clinica/data/clinic_repository.dart';
 import 'package:mascoti/plugins/clinica/data/services_repository.dart';
@@ -78,6 +80,10 @@ void main() {
           path: ClinicaRoutes.services,
           builder: (context, state) => const Scaffold(body: Text('Pantalla servicios')),
         ),
+        GoRoute(
+          path: '/reservas/:id',
+          builder: (context, state) => Scaffold(body: Text('Cita ${state.pathParameters['id']}')),
+        ),
       ],
     );
     addTearDown(router.dispose);
@@ -91,6 +97,8 @@ void main() {
               .overrideWithValue(ServicesRepository(firestore: firestore)),
           slotsRepositoryProvider.overrideWithValue(SlotsRepository(firestore: firestore)),
           agendaClockProvider.overrideWithValue(() => now),
+          appointmentsRepositoryProvider
+              .overrideWithValue(AppointmentsRepository(firestore: firestore)),
         ],
         child: MaterialApp.router(routerConfig: router),
       ),
@@ -156,6 +164,43 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('1 franja seleccionada'), findsNothing);
+  });
+
+  testWidgets('RF-14: la franja reservada muestra la cita y abre su detalle; '
+      'aparece en "Próximas citas"', (tester) async {
+    await addService('s1', 'Consulta general', 30, 45000);
+    await addSlot('11:00', 'ocupado', serviceId: 's1', precio: 45000);
+    await firestore.doc('appointments/a1').set({
+      'clinicId': 'c1',
+      'petId': 'p1',
+      'petNombre': 'Luna',
+      'serviceId': 's1',
+      'serviceNombre': 'Consulta general',
+      'slotId': '${fecha}_11:00',
+      'fecha': fecha,
+      'hora': '11:00',
+      // 11:00 a. m. en Bogotá.
+      'inicio': Timestamp.fromDate(DateTime.utc(2026, 10, 20, 16)),
+      'estado': 'confirmada',
+    });
+    await pumpPage(tester);
+
+    expect(find.text('Próximas citas'), findsOneWidget);
+    expect(find.text('11:00 a. m. · Luna'), findsOneWidget);
+    expect(
+      find.descendant(of: franja('11:00'), matching: find.text('Luna · Consulta general')),
+      findsOneWidget,
+    );
+
+    await tester.tap(franja('11:00'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cita a1'), findsOneWidget);
+  });
+
+  testWidgets('sin citas hoy ni mañana: "Próximas citas" lo dice', (tester) async {
+    await addService('s1', 'Consulta general', 30, 45000);
+    await pumpPage(tester);
+    expect(find.text('No tienes citas para hoy ni para mañana.'), findsOneWidget);
   });
 
   testWidgets('una franja que ya pasó no se puede editar', (tester) async {

@@ -14,6 +14,7 @@ class PluginDestination {
     required this.path,
     this.selectedIcon,
     this.order = 100,
+    this.badge,
   });
 
   final String label;
@@ -25,6 +26,10 @@ class PluginDestination {
 
   /// Menor = más a la izquierda. La primera pestaña es el "home" del rol.
   final int order;
+
+  /// Número que se muestra sobre el ícono (p. ej. solicitudes pendientes,
+  /// RF-14); 0 = sin número. Opcional.
+  final ProviderListenable<int>? badge;
 }
 
 /// Enlace que un plugin aporta a la pantalla de perfil (p. ej. la
