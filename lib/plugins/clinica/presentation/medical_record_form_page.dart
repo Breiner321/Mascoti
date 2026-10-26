@@ -18,10 +18,19 @@ import 'vaccine_fields.dart';
 /// autora la corrige durante 24 h; después (o si es de otra clínica) se
 /// muestra en solo lectura.
 class MedicalRecordFormPage extends ConsumerWidget {
-  const MedicalRecordFormPage({super.key, required this.petId, this.recordId});
+  const MedicalRecordFormPage({
+    super.key,
+    required this.petId,
+    this.recordId,
+    this.appointmentId,
+  });
 
   final String petId;
   final String? recordId;
+
+  /// Cita atendida que origina la consulta (RF-14: "Registrar consulta"
+  /// después de "Marcar como atendida"). Se guarda en el registro.
+  final String? appointmentId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -74,6 +83,7 @@ class MedicalRecordFormPage extends ConsumerWidget {
       pet: p,
       clinicId: clinicId,
       existing: existing,
+      appointmentId: appointmentId,
     );
   }
 }
@@ -85,11 +95,15 @@ class MedicalRecordForm extends ConsumerStatefulWidget {
     required this.pet,
     required this.clinicId,
     this.existing,
+    this.appointmentId,
   });
 
   final Pet pet;
   final String clinicId;
   final MedicalRecord? existing;
+
+  /// Cita de la que viene la consulta nueva (RF-14), o null.
+  final String? appointmentId;
 
   @override
   ConsumerState<MedicalRecordForm> createState() => _MedicalRecordFormState();
@@ -271,6 +285,7 @@ class _MedicalRecordFormState extends ConsumerState<MedicalRecordForm> {
             petId: widget.pet.id,
             clinicId: widget.clinicId,
             clinicNombre: clinic?.nombre ?? '',
+            appointmentId: widget.appointmentId,
             fecha: fields.fecha,
             diagnostico: fields.diagnostico,
             tratamiento: fields.tratamiento,
