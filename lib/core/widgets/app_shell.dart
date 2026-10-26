@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:go_router/go_router.dart';
 
 import '../auth/auth_providers.dart';
@@ -48,8 +49,8 @@ class AppShell extends ConsumerWidget {
               destinations: [
                 for (final d in destinations)
                   NavigationDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon ?? d.icon),
+                    icon: _BadgedIcon(icon: d.icon, badge: d.badge),
+                    selectedIcon: _BadgedIcon(icon: d.selectedIcon ?? d.icon, badge: d.badge),
                     label: d.label,
                   ),
               ],
@@ -150,6 +151,25 @@ class _HeaderButton extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
+    );
+  }
+}
+
+/// Ícono de una pestaña con el contador opcional del plugin.
+class _BadgedIcon extends ConsumerWidget {
+  const _BadgedIcon({required this.icon, required this.badge});
+
+  final IconData icon;
+  final ProviderListenable<int>? badge;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final source = badge;
+    final count = source == null ? 0 : ref.watch(source);
+    return Badge(
+      isLabelVisible: count > 0,
+      label: Text(count > 99 ? '99+' : '$count'),
+      child: Icon(icon),
     );
   }
 }
