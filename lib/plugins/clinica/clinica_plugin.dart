@@ -56,8 +56,11 @@ class ClinicaPlugin extends MascotiPlugin {
         GoRoute(
           path: ClinicaRoutes.newRecordPattern,
           parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) =>
-              MedicalRecordFormPage(petId: state.pathParameters['petId']!),
+          // ?appointmentId=… cuando viene de "Registrar consulta" (RF-14).
+          builder: (context, state) => MedicalRecordFormPage(
+            petId: state.pathParameters['petId']!,
+            appointmentId: state.uri.queryParameters['appointmentId'],
+          ),
         ),
         GoRoute(
           path: ClinicaRoutes.recordPattern,

@@ -7,8 +7,9 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/auth/domain/app_user.dart';
 import '../../core/kernel/mascoti_plugin.dart';
 import '../../core/router/navigator_keys.dart';
-import '../../core/widgets/module_placeholder.dart';
 import 'presentation/appointments_page.dart';
+import 'presentation/clinica/clinic_appointment_detail_page.dart';
+import 'presentation/clinica/clinic_requests_providers.dart';
 import 'presentation/dueno/appointment_detail_page.dart';
 import 'presentation/dueno/booking_page.dart';
 import 'presentation/dueno/owner_routes.dart';
@@ -48,14 +49,7 @@ class ReservasPlugin extends MascotiPlugin {
           parentNavigatorKey: rootNavigatorKey,
           builder: (context, state) => Consumer(
             builder: (context, ref, _) => ref.watch(currentUserProvider)?.role == UserRole.clinica
-                // TODO(Dev B): detalle de la cita del lado clínica.
-                ? const Scaffold(
-                    body: ModulePlaceholder(
-                      title: 'Detalle de la solicitud',
-                      description: 'Aprobar o rechazar la cita solicitada.',
-                      requirements: ['RF-14 · semana 4'],
-                    ),
-                  )
+                ? ClinicAppointmentDetailPage(appointmentId: state.pathParameters['id']!)
                 : AppointmentDetailPage(appointmentId: state.pathParameters['id']!),
           ),
         ),
@@ -72,13 +66,15 @@ class ReservasPlugin extends MascotiPlugin {
               order: 30,
             ),
           ],
-        UserRole.clinica => const [
+        UserRole.clinica => [
             PluginDestination(
               label: 'Solicitudes',
               icon: Icons.inbox_outlined,
               selectedIcon: Icons.inbox,
               path: '/reservas',
               order: 10,
+              // RF-14: número de solicitudes pendientes en la pestaña.
+              badge: pendingRequestsCountProvider,
             ),
           ],
       };

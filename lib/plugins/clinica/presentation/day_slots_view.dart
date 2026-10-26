@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/domain/appointment.dart';
 import '../../../core/domain/clinic_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/day_schedule.dart';
@@ -23,6 +24,7 @@ class DaySlotsView extends StatelessWidget {
     required this.onClear,
     required this.onCancelSelection,
     required this.onSave,
+    this.appointments = const {},
   });
 
   final String title;
@@ -40,6 +42,9 @@ class DaySlotsView extends StatelessWidget {
   final VoidCallback onClear;
   final VoidCallback onCancelSelection;
   final VoidCallback onSave;
+
+  /// Citas del día por hora de su franja (RF-14).
+  final Map<String, Appointment> appointments;
 
   String? _serviceName(Franja franja) {
     final byHora = {for (final f in plan.franjas) f.hora: f};
@@ -83,6 +88,7 @@ class DaySlotsView extends StatelessWidget {
                   serviceName: _serviceName(franja),
                   selected: selection.contains(franja.hora),
                   past: isPast(franja.hora),
+                  appointment: appointments[franja.hora],
                   onTap: () => onTapFranja(franja),
                 ),
             ],

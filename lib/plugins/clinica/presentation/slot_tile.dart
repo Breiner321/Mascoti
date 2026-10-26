@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/domain/appointment.dart';
 import '../../../core/domain/slot.dart';
 import '../../../core/format/time_format.dart';
 import '../../../core/theme/app_theme.dart';
@@ -7,7 +8,8 @@ import '../domain/day_schedule.dart';
 import 'service_validators.dart';
 
 /// Una franja en la vista del día (RF-06). Verde = disponible, gris =
-/// ocupada/reservada (solo lectura), ámbar = no disponible.
+/// ocupada/reservada (solo lectura; muestra la cita, RF-14), ámbar = no
+/// disponible.
 class SlotTile extends StatelessWidget {
   const SlotTile({
     super.key,
@@ -16,6 +18,7 @@ class SlotTile extends StatelessWidget {
     required this.selected,
     required this.past,
     required this.onTap,
+    this.appointment,
   });
 
   final Franja franja;
@@ -27,6 +30,9 @@ class SlotTile extends StatelessWidget {
   /// Ya empezó: se ve atenuada y no se edita.
   final bool past;
   final VoidCallback onTap;
+
+  /// Cita que ocupa la franja (RF-14): se muestra "mascota · servicio".
+  final Appointment? appointment;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +60,10 @@ class SlotTile extends StatelessWidget {
       FranjaKind.locked => (
           AppColors.slotLockedContainer,
           AppColors.slotLocked,
-          slot!.estado == SlotStatus.ocupado ? 'Ocupado' : 'Reservado',
+          switch (appointment) {
+            final Appointment a => '${a.petNombre} · ${a.serviceNombre}',
+            null => slot!.estado == SlotStatus.ocupado ? 'Ocupado' : 'Reservado',
+          },
           Icons.lock_outline,
         ),
       FranjaKind.covered => (

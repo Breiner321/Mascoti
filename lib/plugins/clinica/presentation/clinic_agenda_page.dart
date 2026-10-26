@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/data/appointments_providers.dart';
+import '../../../core/domain/appointment.dart';
+
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/domain/clinic.dart';
 import '../../../core/domain/clinic_service.dart';
@@ -15,6 +18,7 @@ import 'agenda_calendar.dart';
 import 'clinic_providers.dart';
 import 'day_slots_view.dart';
 import 'slot_service_sheet.dart';
+import 'upcoming_appointments_card.dart';
 
 /// Agenda de la clínica (RF-06, mockup VISTA DE TIENDA "Mi día"): calendario
 /// mensual y franjas del día seleccionado.
@@ -88,6 +92,9 @@ class _AgendaBodyState extends ConsumerState<_AgendaBody> {
   final Set<String> _selection = {};
   bool _saving = false;
 
+  /// Citas del día seleccionado por hora de su franja (RF-14).
+  Map<String, Appointment> _appointments = const {};
+
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
   String get _fecha => Slot.dateKey(_selectedDay);
@@ -147,6 +154,12 @@ class _AgendaBodyState extends ConsumerState<_AgendaBody> {
 
   void _tapFranja(Franja franja) {
     if (franja.kind == FranjaKind.locked) {
+      // RF-14: la franja reservada abre el detalle de su cita.
+      final appointment = _appointments[franja.hora];
+      if (appointment != null) {
+        context.push('/reservas/${appointment.id}');
+        return;
+      }
       // RF-06, flujo alterno "Conflicto con cita existente".
       _snack('No puedes modificar un horario con una cita confirmada. Cancela la cita primero');
       return;
@@ -206,6 +219,15 @@ class _AgendaBodyState extends ConsumerState<_AgendaBody> {
             .value ??
         const <String>{};
     final daySlots = ref.watch(daySlotsProvider((clinicId: _clinicId, fecha: _fecha)));
+    // Citas que siguen ocupando su franja (pendiente o confirmada) o ya
+    // atendidas; las canceladas y rechazadas liberan la franja.
+    _appointments = {
+      for (final a in ref
+              .watch(clinicDayAgendaProvider((clinicId: _clinicId, day: _selectedDay)))
+              .value ??
+          const <Appointment>[])
+        if (a.estado.isActive || a.estado == AppointmentStatus.completada) a.hora: a,
+    };
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -234,8 +256,9 @@ class _AgendaBodyState extends ConsumerState<_AgendaBody> {
             ),
           ],
         ),
-        // TODO(RF-14, semana 4): lista de citas del día del mockup "Mi día"
-        // (casillas "Consulta general · 9:00 · Luna").
+        const SizedBox(height: 12),
+        // RF-14: citas de hoy y mañana (mockup "Mi día").
+        UpcomingAppointmentsCard(clinicId: _clinicId, now: ref.read(agendaClockProvider)()),
         const SizedBox(height: 12),
         AgendaCalendar(
           selectedDay: _selectedDay,
@@ -267,6 +290,7 @@ class _AgendaBodyState extends ConsumerState<_AgendaBody> {
               onClear: () => _applyToSelection(const ClearSlot()),
               onCancelSelection: () => setState(_selection.clear),
               onSave: () => _save(saved),
+              appointments: _appointments,
             ),
           AsyncError() => _Centered(
               icon: Icons.cloud_off,
