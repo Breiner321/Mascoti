@@ -54,6 +54,7 @@ void main() {
             slotSubscriptions++;
             return slots.stream;
           }),
+          clinicExceptionsProvider.overrideWith((ref, q) => Stream.value(const [])),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light(),
@@ -81,10 +82,9 @@ void main() {
 
   tearDown(() => slots.close());
 
-  final dayOffer = [slot('2026-11-06', '09:00'), slot('2026-11-06', '10:00')];
-
+  // Cambio 2: sin citas, todo el horario del viernes 6 está libre.
   Future<void> pickDayAndHour(WidgetTester tester, String hour) async {
-    slots.add(dayOffer);
+    slots.add(const []);
     await tester.pumpAndSettle();
     await tester.tap(find.text('6'));
     await tester.pumpAndSettle();
@@ -97,15 +97,15 @@ void main() {
 
   testWidgets('muestra servicios con precio y la categoría preseleccionada', (tester) async {
     await pumpBooking(tester, categoria: 'vacunacion');
-    slots.add(dayOffer);
+    slots.add(const []);
     await tester.pumpAndSettle();
 
     expect(find.text('Consulta · \$ 45.000'), findsOneWidget);
     expect(find.text('Vacuna · \$ 60.000'), findsOneWidget);
     final vacunaChip = tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Vacuna · \$ 60.000'));
     expect(vacunaChip.selected, isTrue);
-    // Las franjas son de "Consulta": con "Vacuna" no hay días.
-    expect(find.text('No hay horarios disponibles este mes para este servicio.'), findsOneWidget);
+    // Cambio 2: cualquier servicio activo usa el horario de la clínica.
+    expect(find.text('Elige un día resaltado en el calendario.'), findsOneWidget);
     // Una sola mascota: no se muestra el selector.
     expect(find.text('MASCOTA'), findsNothing);
   });
@@ -128,10 +128,7 @@ void main() {
     expect(continueButton(tester).onPressed, isNotNull);
 
     // Otro dueño la reservó: Firestore emite la franja como reservado_temporal.
-    slots.add([
-      slot('2026-11-06', '09:00', estado: SlotStatus.reservadoTemporal),
-      slot('2026-11-06', '10:00'),
-    ]);
+    slots.add([slot('2026-11-06', '09:00', estado: SlotStatus.reservadoTemporal)]);
     await tester.pumpAndSettle();
 
     expect(find.text('9:00 a. m.'), findsNothing);

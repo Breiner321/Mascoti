@@ -3,7 +3,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/domain/animal_type.dart';
 import 'package:mascoti/core/domain/clinic.dart';
-import 'package:mascoti/core/domain/opening_hours.dart';
+import 'package:mascoti/core/domain/weekly_schedule.dart';
 import 'package:mascoti/plugins/clinica/data/clinic_repository.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -20,7 +20,6 @@ void main() {
   late FakeFirebaseFirestore firestore;
   late ClinicRepository repo;
 
-  const hours = OpeningHours(apertura: '09:00', cierre: '17:00', duracionSlotMin: 60);
 
   setUp(() async {
     firestore = FakeFirebaseFirestore();
@@ -73,14 +72,18 @@ void main() {
       await current(),
       tiposAnimales: [AnimalType.perros, AnimalType.exoticos],
       atencionEmergencias: true,
-      horarioBase: hours,
+      horarioSemanal: WeeklySchedule.standard,
+      reservas: const BookingSettings(duracionSlotMin: 60),
     );
 
     final data = (await firestore.doc('clinics/c1').get()).data()!;
     expect(data['tiposAnimales'], ['perros', 'exoticos']);
     expect(data['atencionEmergencias'], isTrue);
-    expect(data['horarioBase'],
-        {'apertura': '09:00', 'cierre': '17:00', 'duracionSlotMin': 60});
+    // Cambio 2: horario semanal y reglas de reserva (ya no horarioBase).
+    expect(data['horarioSemanal'], WeeklySchedule.standard.toMap());
+    expect(data['reservas'],
+        {'duracionSlotMin': 60, 'anticipacionMaxDias': 30, 'anticipacionMinMin': 120});
+    expect(data.containsKey('horarioBase'), isFalse);
     expect(data['estado'], 'activo');
     // No toca campos que las reglas no permiten cambiar.
     expect(data['nombre'], 'Vet Central');
@@ -96,12 +99,13 @@ void main() {
       clinic,
       tiposAnimales: [AnimalType.gatos],
       atencionEmergencias: false,
-      horarioBase: hours,
+      horarioSemanal: WeeklySchedule.standard,
+      reservas: const BookingSettings(duracionSlotMin: 60),
     );
 
     final sent = verify(() => doc.update(captureAny())).captured.single as Map;
     expect(sent.keys,
-        unorderedEquals(['tiposAnimales', 'atencionEmergencias', 'horarioBase']));
+        unorderedEquals(['tiposAnimales', 'atencionEmergencias', 'horarioSemanal', 'reservas']));
   });
 
   test('permission-denied se convierte en ClinicPermissionDenied', () async {
@@ -117,7 +121,8 @@ void main() {
         clinic,
         tiposAnimales: [AnimalType.perros],
         atencionEmergencias: false,
-        horarioBase: hours,
+        horarioSemanal: WeeklySchedule.standard,
+      reservas: const BookingSettings(duracionSlotMin: 60),
       ),
       throwsA(isA<ClinicPermissionDenied>()),
     );
@@ -136,7 +141,8 @@ void main() {
         clinic,
         tiposAnimales: [AnimalType.perros],
         atencionEmergencias: false,
-        horarioBase: hours,
+        horarioSemanal: WeeklySchedule.standard,
+      reservas: const BookingSettings(duracionSlotMin: 60),
       ),
       throwsA(isA<FirebaseException>()),
     );

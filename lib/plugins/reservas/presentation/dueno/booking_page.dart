@@ -38,7 +38,7 @@ class _BookingPageState extends ConsumerState<BookingPage> {
   String? _serviceId;
   String? _petId;
   String? _fecha;
-  String? _slotId;
+  String? _hora;
   DateTime? _focusedDay;
   final _comment = TextEditingController();
 
@@ -51,7 +51,7 @@ class _BookingPageState extends ConsumerState<BookingPage> {
   void _selectService(String id) => setState(() {
         _serviceId = id;
         _fecha = null;
-        _slotId = null;
+        _hora = null;
       });
 
   Future<void> _continue({
@@ -76,7 +76,7 @@ class _BookingPageState extends ConsumerState<BookingPage> {
     if (!mounted || outcome == null) return;
     if (outcome.slotTaken) {
       // RF-14, flujo alterno: otro usuario tomó el horario.
-      setState(() => _slotId = null);
+      setState(() => _hora = null);
       ref.invalidate(monthSlotsProvider(monthKey));
       messenger
         ..hideCurrentSnackBar()
@@ -154,17 +154,40 @@ class _BookingPageState extends ConsumerState<BookingPage> {
         services.first;
     final pet = pets.where((p) => p.id == _petId).firstOrNull ?? pets.first;
 
+    // Cambio 2: los días y horas salen del horario de la clínica, sus
+    // excepciones y las franjas ya apartadas, todo en tiempo real.
     final monthKey = (clinicId: clinic.id, year: focused.year, month: focused.month);
     final slots = ref.watch(monthSlotsProvider(monthKey));
+    final exceptionsKey = (clinicId: clinic.id, desde: BogotaTime.dateKey(now));
+    final exceptions = ref.watch(clinicExceptionsProvider(exceptionsKey));
     final monthSlots = slots.value ?? const <Slot>[];
-    final days = BookingLogic.availableDays(monthSlots, serviceId: service.id, now: now);
+    final monthExceptions = exceptions.value ?? const [];
+    final days = BookingLogic.availableDays(
+      clinic: clinic,
+      durationMin: service.duracionMin,
+      year: focused.year,
+      month: focused.month,
+      slots: monthSlots,
+      now: now,
+      exceptions: monthExceptions,
+    );
     // El día elegido deja de servir si se quedó sin horas (otro las tomó).
     final fecha = days.contains(_fecha) ? _fecha : null;
     final hours = fecha == null
-        ? const <Slot>[]
-        : BookingLogic.hoursOf(monthSlots, serviceId: service.id, fecha: fecha, now: now);
+        ? const <String>[]
+        : BookingLogic.hoursOf(
+            clinic: clinic,
+            durationMin: service.duracionMin,
+            fecha: fecha,
+            slots: monthSlots,
+            now: now,
+            exceptions: monthExceptions,
+          );
     // Igual con la hora: si otro usuario la tomó, desaparece y se deselecciona.
-    final slot = hours.where((s) => s.id == _slotId).firstOrNull;
+    final hora = hours.contains(_hora) ? _hora : null;
+    final slot = fecha == null || hora == null
+        ? null
+        : Slot.at(fecha: fecha, hora: hora, estado: SlotStatus.disponible);
 
     Widget label(String text) => Padding(
           padding: const EdgeInsets.only(top: 20, bottom: 8),
@@ -217,24 +240,28 @@ class _BookingPageState extends ConsumerState<BookingPage> {
           availableDays: days,
           onDaySelected: (f) => setState(() {
             _fecha = f;
-            _slotId = null;
+            _hora = null;
             final d = DateTime.parse(f);
             _focusedDay = DateTime.utc(d.year, d.month, d.day);
           }),
           onPageChanged: (day) => setState(() {
             _focusedDay = day;
             _fecha = null;
-            _slotId = null;
+            _hora = null;
           }),
         ),
         label('HORARIO'),
         switch (slots) {
-          AsyncError() => _Inline(
+          _ when slots.hasError || exceptions.hasError => _Inline(
               text: 'No pudimos cargar los horarios.',
               action: 'Reintentar',
-              onAction: () => ref.invalidate(monthSlotsProvider(monthKey)),
+              onAction: () {
+                ref.invalidate(monthSlotsProvider(monthKey));
+                ref.invalidate(clinicExceptionsProvider(exceptionsKey));
+              },
             ),
-          _ when !slots.hasValue => const Center(child: CircularProgressIndicator()),
+          _ when !slots.hasValue || !exceptions.hasValue =>
+            const Center(child: CircularProgressIndicator()),
           _ when days.isEmpty =>
             const _Inline(text: 'No hay horarios disponibles este mes para este servicio.'),
           _ when fecha == null => const _Inline(text: 'Elige un día resaltado en el calendario.'),
@@ -244,9 +271,9 @@ class _BookingPageState extends ConsumerState<BookingPage> {
               children: [
                 for (final h in hours)
                   ChoiceChip(
-                    label: Text(TimeFormat.hour(h.hora)),
-                    selected: h.id == slot?.id,
-                    onSelected: (_) => setState(() => _slotId = h.id),
+                    label: Text(TimeFormat.hour(h)),
+                    selected: h == hora,
+                    onSelected: (_) => setState(() => _hora = h),
                   ),
               ],
             ),

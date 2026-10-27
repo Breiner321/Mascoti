@@ -7,7 +7,11 @@ import 'package:mascoti/core/auth/auth_providers.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/domain/animal_type.dart';
 import 'package:mascoti/core/domain/clinic.dart';
-import 'package:mascoti/core/domain/opening_hours.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mascoti/core/data/appointments_providers.dart';
+import 'package:mascoti/core/data/appointments_repository.dart';
+import 'package:mascoti/core/domain/weekly_schedule.dart';
+import 'package:mascoti/core/format/bogota_time.dart';
 import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/plugins/clinica/clinica_plugin.dart';
 import 'package:mascoti/plugins/clinica/clinica_routes.dart';
@@ -25,7 +29,8 @@ class _DeniedRepository extends ClinicRepository {
     Clinic current, {
     required List<AnimalType> tiposAnimales,
     required bool atencionEmergencias,
-    required OpeningHours horarioBase,
+    required WeeklySchedule horarioSemanal,
+    required BookingSettings reservas,
   }) async {
     calls++;
     throw const ClinicPermissionDenied();
@@ -77,6 +82,10 @@ void main() {
           currentUserProvider.overrideWithValue(clinicUser),
           clinicRepositoryProvider
               .overrideWithValue(repo ?? ClinicRepository(firestore: firestore)),
+          appointmentsRepositoryProvider
+              .overrideWithValue(AppointmentsRepository(firestore: firestore)),
+          // Domingo 1 de noviembre de 2026, 9:00 a. m.
+          agendaClockProvider.overrideWithValue(() => BogotaTime.at(2026, 11, 1, 9)),
         ],
         child: MaterialApp.router(routerConfig: router),
       ),
@@ -93,6 +102,18 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Desplaza la lista (hacia arriba o abajo) hasta [finder].
+  Future<void> scrollTo(WidgetTester tester, Finder finder) async {
+    final list = find.byType(Scrollable).first;
+    for (final delta in [-300.0, 300.0]) {
+      if (finder.evaluate().isNotEmpty) break;
+      await tester.scrollUntilVisible(finder, delta, scrollable: list, maxScrolls: 30)
+          .catchError((_) {});
+    }
+    await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+  }
+
   Future<bool> isEnabled(WidgetTester tester) async {
     await scrollToSave(tester);
     return tester.widget<FilledButton>(saveButton()).onPressed != null;
@@ -104,31 +125,34 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('muestra las 7 especies, emergencias y horario base', (tester) async {
+  testWidgets('muestra las 7 especies, emergencias, horario semanal y reservas', (tester) async {
     await pumpPage(tester);
 
     for (final type in AnimalType.values) {
       expect(find.widgetWithText(CheckboxListTile, type.label), findsOneWidget);
     }
     expect(find.text('Atendemos emergencias'), findsOneWidget);
+    // Clínica nueva: lunes a sábado de 8 a 18 con almuerzo; domingo cerrado.
     // Se muestran en AM/PM; en Firestore siguen en 24 h.
-    expect(find.text('8:00 a. m.'), findsOneWidget);
-    expect(find.text('6:00 p. m.'), findsOneWidget);
-    expect(find.text('30 min'), findsOneWidget);
+    expect(find.text('Abre 8:00 a. m.'), findsNWidgets(6));
+    expect(find.text('Cierra 6:00 p. m.'), findsNWidgets(6));
+    expect(find.text('Desde 12:00 p. m.'), findsNWidgets(6));
+    expect(find.text('Cerrado'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('30 min'), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text('30 días antes'), findsOneWidget);
+    expect(find.text('2 horas'), findsOneWidget);
   });
 
   testWidgets('"Guardar Configuración" deshabilitado sin especies', (tester) async {
     await pumpPage(tester);
     expect(await isEnabled(tester), isFalse);
 
-    await tester.ensureVisible(find.text('Perros'));
-    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Perros'));
     await tester.tap(find.text('Perros'));
     await tester.pump();
     expect(await isEnabled(tester), isTrue);
 
-    await tester.ensureVisible(find.text('Perros'));
-    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Perros'));
     await tester.tap(find.text('Perros'));
     await tester.pump();
     expect(await isEnabled(tester), isFalse);
@@ -140,10 +164,10 @@ void main() {
 
     await tester.tap(find.text('Gatos'));
     await tester.pump();
-    await tester.ensureVisible(find.text('Atendemos emergencias'));
+    await scrollTo(tester, find.text('Atendemos emergencias'));
     await tester.tap(find.text('Atendemos emergencias'));
     await tester.pump();
-    await tester.ensureVisible(find.text('60 min'));
+    await scrollTo(tester, find.text('60 min'));
     await tester.tap(find.text('60 min'));
     await tester.pump();
     await tapSave(tester);
@@ -151,8 +175,9 @@ void main() {
     final data = (await firestore.doc('clinics/c1').get()).data()!;
     expect(data['tiposAnimales'], ['gatos']);
     expect(data['atencionEmergencias'], isTrue);
-    expect(data['horarioBase'],
-        {'apertura': '08:00', 'cierre': '18:00', 'duracionSlotMin': 60});
+    expect(data['horarioSemanal'], WeeklySchedule.standard.toMap());
+    expect(data['reservas'],
+        {'duracionSlotMin': 60, 'anticipacionMaxDias': 30, 'anticipacionMinMin': 120});
     expect(data['estado'], 'activo');
     expect(find.text('Perfil actualizado'), findsOneWidget);
     expect(find.text('Panel clínica'), findsOneWidget);
@@ -170,9 +195,77 @@ void main() {
     final aves = tester.widget<CheckboxListTile>(
         find.widgetWithText(CheckboxListTile, 'Aves'));
     expect(aves.value, isTrue);
-    expect(find.text('7:00 a. m.'), findsOneWidget);
+    // Sin migrar: el horarioBase se ve como horario de todos los días.
+    expect(find.text('Abre 7:00 a. m.'), findsNWidgets(7));
     expect(await isEnabled(tester), isTrue);
     expect(find.text('Cerrar sesión'), findsNothing);
+  });
+
+  testWidgets('Cambio 2: si el horario nuevo deja citas por fuera, las lista y permite guardar',
+      (tester) async {
+    await firestore.doc('clinics/c1').update({
+      'estado': 'activo',
+      'tiposAnimales': ['perros'],
+      'horarioBase': {'apertura': '08:00', 'cierre': '18:00', 'duracionSlotMin': 30},
+    });
+    // Cita confirmada el domingo 8 de noviembre a las 10:00.
+    await firestore.doc('appointments/a1').set({
+      'clinicId': 'c1',
+      'ownerNombre': 'Ana Pérez',
+      'petNombre': 'Luna',
+      'fecha': '2026-11-08',
+      'hora': '10:00',
+      'duracionMin': 30,
+      'estado': 'confirmada',
+      'inicio': Timestamp.fromDate(BogotaTime.at(2026, 11, 8, 10)),
+    });
+    await pumpPage(tester);
+
+    // Cierra los domingos.
+    await scrollTo(tester, find.widgetWithText(SwitchListTile, 'Domingo'));
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Domingo'));
+    await tester.pump();
+    await tapSave(tester);
+
+    expect(find.text('Hay citas fuera del nuevo horario'), findsOneWidget);
+    expect(find.text('Luna · Ana Pérez'), findsOneWidget);
+
+    await tester.tap(find.text('Revisar horario'));
+    await tester.pumpAndSettle();
+    var data = (await firestore.doc('clinics/c1').get()).data()!;
+    expect(data.containsKey('horarioSemanal'), isFalse);
+
+    await tapSave(tester);
+    await tester.tap(find.text('Guardar de todas formas'));
+    await tester.pumpAndSettle();
+    data = (await firestore.doc('clinics/c1').get()).data()!;
+    expect((data['horarioSemanal'] as Map)['dom'], containsPair('abierto', false));
+    // La cita se mantiene.
+    expect((await firestore.doc('appointments/a1').get()).data()!['estado'], 'confirmada');
+  });
+
+  testWidgets('Cambio 2: un horario inválido no se puede guardar', (tester) async {
+    await firestore.doc('clinics/c1').update({
+      'estado': 'activo',
+      'tiposAnimales': ['perros'],
+      'horarioSemanal': {
+        ...WeeklySchedule.standard.toMap(),
+        // Descanso que no cuadra con franjas de 60 min.
+        'lun': {'abierto': true, 'apertura': '08:00', 'cierre': '18:00',
+          'descansoInicio': '12:30', 'descansoFin': '14:00'},
+      },
+      'reservas': {'duracionSlotMin': 30, 'anticipacionMaxDias': 30, 'anticipacionMinMin': 120},
+    });
+    await pumpPage(tester);
+    expect(await isEnabled(tester), isTrue);
+
+    await scrollTo(tester, find.text('60 min'));
+    await tester.tap(find.text('60 min'));
+    await tester.pump();
+    expect(await isEnabled(tester), isFalse);
+    await tester.scrollUntilVisible(find.text('Usa horas en bloques de 60 minutos'), -300,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Usa horas en bloques de 60 minutos'), findsOneWidget);
   });
 
   testWidgets('error de permisos muestra el mensaje del RF', (tester) async {

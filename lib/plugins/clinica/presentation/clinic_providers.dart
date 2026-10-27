@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/domain/clinic.dart';
 import '../../../core/domain/clinic_service.dart';
 import '../../../core/domain/pet.dart';
+import '../../../core/domain/schedule_exception.dart';
 import '../../../core/domain/slot.dart';
 import '../../../core/storage/storage_providers.dart';
 import '../../../core/storage/storage_repository.dart';
@@ -10,6 +11,7 @@ import '../../../core/supabase/supabase_providers.dart';
 import '../clinica_routes.dart';
 import '../data/attachment_picker.dart';
 import '../data/clinic_repository.dart';
+import '../data/exceptions_repository.dart';
 import '../data/patients_repository.dart';
 import '../data/pet_link_api.dart';
 import '../data/services_repository.dart';
@@ -39,17 +41,23 @@ final slotsRepositoryProvider = Provider<SlotsRepository>(
   (ref) => SlotsRepository(),
 );
 
-/// Franjas guardadas de un día, por hora (RF-06).
+/// Franjas apartadas de un día, por hora (RF-06). Desde el Cambio 2 solo
+/// existen las de las citas (y las "No disponible" de la agenda anterior).
 final daySlotsProvider = StreamProvider.autoDispose
     .family<Map<String, Slot>, ({String clinicId, String fecha})>(
   (ref, key) => ref.watch(slotsRepositoryProvider).watchDay(key.clinicId, key.fecha),
 );
 
-/// Fechas del mes con franjas configuradas (puntos del calendario, RF-06).
-final configuredDaysProvider = StreamProvider.autoDispose
-    .family<Set<String>, ({String clinicId, DateTime month})>(
-  (ref, key) =>
-      ref.watch(slotsRepositoryProvider).watchConfiguredDays(key.clinicId, key.month),
+final exceptionsRepositoryProvider = Provider<ExceptionsRepository>(
+  (ref) => ExceptionsRepository(),
+);
+
+/// Excepciones de la clínica (bloqueos y aperturas extra) que terminan desde
+/// [desde] (Cambio 2), en tiempo real.
+final clinicAgendaExceptionsProvider = StreamProvider.autoDispose
+    .family<List<ScheduleException>, ({String clinicId, String desde})>(
+  (ref, key) => ref.watch(exceptionsRepositoryProvider).watchFrom(key.clinicId, key.desde),
+  retry: (_, __) => null,
 );
 
 /// RF-01 paso 14: una clínica en estado 'incompleto' debe configurar su

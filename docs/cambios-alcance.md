@@ -5,7 +5,7 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 | # | Cambio | RF afectados | Estado |
 |---|---|---|---|
 | 1 | Nombre del dueño en las notificaciones y en toda la app | RF-01, RF-03, RF-13, RF-14 | ✅ |
-| 2 | Disponibilidad automática según el horario de la clínica | RF-04, RF-06, RF-14 | ⬜ |
+| 2 | Disponibilidad automática según el horario de la clínica | RF-04, RF-06, RF-14 | ✅ |
 | 3 | Accesibilidad (WCAG 2.1 AA) | Todos | ⬜ |
 | 4 | Mapa con todas las veterinarias y "Aliados Mascoti" | RF-09, RF-10 | ⬜ |
 
@@ -26,3 +26,22 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 **Por qué.** Las clínicas recibían solicitudes y notificaciones con nombres de cuentas de Google o correos, y no sabían quién era el cliente.
 
 **Compatibilidad.** Un APK anterior al cambio ya no puede registrar dueños: la Edge Function responde "Actualiza la app para completar tu registro".
+
+---
+
+## Cambio 2 — Disponibilidad automática según el horario
+
+**Qué decía el RF.** RF-06 pedía que la clínica marcara franja por franja, día por día, cuáles estaban disponibles y para qué servicio. Sin ese trabajo diario, la clínica no recibía citas. RF-04 tenía un solo horario (`horarioBase`) para todos los días.
+
+**Qué cambia.**
+- **Horario semanal** en el perfil de atención (RF-04): por día, abierto o cerrado, apertura, cierre y descanso opcional. Además, duración de la franja (15/30/60 min), hasta cuántos días antes se puede reservar (30 por defecto) y la anticipación mínima (2 horas por defecto). `clinics.horarioSemanal` y `clinics.reservas` reemplazan a `horarioBase`.
+- **Disponible por defecto:** cualquier franja dentro del horario sirve para cualquier servicio activo, salvo que tenga una cita pendiente o confirmada, la clínica la haya bloqueado, o el servicio no alcance a terminar antes del cierre o del descanso. Un servicio de 60 min con franjas de 30 aparta 2 franjas.
+- **La agenda (RF-06) es para excepciones:** bloquear una franja, un rango o el día completo (con motivo opcional) y abrir horario extra. Muestra los **festivos de Colombia** de los próximos 90 días para bloquearlos con un toque. Se calculan en la app (fechas fijas, Ley Emiliani y Pascua) sin depender de una API.
+- **Una sola lógica de disponibilidad** en hora de Colombia: `Availability` (`lib/core/domain/availability.dart`) en la app y `disponibilidad.ts` en la Edge Function `citas`. Las dos pasan los mismos casos de `test/fixtures/disponibilidad.json`.
+- **Franjas creadas solo al reservar:** `slots/{fecha}_{hora}` es el candado de la transacción de `solicitar`, que crea o actualiza todas las franjas que ocupa el servicio en un solo commit. Se descartó generar franjas por adelantado con una tarea programada: crearía cientos de documentos por clínica, habría que regenerarlos con cada cambio de horario y quedarían ventanas desactualizadas.
+- **Cambio de horario con citas existentes:** la app lista las citas que quedan por fuera y permite guardar igual. Las citas se mantienen y el horario nuevo solo aplica a reservas nuevas (decisión del equipo).
+- **Migración:** `npm run migrar-horario -- --aplicar` (en `functions/`) convierte `horarioBase` en `horarioSemanal` con todos los días abiertos con el mismo horario (decisión del equipo), así nada cambia para las clínicas existentes. Mientras no se ejecute, la app y el servidor leen `horarioBase` de la misma forma.
+
+**Por qué.** Marcar franjas a diario era demasiado trabajo para las clínicas, y una clínica que no lo hacía quedaba sin citas.
+
+**Límite técnico.** Las reglas de Firestore solo validan la **estructura** de `horarioSemanal`: comparar las 28 horas de la semana supera el máximo de 1000 expresiones por evaluación. El formato y la coherencia de las horas los validan la app (`WeeklySchedule.validate`) y el servidor, que trata como cerrado un día con horas inválidas.

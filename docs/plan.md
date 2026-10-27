@@ -86,6 +86,6 @@ Detalle en [cambios-alcance.md](cambios-alcance.md).
 | # | Cambio | Estado | Notas |
 |---|---|---|---|
 | 1 | Nombre del dueño | ✅ | `users.nombre` y `telefono` en el registro, `nombreVisible` como única fuente, "Completa tu perfil", "Editar perfil"; citas, vinculación y notificaciones con el nombre real |
-| 2 | Disponibilidad automática según el horario | ⬜ | |
+| 2 | Disponibilidad automática según el horario | ✅ | `horarioSemanal` + `reservas` + `excepciones`; `Availability` (Dart) = `disponibilidad.ts` con casos compartidos; `citas/solicitar` aparta todas las franjas del servicio; agenda de excepciones con festivos; aviso de citas fuera del horario; `npm run migrar-horario` |
 | 3 | Accesibilidad | ⬜ | |
 | 4 | Mapa con todas las veterinarias | ⬜ | |

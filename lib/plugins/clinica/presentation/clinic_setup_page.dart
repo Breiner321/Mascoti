@@ -3,17 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/data/appointments_providers.dart';
 import '../../../core/domain/animal_type.dart';
+import '../../../core/domain/appointment.dart';
 import '../../../core/domain/clinic.dart';
-import '../../../core/domain/opening_hours.dart';
+import '../../../core/domain/weekly_schedule.dart';
 import '../../../core/format/time_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../clinica_routes.dart';
 import '../data/clinic_repository.dart';
+import '../domain/agenda_rules.dart';
 import 'clinic_providers.dart';
+import 'weekly_schedule_editor.dart';
 
 /// Perfil de atención de la clínica (RF-04): especies que atiende,
-/// emergencias (RF-10) y horario base (RF-06).
+/// emergencias (RF-10), horario semanal y reglas de reserva (Cambio 2).
 ///
 /// Obligatoria tras el registro mientras `clinics/{id}.estado` sea
 /// 'incompleto' (RF-01 paso 14); después se abre desde el perfil o la agenda.
@@ -57,48 +61,98 @@ class _CareProfileForm extends ConsumerStatefulWidget {
 }
 
 class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
-  static const slotOptions = [15, 30, 60];
+  /// Anticipación máxima que se ofrece (días).
+  static const maxDaysOptions = [7, 15, 30, 60, 90];
+
+  /// Anticipación mínima que se ofrece (minutos).
+  static const minAdvanceOptions = [0, 60, 120, 240, 1440];
 
   late final Set<AnimalType> _types = widget.clinic.tiposAnimales.toSet();
   late bool _emergencies = widget.clinic.atencionEmergencias;
-  late OpeningHours _hours = _initialHours(widget.clinic.horarioBase);
+  // Una clínica sin migrar ve su horarioBase como horario de todos los días.
+  late WeeklySchedule _schedule = widget.clinic.schedule ?? WeeklySchedule.standard;
+  late BookingSettings _settings = _initialSettings(widget.clinic.bookingSettings);
   bool _saving = false;
 
-  static OpeningHours _initialHours(OpeningHours? stored) {
-    final hours = stored ?? OpeningHours.standard;
-    return slotOptions.contains(hours.duracionSlotMin)
-        ? hours
-        : hours.copyWith(duracionSlotMin: OpeningHours.standard.duracionSlotMin);
-  }
+  static BookingSettings _initialSettings(BookingSettings stored) =>
+      BookingSettings.slotOptions.contains(stored.duracionSlotMin)
+          ? stored
+          : stored.copyWith(duracionSlotMin: 30);
 
   /// Obligatoria mientras la clínica no haya hecho su primera configuración.
   bool get _isFirstSetup => !widget.clinic.isActive;
 
-  String? get _hoursError {
-    if (!_hours.isValid) {
-      return 'La hora de apertura debe ser anterior a la de cierre.';
-    }
-    if (_hours.slotTimes().isEmpty) {
-      return 'El horario debe permitir al menos una franja.';
-    }
-    return null;
-  }
+  String? get _scheduleError => _schedule.validate(_settings.duracionSlotMin);
 
-  bool get _canSave => _types.isNotEmpty && _hoursError == null && !_saving;
+  bool get _canSave => _types.isNotEmpty && _scheduleError == null && !_saving;
 
-  Future<void> _pickTime({required bool opening}) async {
-    final current = opening ? _hours.apertura : _hours.cierre;
-    final minutes = OpeningHours.minutesOf(current);
-    final picked = await TimeFormat.pick(
-      context,
-      initialTime: TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
-      helpText: opening ? 'Hora de apertura' : 'Hora de cierre',
+  static String _minAdvanceLabel(int minutes) => switch (minutes) {
+        0 => 'Sin mínimo',
+        1440 => '1 día',
+        60 => '1 hora',
+        _ => '${minutes ~/ 60} horas',
+      };
+
+  /// Cambio 2: si el horario nuevo deja citas por fuera, se listan antes de
+  /// guardar. Las citas se mantienen; la clínica decide si las cancela.
+  Future<bool> _confirmConflicts() async {
+    if (_isFirstSetup) return true;
+    final now = ref.read(agendaClockProvider)();
+    List<Appointment> upcoming;
+    try {
+      upcoming = await ref
+          .read(appointmentsRepositoryProvider)
+          .watchAgenda(widget.clinic.id, from: now, to: now.add(const Duration(days: 366)))
+          .first;
+    } catch (_) {
+      return true; // Sin red no se bloquea el guardado: las citas se mantienen.
+    }
+    final conflicts = AgendaRules.conflictsWith(
+      appointments: upcoming,
+      schedule: _schedule,
+      slotMinutes: _settings.duracionSlotMin,
+      now: now,
     );
-    if (picked == null) return;
-    final value = OpeningHours.formatMinutes(picked.hour * 60 + picked.minute);
-    setState(() {
-      _hours = opening ? _hours.copyWith(apertura: value) : _hours.copyWith(cierre: value);
-    });
+    if (conflicts.isEmpty || !mounted) return true;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hay citas fuera del nuevo horario'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${conflicts.length == 1 ? 'Esta cita queda' : 'Estas ${conflicts.length} citas quedan'} '
+                'por fuera del horario. Se mantienen; si no puedes atenderlas, '
+                'cancélalas desde Solicitudes.',
+              ),
+              const SizedBox(height: 12),
+              for (final a in conflicts)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.event_busy),
+                  title: Text('${a.fecha} · ${TimeFormat.hour(a.hora)}'),
+                  subtitle: Text('${a.petNombre} · ${a.ownerNombre}'),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Revisar horario'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Guardar de todas formas'),
+          ),
+        ],
+      ),
+    );
+    return save ?? false;
   }
 
   Future<void> _save() async {
@@ -107,6 +161,8 @@ class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
     final router = GoRouter.of(context);
     final wasFirstSetup = _isFirstSetup;
 
+    // Antes de marcar "guardando": el diálogo de conflictos espera a la clínica.
+    if (!await _confirmConflicts() || !mounted) return;
     setState(() => _saving = true);
     try {
       await ref.read(clinicRepositoryProvider).saveCareProfile(
@@ -116,7 +172,8 @@ class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
                 if (_types.contains(t)) t,
             ],
             atencionEmergencias: _emergencies,
-            horarioBase: _hours,
+            horarioSemanal: _schedule,
+            reservas: _settings,
           );
       messenger.showSnackBar(
         const SnackBar(
@@ -147,7 +204,7 @@ class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final hoursError = _hoursError;
+    final scheduleError = _scheduleError;
 
     return Scaffold(
       appBar: AppBar(
@@ -207,45 +264,84 @@ class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
             ),
             const SizedBox(height: 16),
             _Section(
-              title: 'Horario base',
+              title: 'Horario semanal',
               children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.wb_sunny_outlined),
-                  title: const Text('Hora de apertura'),
-                  trailing: Text(TimeFormat.hour(_hours.apertura), style: textTheme.titleMedium),
-                  onTap: _saving ? null : () => _pickTime(opening: true),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.nightlight_outlined),
-                  title: const Text('Hora de cierre'),
-                  trailing: Text(TimeFormat.hour(_hours.cierre), style: textTheme.titleMedium),
-                  onTap: _saving ? null : () => _pickTime(opening: false),
+                Text(
+                  'Estarás disponible siempre dentro de este horario. Bloquea días '
+                  'u horas puntuales desde tu agenda.',
+                  style: textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 8),
-                Text('Duración de cada cita', style: textTheme.bodyMedium),
-                const SizedBox(height: 8),
-                SegmentedButton<int>(
-                  segments: [
-                    for (final m in slotOptions)
-                      ButtonSegment(value: m, label: Text('$m min')),
-                  ],
-                  selected: {_hours.duracionSlotMin},
-                  onSelectionChanged: _saving
-                      ? null
-                      : (s) => setState(
-                            () => _hours = _hours.copyWith(duracionSlotMin: s.first),
-                          ),
+                WeeklyScheduleEditor(
+                  schedule: _schedule,
+                  slotMinutes: _settings.duracionSlotMin,
+                  enabled: !_saving,
+                  onChanged: (s) => setState(() => _schedule = s),
                 ),
-                if (hoursError != null) ...[
-                  const SizedBox(height: 8),
+                if (scheduleError != null && !_schedule.isOpenSomeDay)
                   Text(
-                    hoursError,
+                    scheduleError,
                     style: textTheme.bodySmall
                         ?.copyWith(color: Theme.of(context).colorScheme.error),
                   ),
-                ],
+              ],
+            ),
+            const SizedBox(height: 16),
+            _Section(
+              title: 'Reservas',
+              children: [
+                Text('Duración de cada franja', style: textTheme.bodyMedium),
+                const SizedBox(height: 8),
+                SegmentedButton<int>(
+                  segments: [
+                    for (final m in BookingSettings.slotOptions)
+                      ButtonSegment(value: m, label: Text('$m min')),
+                  ],
+                  selected: {_settings.duracionSlotMin},
+                  onSelectionChanged: _saving
+                      ? null
+                      : (s) => setState(
+                            () => _settings = _settings.copyWith(duracionSlotMin: s.first),
+                          ),
+                ),
+                const SizedBox(height: 16),
+                Text('Se puede reservar hasta', style: textTheme.bodyMedium),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final d in maxDaysOptions)
+                      ChoiceChip(
+                        label: Text('$d días antes'),
+                        selected: _settings.anticipacionMaxDias == d,
+                        onSelected: _saving
+                            ? null
+                            : (_) => setState(
+                                  () => _settings = _settings.copyWith(anticipacionMaxDias: d),
+                                ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Anticipación mínima', style: textTheme.bodyMedium),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final m in minAdvanceOptions)
+                      ChoiceChip(
+                        label: Text(_minAdvanceLabel(m)),
+                        selected: _settings.anticipacionMinMin == m,
+                        onSelected: _saving
+                            ? null
+                            : (_) => setState(
+                                  () => _settings = _settings.copyWith(anticipacionMinMin: m),
+                                ),
+                      ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 24),

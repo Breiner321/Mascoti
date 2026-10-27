@@ -114,6 +114,17 @@ El directorio de clínicas usa **OpenStreetMap** con `flutter_map`: **no necesit
 - **Ubicación en el emulador:** ⋮ → **Location**, escribe una dirección (p. ej. Medellín) y pulsa **Set location**; luego vuelve a abrir la pestaña "Mapa".
 - **Una clínica no aparece:** debe tener `estado: activo` (haber terminado su perfil de atención, RF-04) y el campo `geo`. Revísalo con `npm run verificar-geo` en `functions/`.
 
+## C3b. Migrar el horario de las clínicas (Cambio 2)
+
+Después de publicar las reglas y desplegar `citas`, convierte el `horarioBase` de las clínicas existentes en `horarioSemanal` (todos los días abiertos con el mismo horario):
+```powershell
+cd functions
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\<tu-usuario>\secretos\cuenta-servicio.json"
+npm run migrar-horario               # solo muestra qué haría
+npm run migrar-horario -- --aplicar  # escribe los cambios
+```
+Se puede ejecutar varias veces. Sin migrar, la app y el servidor siguen leyendo `horarioBase` igual.
+
 ## C4. Notificaciones push (RF-13)
 
 No hay que configurar nada en Firebase: FCM viene con el proyecto y es gratis en el plan Spark. Las Edge Functions envían los push con la cuenta de servicio (secreto `FIREBASE_SERVICE_ACCOUNT`).

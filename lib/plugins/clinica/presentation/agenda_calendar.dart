@@ -5,7 +5,8 @@ import '../../../core/domain/slot.dart';
 import '../../../core/theme/app_theme.dart';
 
 /// Calendario mensual de la agenda (mockup "Mi día"): empieza en lunes,
-/// días como cuadros redondeados y un punto en los días con horarios.
+/// días como cuadros redondeados y un punto en los días con excepciones
+/// (bloqueos u horario extra, Cambio 2).
 class AgendaCalendar extends StatelessWidget {
   const AgendaCalendar({
     super.key,
@@ -19,7 +20,7 @@ class AgendaCalendar extends StatelessWidget {
   final DateTime selectedDay;
   final DateTime focusedDay;
 
-  /// Fechas 'YYYY-MM-DD' con franjas configuradas.
+  /// Fechas 'YYYY-MM-DD' con excepciones.
   final Set<String> configuredDays;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onPageChanged;
@@ -98,7 +99,7 @@ class AgendaCalendar extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              '• con horarios',
+              '• con bloqueos u horario extra',
               style: textTheme.labelSmall?.copyWith(color: AppColors.textMuted),
             ),
           ),

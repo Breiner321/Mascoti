@@ -9,13 +9,16 @@ import 'package:mascoti/core/auth/auth_providers.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/data/appointments_providers.dart';
 import 'package:mascoti/core/data/appointments_repository.dart';
+import 'package:mascoti/core/format/bogota_time.dart';
 import 'package:mascoti/plugins/clinica/clinica_routes.dart';
 import 'package:mascoti/plugins/clinica/data/clinic_repository.dart';
+import 'package:mascoti/plugins/clinica/data/exceptions_repository.dart';
 import 'package:mascoti/plugins/clinica/data/services_repository.dart';
 import 'package:mascoti/plugins/clinica/data/slots_repository.dart';
 import 'package:mascoti/plugins/clinica/presentation/clinic_agenda_page.dart';
 import 'package:mascoti/plugins/clinica/presentation/clinic_providers.dart';
 
+/// Agenda de la clínica por EXCEPCIONES (Cambio 2).
 void main() {
   late FakeFirebaseFirestore firestore;
 
@@ -27,14 +30,15 @@ void main() {
     clinicId: 'c1',
   );
 
-  /// "Hoy" en las pruebas: martes 20 de octubre de 2026, 08:45.
-  final now = DateTime(2026, 10, 20, 8, 45);
+  /// "Hoy" en las pruebas: martes 20 de octubre de 2026, 8:45 a. m. en Bogotá.
+  final now = BogotaTime.at(2026, 10, 20, 8, 45);
   const fecha = '2026-10-20';
 
   setUpAll(() => initializeDateFormatting('es'));
 
   setUp(() async {
     firestore = FakeFirebaseFirestore();
+    // Clínica sin migrar: horarioBase de 8 a 12 todos los días, franjas de 30.
     await firestore.doc('clinics/c1').set({
       'ownerUid': 'vet',
       'nombre': 'Vet Central',
@@ -44,28 +48,17 @@ void main() {
     });
   });
 
-  Future<void> addService(String id, String nombre, int duracion, int precio) =>
-      firestore.doc('clinics/c1/services/$id').set({
-        'nombre': nombre,
+  Future<void> addService() => firestore.doc('clinics/c1/services/s1').set({
+        'nombre': 'Consulta',
         'categoria': 'consulta_general',
         'descripcion': '',
-        'precio': precio,
-        'duracionMin': duracion,
+        'precio': 45000,
+        'duracionMin': 30,
         'activo': true,
       });
 
-  Future<void> addSlot(String hora, String estado, {String? serviceId, int? precio}) =>
-      firestore.doc('clinics/c1/slots/${fecha}_$hora').set({
-        'fecha': fecha,
-        'hora': hora,
-        'inicio': Timestamp.fromDate(DateTime.parse('${fecha}T$hora:00')),
-        'estado': estado,
-        'serviceId': serviceId,
-        'precio': precio,
-      });
-
   Future<void> pumpPage(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(1080, 5000);
+    tester.view.physicalSize = const Size(1080, 6000);
     tester.view.devicePixelRatio = 2.5;
     addTearDown(tester.view.reset);
 
@@ -93,9 +86,10 @@ void main() {
         overrides: [
           currentUserProvider.overrideWithValue(clinicUser),
           clinicRepositoryProvider.overrideWithValue(ClinicRepository(firestore: firestore)),
-          servicesRepositoryProvider
-              .overrideWithValue(ServicesRepository(firestore: firestore)),
+          servicesRepositoryProvider.overrideWithValue(ServicesRepository(firestore: firestore)),
           slotsRepositoryProvider.overrideWithValue(SlotsRepository(firestore: firestore)),
+          exceptionsRepositoryProvider
+              .overrideWithValue(ExceptionsRepository(firestore: firestore)),
           agendaClockProvider.overrideWithValue(() => now),
           appointmentsRepositoryProvider
               .overrideWithValue(AppointmentsRepository(firestore: firestore)),
@@ -106,204 +100,170 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// Botón (de cualquier tipo de ButtonStyleButton) con el texto [label].
-  Finder button(String label) => find.ancestor(
-        of: find.text(label),
-        matching: find.bySubtype<ButtonStyleButton>(),
-      );
-
   Finder franja(String hora) => find.byKey(ValueKey('franja-$hora'));
 
-  Future<Map<String, dynamic>?> slotDoc(String hora) async =>
-      (await firestore.doc('clinics/c1/slots/${fecha}_$hora').get()).data();
+  Finder inFranja(String hora, String text) =>
+      find.descendant(of: franja(hora), matching: find.text(text));
+
+  Future<List<Map<String, dynamic>>> exceptions() async =>
+      [for (final d in (await firestore.collection('clinics/c1/excepciones').get()).docs) d.data()];
 
   testWidgets('sin servicios activos: estado vacío con botón a Servicios', (tester) async {
     await pumpPage(tester);
-
-    expect(find.text('Para abrir tu agenda primero agrega al menos un servicio.'),
-        findsOneWidget);
+    expect(find.text('Para abrir tu agenda primero agrega al menos un servicio.'), findsOneWidget);
     await tester.tap(find.text('Ir a Servicios'));
     await tester.pumpAndSettle();
     expect(find.text('Pantalla servicios'), findsOneWidget);
   });
 
-  testWidgets('muestra el día de hoy, el calendario y las franjas por estado',
-      (tester) async {
-    await addService('s1', 'Consulta general', 30, 45000);
-    await addSlot('09:00', 'disponible', serviceId: 's1', precio: 45000);
-    await addSlot('10:00', 'no_disponible');
-    await addSlot('11:00', 'ocupado', serviceId: 's1', precio: 45000);
+  testWidgets('sin horario configurado pide configurarlo', (tester) async {
+    await firestore.doc('clinics/c1').update({'horarioBase': FieldValue.delete()});
+    await addService();
+    await pumpPage(tester);
+    expect(find.text('Configura tu horario semanal para empezar a recibir citas.'), findsOneWidget);
+  });
+
+  testWidgets('disponible por defecto: todas las franjas del horario están libres', (tester) async {
+    await addService();
     await pumpPage(tester);
 
     expect(find.text('Mi día'), findsOneWidget);
-    expect(find.text('Martes 20 de octubre'), findsOneWidget);
-    expect(find.text('Octubre 2026'), findsOneWidget);
-    expect(find.text('Franjas del 20 de octubre'), findsOneWidget);
-
-    expect(find.descendant(of: franja('09:00'), matching: find.text(r'Consulta general · $ 45.000')),
-        findsOneWidget);
-    expect(find.descendant(of: franja('10:00'), matching: find.text('No disponible')),
-        findsOneWidget);
-    expect(find.descendant(of: franja('11:00'), matching: find.text('Ocupado')),
-        findsOneWidget);
-    expect(find.descendant(of: franja('11:30'), matching: find.text('Sin configurar')),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('franja-08:00')), findsOneWidget);
+    for (final h in ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30']) {
+      expect(franja(h), findsOneWidget, reason: h);
+    }
+    expect(franja('12:00'), findsNothing);
+    expect(inFranja('09:00', 'Libre'), findsOneWidget);
+    expect(find.text('Bloquear día'), findsOneWidget);
+    expect(find.text('Abrir horario extra'), findsOneWidget);
   });
 
-  testWidgets('una franja ocupada es de solo lectura (mensaje del RF)', (tester) async {
-    await addService('s1', 'Consulta general', 30, 45000);
-    await addSlot('11:00', 'ocupado', serviceId: 's1', precio: 45000);
+  testWidgets('sugiere los próximos festivos de Colombia', (tester) async {
+    await addService();
     await pumpPage(tester);
 
-    await tester.tap(franja('11:00'));
-    await tester.pump();
+    expect(find.text('Próximos festivos'), findsOneWidget);
+    expect(find.text('2 de noviembre · Todos los Santos'), findsOneWidget);
 
-    expect(
-      find.text('No puedes modificar un horario con una cita confirmada. Cancela la cita primero'),
-      findsOneWidget,
-    );
-    expect(find.text('1 franja seleccionada'), findsNothing);
+    await tester.tap(find.text('2 de noviembre · Todos los Santos'));
+    await tester.pumpAndSettle();
+    // El motivo viene prellenado con el nombre del festivo.
+    expect(find.widgetWithText(TextField, 'Todos los Santos'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Bloquear'));
+    await tester.pumpAndSettle();
+
+    final saved = await exceptions();
+    expect(saved.single, containsPair('fechaInicio', '2026-11-02'));
+    expect(saved.single['fechaFin'], '2026-11-02');
+    expect(saved.single['motivo'], 'Todos los Santos');
+    expect(saved.single.containsKey('desde'), isFalse);
+    // Ya bloqueado, deja de sugerirse.
+    expect(find.text('2 de noviembre · Todos los Santos'), findsNothing);
   });
 
-  testWidgets('RF-14: la franja reservada muestra la cita y abre su detalle; '
-      'aparece en "Próximas citas"', (tester) async {
-    await addService('s1', 'Consulta general', 30, 45000);
-    await addSlot('11:00', 'ocupado', serviceId: 's1', precio: 45000);
-    await firestore.doc('appointments/a1').set({
-      'clinicId': 'c1',
-      'petId': 'p1',
-      'petNombre': 'Luna',
-      'serviceId': 's1',
-      'serviceNombre': 'Consulta general',
-      'slotId': '${fecha}_11:00',
-      'fecha': fecha,
-      'hora': '11:00',
-      // 11:00 a. m. en Bogotá.
-      'inicio': Timestamp.fromDate(DateTime.utc(2026, 10, 20, 16)),
-      'estado': 'confirmada',
+  testWidgets('seleccionar franjas y bloquearlas: un rango por cada grupo seguido', (tester) async {
+    await addService();
+    await pumpPage(tester);
+
+    for (final h in ['09:30', '10:00', '11:00']) {
+      await tester.tap(franja(h));
+      await tester.pump();
+    }
+    expect(inFranja('10:00', 'Seleccionada'), findsOneWidget);
+    await tester.tap(find.text('Bloquear 3 franjas'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Capacitación');
+    await tester.tap(find.widgetWithText(FilledButton, 'Bloquear'));
+    await tester.pumpAndSettle();
+
+    final saved = await exceptions();
+    expect(
+      saved.map((e) => '${e['desde']}-${e['hasta']}').toSet(),
+      {'09:30-10:30', '11:00-11:30'},
+    );
+    expect(saved.every((e) => e['tipo'] == 'bloqueo' && e['fechaInicio'] == fecha), isTrue);
+    expect(inFranja('10:00', 'Bloqueada · Capacitación'), findsOneWidget);
+    expect(inFranja('09:00', 'Libre'), findsOneWidget);
+  });
+
+  testWidgets('tocar una franja bloqueada permite quitar el bloqueo', (tester) async {
+    await addService();
+    await firestore.doc('clinics/c1/excepciones/x1').set({
+      'tipo': 'bloqueo',
+      'fechaInicio': fecha,
+      'fechaFin': fecha,
+      'desde': '10:00',
+      'hasta': '11:00',
     });
     await pumpPage(tester);
 
-    expect(find.text('Próximas citas'), findsOneWidget);
-    expect(find.text('11:00 a. m. · Luna'), findsOneWidget);
-    expect(
-      find.descendant(of: franja('11:00'), matching: find.text('Luna · Consulta general')),
-      findsOneWidget,
-    );
-
-    await tester.tap(franja('11:00'));
+    expect(inFranja('10:30', 'Bloqueada'), findsOneWidget);
+    await tester.tap(franja('10:30'));
     await tester.pumpAndSettle();
-    expect(find.text('Cita a1'), findsOneWidget);
+    expect(find.textContaining('Se vuelve a abrir'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Quitar bloqueo'));
+    await tester.pumpAndSettle();
+
+    expect(await exceptions(), isEmpty);
+    expect(inFranja('10:30', 'Libre'), findsOneWidget);
   });
 
-  testWidgets('sin citas hoy ni mañana: "Próximas citas" lo dice', (tester) async {
-    await addService('s1', 'Consulta general', 30, 45000);
+  testWidgets('bloquear el día completo y desbloquearlo', (tester) async {
+    await addService();
     await pumpPage(tester);
-    expect(find.text('No tienes citas para hoy ni para mañana.'), findsOneWidget);
+
+    await tester.tap(find.text('Bloquear día'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Bloquear'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Día bloqueado'), findsOneWidget);
+    expect(inFranja('09:00', 'Bloqueada'), findsOneWidget);
+    await tester.tap(find.text('Desbloquear'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Quitar bloqueo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Día bloqueado'), findsNothing);
   });
 
-  testWidgets('una franja que ya pasó no se puede editar', (tester) async {
-    await addService('s1', 'Consulta general', 30, 45000);
+  testWidgets('una franja que ya pasó no se puede seleccionar', (tester) async {
+    await addService();
     await pumpPage(tester);
-
     await tester.tap(franja('08:00'));
     await tester.pump();
     expect(find.text('Este horario ya pasó; no se puede modificar.'), findsOneWidget);
+    expect(find.textContaining('Bloquear 1'), findsNothing);
   });
 
-  testWidgets('seleccionar varias, marcarlas disponibles y guardar en lote', (tester) async {
-    await addService('s1', 'Consulta general', 30, 45000);
-    await pumpPage(tester);
-
-    await tester.tap(franja('09:00'));
-    await tester.tap(franja('09:30'));
-    await tester.pump();
-    expect(find.text('2 franjas seleccionadas'), findsOneWidget);
-
-    await tester.tap(button('Disponible'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Servicio'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(r'Consulta general · $ 45.000 · 30 min').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Aplicar'));
-    await tester.pumpAndSettle();
-
-    expect(await slotDoc('09:00'), isNull, reason: 'aún es borrador');
-    expect(find.text('Guardar Disponibilidad (2)'), findsOneWidget);
-
-    await tester.tap(find.text('Guardar Disponibilidad (2)'));
-    await tester.pumpAndSettle();
-
-    for (final hora in ['09:00', '09:30']) {
-      final data = (await slotDoc(hora))!;
-      expect(data['estado'], 'disponible');
-      expect(data['serviceId'], 's1');
-      expect(data['precio'], 45000);
+  testWidgets('una franja con cita muestra la mascota y abre el detalle', (tester) async {
+    await addService();
+    // Cita de 60 min: aparta 2 franjas.
+    for (final h in ['09:00', '09:30']) {
+      await firestore.doc('clinics/c1/slots/${fecha}_$h').set({
+        'fecha': fecha,
+        'hora': h,
+        'inicio': Timestamp.fromDate(BogotaTime.tryParse(fecha, h)!),
+        'estado': 'reservado_temporal',
+        'appointmentId': 'a1',
+      });
     }
-    expect(find.text('Disponibilidad guardada'), findsOneWidget);
-    expect(find.text('Guardar Disponibilidad'), findsOneWidget);
-  });
-
-  testWidgets('marcar "No disponible" sin servicio', (tester) async {
-    await addService('s1', 'Consulta general', 30, 45000);
+    await firestore.doc('appointments/a1').set({
+      'clinicId': 'c1',
+      'ownerUid': 'ana',
+      'petNombre': 'Luna',
+      'serviceNombre': 'Cirugía',
+      'fecha': fecha,
+      'hora': '09:00',
+      'slotId': '${fecha}_09:00',
+      'slotIds': ['${fecha}_09:00', '${fecha}_09:30'],
+      'estado': 'pendiente',
+      'inicio': Timestamp.fromDate(BogotaTime.at(2026, 10, 20, 9)),
+    });
     await pumpPage(tester);
 
-    await tester.tap(franja('10:00'));
-    await tester.pump();
-    await tester.tap(button('No disponible'));
-    await tester.pump();
-    await tester.tap(find.text('Guardar Disponibilidad (1)'));
+    expect(inFranja('09:00', 'Luna · Pendiente'), findsOneWidget);
+    expect(inFranja('09:30', 'Luna · Pendiente'), findsOneWidget);
+    await tester.tap(franja('09:30'));
     await tester.pumpAndSettle();
-
-    final data = (await slotDoc('10:00'))!;
-    expect(data['estado'], 'no_disponible');
-    expect(data['serviceId'], isNull);
-  });
-
-  testWidgets('un solapamiento bloquea el guardado', (tester) async {
-    await addService('s2', 'Cirugía', 60, 200000);
-    await addSlot('11:30', 'no_disponible');
-    await pumpPage(tester);
-
-    await tester.tap(franja('11:00'));
-    await tester.pump();
-    await tester.tap(button('Disponible'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Servicio'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(r'Cirugía · $ 200.000 · 60 min').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Aplicar'));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.textContaining('Hay franjas que se solapan o terminan después del cierre'),
-      findsOneWidget,
-    );
-    final save = tester.widget<ButtonStyleButton>(
-      find.ancestor(
-        of: find.text('Guardar Disponibilidad (1)'),
-        matching: find.bySubtype<ButtonStyleButton>(),
-      ),
-    );
-    expect(save.onPressed, isNull);
-    expect(await slotDoc('11:00'), isNull);
-  });
-
-  testWidgets('quitar una franja guardada la borra', (tester) async {
-    await addService('s1', 'Consulta general', 30, 45000);
-    await addSlot('10:00', 'no_disponible');
-    await pumpPage(tester);
-
-    await tester.tap(franja('10:00'));
-    await tester.pump();
-    await tester.tap(find.text('Quitar'));
-    await tester.pump();
-    await tester.tap(find.text('Guardar Disponibilidad (1)'));
-    await tester.pumpAndSettle();
-
-    expect(await slotDoc('10:00'), isNull);
+    expect(find.text('Cita a1'), findsOneWidget);
   });
 }

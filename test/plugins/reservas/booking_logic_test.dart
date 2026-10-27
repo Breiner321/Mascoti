@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/domain/appointment.dart';
+import 'package:mascoti/core/domain/clinic.dart';
+import 'package:mascoti/core/domain/schedule_exception.dart';
 import 'package:mascoti/core/domain/slot.dart';
 import 'package:mascoti/core/format/bogota_time.dart';
 import 'package:mascoti/plugins/reservas/presentation/dueno/booking_logic.dart';
@@ -51,37 +53,55 @@ void main() {
     });
   });
 
-  group('días con disponibilidad', () {
+  group('días y horas con disponibilidad (Cambio 2)', () {
+    // Jueves 5 de noviembre, 12:00 m. La clínica atiende los viernes de 9 a 11.
     final now = BogotaTime.at(2026, 11, 5, 12);
-    final slots = [
-      slot('2026-11-05', '09:00'), // ya pasó
-      slot('2026-11-05', '15:00'), // hoy, más tarde
-      slot('2026-11-06', '09:00', estado: SlotStatus.reservadoTemporal),
-      slot('2026-11-07', '09:00', estado: SlotStatus.ocupado),
-      slot('2026-11-08', '09:00', serviceId: 's2'), // otro servicio
-      slot('2026-11-09', '10:00'),
-      slot('2026-11-09', '08:00'),
-      slot('2026-11-10', '08:00', estado: SlotStatus.noDisponible),
-    ];
 
-    test('solo días con franjas disponibles del servicio que no han pasado', () {
+    test('días del mes con horas libres: los viernes que no han pasado', () {
       expect(
-        BookingLogic.availableDays(slots, serviceId: 's1', now: now),
-        {'2026-11-05', '2026-11-09'},
-      );
-      expect(BookingLogic.availableDays(slots, serviceId: 's2', now: now), {'2026-11-08'});
-    });
-
-    test('las horas del día salen ordenadas', () {
-      expect(
-        BookingLogic.hoursOf(slots, serviceId: 's1', fecha: '2026-11-09', now: now)
-            .map((s) => s.hora),
-        ['08:00', '10:00'],
+        BookingLogic.availableDays(
+          clinic: clinic, durationMin: 30, year: 2026, month: 11, slots: const [], now: now),
+        {'2026-11-06', '2026-11-13', '2026-11-20', '2026-11-27'},
       );
     });
 
-    test('sin franjas, sin días', () {
-      expect(BookingLogic.availableDays(const [], serviceId: 's1', now: now), isEmpty);
+    test('horas del día: franjas apartadas por otras citas no se ofrecen', () {
+      final slots = [
+        slot('2026-11-06', '09:30', estado: SlotStatus.reservadoTemporal),
+        slot('2026-11-06', '10:00'), // 'disponible' (liberada): sí se ofrece
+        slot('2026-11-13', '09:00', estado: SlotStatus.ocupado), // otro día
+      ];
+      expect(
+        BookingLogic.hoursOf(
+            clinic: clinic, durationMin: 30, fecha: '2026-11-06', slots: slots, now: now),
+        ['09:00', '10:00', '10:30'],
+      );
+      // Un servicio de 60 min necesita 2 franjas libres seguidas.
+      expect(
+        BookingLogic.hoursOf(
+            clinic: clinic, durationMin: 60, fecha: '2026-11-06', slots: slots, now: now),
+        ['10:00'],
+      );
+    });
+
+    test('un bloqueo de la clínica quita el día', () {
+      const vacaciones = ScheduleException(
+          tipo: ExceptionType.bloqueo, fechaInicio: '2026-11-13', fechaFin: '2026-11-20');
+      expect(
+        BookingLogic.availableDays(clinic: clinic, durationMin: 30, year: 2026, month: 11,
+            slots: const [], now: now, exceptions: const [vacaciones]),
+        {'2026-11-06', '2026-11-27'},
+      );
+    });
+
+    test('sin horario configurado no hay días', () {
+      const sinHorario = Clinic(
+          id: 'c2', ownerUid: 'v', nombre: 'X', telefono: '', direccion: '', lat: 0, lng: 0);
+      expect(
+        BookingLogic.availableDays(
+            clinic: sinHorario, durationMin: 30, year: 2026, month: 11, slots: const [], now: now),
+        isEmpty,
+      );
     });
   });
 

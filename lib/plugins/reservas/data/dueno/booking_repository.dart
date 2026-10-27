@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/domain/clinic.dart';
 import '../../../../core/domain/clinic_service.dart';
 import '../../../../core/domain/pet.dart';
+import '../../../../core/domain/schedule_exception.dart';
 import '../../../../core/domain/slot.dart';
 
 /// Lecturas que necesita el dueño para agendar (RF-14): la clínica, sus
@@ -31,9 +32,9 @@ class BookingRepository {
       .map((snap) => [for (final d in snap.docs) ClinicService.fromMap(d.id, d.data())]
         ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase())));
 
-  /// Todas las franjas del mes [year]-[month], en tiempo real. Se filtran por
-  /// servicio y estado en el cliente (`booking_logic.dart`) para no necesitar
-  /// un índice compuesto: una clínica tiene pocos cientos de franjas al mes.
+  /// Franjas del mes [year]-[month], en tiempo real. Desde el Cambio 2 solo
+  /// existen las apartadas por citas: dicen qué está ocupado
+  /// (`booking_logic.dart`).
   Stream<List<Slot>> watchMonthSlots(String clinicId, int year, int month) {
     final first = Slot.dateKey(DateTime(year, month));
     final last = Slot.dateKey(DateTime(year, month + 1, 0));
@@ -44,6 +45,17 @@ class BookingRepository {
         .snapshots()
         .map((snap) => [for (final d in snap.docs) Slot.fromMap(d.data())]);
   }
+
+  /// Excepciones de la clínica que terminan desde [desde] ('YYYY-MM-DD'):
+  /// bloqueos y aperturas extra (Cambio 2).
+  Stream<List<ScheduleException>> watchExceptions(String clinicId, String desde) =>
+      _clinic(clinicId)
+          .collection('excepciones')
+          .where('fechaFin', isGreaterThanOrEqualTo: desde)
+          .snapshots()
+          .map((snap) => [
+                for (final d in snap.docs) ScheduleException.tryFromMap(d.id, d.data()),
+              ].whereType<ScheduleException>().toList());
 
   /// Mascotas del dueño, por nombre.
   Stream<List<Pet>> watchPets(String ownerUid) => _firestore

@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/domain/animal_type.dart';
 import '../../../core/domain/clinic.dart';
-import '../../../core/domain/opening_hours.dart';
+import '../../../core/domain/weekly_schedule.dart';
 
 /// Las reglas rechazaron la escritura: la clínica no pertenece al usuario o
 /// su cuenta no está activa (RF-04, flujo alternativo "Error de autorización").
@@ -40,12 +40,15 @@ class ClinicRepository {
     Clinic current, {
     required List<AnimalType> tiposAnimales,
     required bool atencionEmergencias,
-    required OpeningHours horarioBase,
+    required WeeklySchedule horarioSemanal,
+    required BookingSettings reservas,
   }) async {
     final update = <String, dynamic>{
       'tiposAnimales': [for (final t in tiposAnimales) t.value],
       'atencionEmergencias': atencionEmergencias,
-      'horarioBase': horarioBase.toMap(),
+      // Cambio 2: reemplaza a horarioBase (que ya no se escribe).
+      'horarioSemanal': horarioSemanal.toMap(),
+      'reservas': reservas.toMap(),
       if (!current.isActive) 'estado': ClinicStatus.activo.value,
     };
     try {

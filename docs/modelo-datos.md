@@ -39,14 +39,17 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
 | categoriasServicio | string[] | categorías de sus servicios **activos** (RF-05), para filtrar el directorio (RF-09). La actualiza `ServicesRepository.syncCategories` al guardar o desactivar un servicio |
 | atencionEmergencias | bool | RF-10 |
-| horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06. Horas `HH:mm` (24 h); duración entera 5–480 (la app ofrece 15, 30 o 60 min en RF-04). `OpeningHours.slotTimes()` genera las franjas del día |
+| horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | **Obsoleto (Cambio 2).** Horario único de antes; se lee solo si la clínica no tiene `horarioSemanal` (todos los días abiertos con ese horario). Lo convierte `npm run migrar-horario` |
+| horarioSemanal | map `{lun…dom: {abierto, apertura, cierre, descansoInicio?, descansoFin?}}` | Cambio 2 (`WeeklySchedule`). Horas `HH:mm` en múltiplos de la franja; el descanso va dentro del horario. Las reglas validan la estructura (7 días, campos permitidos, `abierto` booleano); las horas las validan la app y el servidor |
+| reservas | map `{duracionSlotMin: 15\|30\|60, anticipacionMaxDias: 1–365, anticipacionMinMin: 0–10080}` | Cambio 2 (`BookingSettings`). Por defecto 30 min, 30 días y 120 min |
 | calificacion | number? | promedio (futuro) |
 | estado | `'incompleto' \| 'activo'` | pasa a activo en RF-04. Mientras sea `incompleto`, la app obliga a la clínica a ir a `/clinica/perfil-atencion` |
 | createdAt | Timestamp | |
 
 Subcolecciones:
 - `services/{serviceId}` — RF-05: `{nombre, categoria, descripcion, precio, duracionMin, activo, createdAt, updatedAt}`; `precio` en COP: la app solo envía enteros (decisión del equipo; el RF permitía 2 decimales) y las reglas aceptan cualquier número > 0; `categoria ∈ vacunacion, peluqueria, bano, cirugia, consulta_general, otro`.
-- `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — RF-06: `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `inicio` = `fecha` + `hora` en hora de Bogotá (`Slot.at`); el servidor no confía en él y lo recalcula al agendar; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados. Una franja `disponible` ocupa de `hora` a `hora + duracionMin` del servicio: las franjas que quedan dentro de ese rango no tienen documento (la app las muestra como "cubiertas") y la app no permite guardar si el rango pisa otra franja o pasa del cierre (`DaySchedule.conflicts`). Una franja sin documento no se ofrece a los dueños.
+- `excepciones/{id}` — Cambio 2 (`ScheduleException`): `{tipo:'bloqueo'|'apertura', fechaInicio, fechaFin, desde?, hasta?, motivo?, createdAt}`. Cubre las fechas `[fechaInicio, fechaFin]` y, en cada una, `[desde, hasta)`; sin horas es el día completo (solo bloqueos). La crea y la borra la clínica dueña (no se edita); la leen los usuarios con sesión. Consulta: `where('fechaFin', '>=', hoy)` (índice automático).
+- `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — **desde el Cambio 2 los escribe solo la Edge Function `citas`**: son el candado de cada reserva, `{fecha, hora, inicio, estado, appointmentId?}`, uno por cada franja que ocupa la cita. Una franja sin documento (o en `disponible`) está libre si el horario la cubre. Las franjas `no_disponible` de la agenda anterior siguen contando como bloqueadas. Formato anterior (RF-06): `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `inicio` = `fecha` + `hora` en hora de Bogotá (`Slot.at`); el servidor no confía en él y lo recalcula al agendar; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados. Una franja `disponible` ocupa de `hora` a `hora + duracionMin` del servicio: las franjas que quedan dentro de ese rango no tienen documento (la app las muestra como "cubiertas") y la app no permite guardar si el rango pisa otra franja o pasa del cierre (`DaySchedule.conflicts`). Una franja sin documento no se ofrece a los dueños.
 - `pacientes/{petId}` — registros médicos (semana 3): `{duenoNombre, vinculadoAt}`. Nombre del dueño de cada mascota vinculada, para la lista "Pacientes" de la clínica (la clínica no puede leer `users/{ownerUid}`). La app lo guarda con lo que devuelve la Edge Function `vincular-mascota`; las reglas solo dejan escribir a la clínica dueña y si la mascota ya la tiene en `clinicasAutorizadas`. La lista de pacientes sale de `pets where clinicasAutorizadas array-contains clinicId` (índice automático de un campo); este documento solo aporta el nombre.
 - `products/{productId}` — RF-07: `{nombre, categoria, descripcion, precio, stock, fotoUrl, estado:'activo'|'agotado'|'inactivo', createdAt}`.
 
@@ -86,6 +89,8 @@ Tabla `public.intentos_vinculacion (clinic_id, intentado_en)` y función `regist
 ## `appointments/{appointmentId}` — RF-14 · *solo la escribe el servidor*
 
 Modelo `Appointment` (`lib/core/domain`), repositorio `AppointmentsRepository` (`lib/core/data`). La crea y la cambia **solo** la Edge Function `citas` (y la tarea programada); las reglas niegan toda escritura desde la app. La leen el dueño de la cita y la clínica (activos).
+
+`slotIds` (Cambio 2): ids `{fecha}_{hora}` de todas las franjas que aparta la cita (`slotId` es la primera); las citas anteriores solo tienen `slotId`.
 
 `ownerNombre` = `nombreVisible` del dueño al solicitar (Cambio 1; copia histórica, no cambia si el dueño edita su nombre).
 
