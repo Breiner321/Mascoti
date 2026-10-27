@@ -127,6 +127,40 @@ service cloud.firestore {
         && h.duracionSlotMin >= 5 && h.duracionSlotMin <= 480;
     }
 
+    // Cambio 2: horario de un día. Un día cerrado puede conservar sus horas.
+    // Cambio 2: estructura del horario de un día. Las reglas de Firestore
+    // admiten máximo 1000 expresiones por evaluación y comparar las horas de
+    // los 7 días la supera; el detalle (formato, apertura < cierre, descanso
+    // dentro del horario, bloques del tamaño de la franja) lo validan la app
+    // (WeeklySchedule.validate) y la Edge Function `citas`, que ignora
+    // horas mal formadas. Solo la clínica dueña escribe su horario.
+    function validDayHours(d) {
+      return d is map
+        && d.keys().hasOnly(['abierto', 'apertura', 'cierre', 'descansoInicio', 'descansoFin'])
+        && d.abierto is bool;
+    }
+
+    // Cambio 2: los 7 días (lun…dom). Las reglas no tienen ciclos.
+    function validWeeklySchedule(h) {
+      return h is map
+        && h.keys().hasOnly(['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'])
+        && h.keys().hasAll(['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'])
+        && validDayHours(h.lun) && validDayHours(h.mar) && validDayHours(h.mie)
+        && validDayHours(h.jue) && validDayHours(h.vie) && validDayHours(h.sab)
+        && validDayHours(h.dom);
+    }
+
+    // Cambio 2: franjas de 15/30/60 min, hasta 365 días adelante y hasta 7
+    // días (10080 min) de anticipación mínima.
+    function validBookingSettings(r) {
+      return r is map
+        && r.keys().hasOnly(['duracionSlotMin', 'anticipacionMaxDias', 'anticipacionMinMin'])
+        && r.keys().hasAll(['duracionSlotMin', 'anticipacionMaxDias', 'anticipacionMinMin'])
+        && r.duracionSlotMin in [15, 30, 60]
+        && r.anticipacionMaxDias is int && r.anticipacionMaxDias >= 1 && r.anticipacionMaxDias <= 365
+        && r.anticipacionMinMin is int && r.anticipacionMinMin >= 0 && r.anticipacionMinMin <= 10080;
+    }
+
     // ---------- clinics (RF-01, RF-04, RF-06, RF-09) ----------
     match /clinics/{clinicId} {
       allow read: if signedIn();
@@ -137,24 +171,35 @@ service cloud.firestore {
       // nombre, lat/lng, geo, ownerUid y createdAt no se cambian desde la app.
       allow update: if hasRole('clinica')
         && resource.data.ownerUid == request.auth.uid
-        && onlyChanges(['tiposAnimales', 'atencionEmergencias', 'horarioBase',
-                        'telefono', 'direccion', 'lat', 'lng', 'geo',
-                        'categoriasServicio', 'estado'])
-        && clinicFieldsValid(request.resource.data)
-        && clinicLocationValid(request.resource.data)
-        && clinicStatusChangeValid();
+        && clinicUpdateValid(request.resource.data);
 
-      function clinicFieldsValid(data) {
-        return (!('tiposAnimales' in changedKeys()) || validAnimalTypes(data.tiposAnimales))
-          && (!('atencionEmergencias' in changedKeys()) || data.atencionEmergencias is bool)
-          && (!('horarioBase' in changedKeys()) || validOpeningHours(data.horarioBase))
-          && (!('telefono' in changedKeys())
+      // Los campos cambiados se calculan UNA vez (`let`): con el horario
+      // semanal anidado, repetir el diff en cada condición supera el límite
+      // de 1000 expresiones de las reglas.
+      function clinicUpdateValid(data) {
+        let changed = data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['tiposAnimales', 'atencionEmergencias', 'horarioBase',
+                                'horarioSemanal', 'reservas',
+                                'telefono', 'direccion', 'lat', 'lng', 'geo',
+                                'categoriasServicio', 'estado'])
+          && clinicFieldsValid(data, changed)
+          && clinicLocationValid(data, changed)
+          && clinicStatusChangeValid(changed);
+      }
+
+      function clinicFieldsValid(data, changed) {
+        return (!('tiposAnimales' in changed) || validAnimalTypes(data.tiposAnimales))
+          && (!('atencionEmergencias' in changed) || data.atencionEmergencias is bool)
+          && (!('horarioBase' in changed) || validOpeningHours(data.horarioBase))
+          && (!('horarioSemanal' in changed) || validWeeklySchedule(data.horarioSemanal))
+          && (!('reservas' in changed) || validBookingSettings(data.reservas))
+          && (!('telefono' in changed)
               || (data.telefono is string && data.telefono.matches('^[0-9]{10}$')))
-          && (!('direccion' in changedKeys())
+          && (!('direccion' in changed)
               || (data.direccion is string && data.direccion.size() >= 3
                   && data.direccion.size() <= 200))
           // Resumen de las categorías de sus servicios activos (RF-09).
-          && (!('categoriasServicio' in changedKeys())
+          && (!('categoriasServicio' in changed)
               || (data.categoriasServicio is list && data.categoriasServicio.size() <= 6
                   && data.categoriasServicio.hasOnly(['vacunacion', 'peluqueria', 'bano',
                                                       'cirugia', 'consulta_general', 'otro'])));
@@ -164,10 +209,10 @@ service cloud.firestore {
       // debe coincidir con lat/lng, para que el mapa (RF-09) no muestre la
       // clínica en el lugar anterior. El geohash no se puede recalcular aquí:
       // se exige su formato (9-10 caracteres base32, como geoflutterfire_plus).
-      function clinicLocationValid(data) {
-        return !changedKeys().hasAny(['direccion', 'lat', 'lng', 'geo'])
-          || (changedKeys().hasAny(['lat', 'lng'])
-              && 'geo' in changedKeys()
+      function clinicLocationValid(data, changed) {
+        return !changed.hasAny(['direccion', 'lat', 'lng', 'geo'])
+          || (changed.hasAny(['lat', 'lng'])
+              && 'geo' in changed
               && data.lat is number && data.lat >= -90 && data.lat <= 90
               && data.lng is number && data.lng >= -180 && data.lng <= 180
               && data.geo is map && data.geo.keys().hasOnly(['geohash', 'geopoint'])
@@ -180,8 +225,8 @@ service cloud.firestore {
 
       // Única transición permitida: 'incompleto' → 'activo', y solo si ya
       // tiene al menos un tipo de animal (RF-04, paso 7).
-      function clinicStatusChangeValid() {
-        return !('estado' in changedKeys())
+      function clinicStatusChangeValid(changed) {
+        return !('estado' in changed)
           || (resource.data.estado == 'incompleto'
               && request.resource.data.estado == 'activo'
               && validAnimalTypes(request.resource.data.tiposAnimales));
@@ -225,38 +270,39 @@ service cloud.firestore {
         }
       }
 
-      // ---------- Agenda: franjas horarias (RF-06) ----------
-      // Id determinístico {fecha}_{hora} (p. ej. 2026-10-15_09:30).
+      // ---------- Agenda: franjas (RF-06, Cambio 2) ----------
+      // Id determinístico {fecha}_{hora}. Desde el Cambio 2 son solo el
+      // candado de las reservas: las crea y cambia la Edge Function `citas`
+      // en una transacción. La app las lee (sin datos personales) para saber
+      // qué está ocupado; nadie las escribe desde la app.
       match /slots/{slotId} {
         allow read: if signedIn();
+        allow write: if false;
+      }
 
-        // La clínica publica franjas 'disponible' (con servicio) o las
-        // bloquea como 'no_disponible'. 'reservado_temporal' y 'ocupado' los
-        // pone el flujo de agendamiento (RF-14), no la clínica.
+      // ---------- Excepciones al horario (Cambio 2) ----------
+      // Bloqueos (franja, rango u horas, o días completos) y aperturas extra.
+      // La clínica dueña las crea y las borra; no se editan.
+      match /excepciones/{exceptionId} {
+        allow read: if signedIn();
         allow create: if hasRole('clinica')
           && isClinicOwner(clinicId)
-          && validSlot(request.resource.data);
+          && validException(request.resource.data);
+        allow delete: if hasRole('clinica') && isClinicOwner(clinicId);
+        allow update: if false;
 
-        // RF-06, flujo alterno: una franja con cita no se puede modificar.
-        allow update: if hasRole('clinica')
-          && isClinicOwner(clinicId)
-          && !(resource.data.estado in ['ocupado', 'reservado_temporal'])
-          && validSlot(request.resource.data);
-
-        allow delete: if hasRole('clinica')
-          && isClinicOwner(clinicId)
-          && !(resource.data.estado in ['ocupado', 'reservado_temporal']);
-
-        function validSlot(data) {
-          return data.keys().hasOnly(['fecha', 'hora', 'inicio', 'serviceId', 'precio', 'estado'])
-            && isDate(data.fecha) && isTime(data.hora)
-            && slotId == data.fecha + '_' + data.hora
-            && data.inicio is timestamp
-            && data.estado in ['disponible', 'no_disponible']
-            && (data.estado != 'disponible'
-                || (data.get('serviceId', null) is string && data.serviceId.size() > 0))
-            && (data.get('precio', null) == null
-                || (data.precio is number && data.precio > 0));
+        // Sin horas = día completo (solo bloqueos). Fechas 'YYYY-MM-DD'.
+        function validException(d) {
+          return d.keys().hasOnly(['tipo', 'fechaInicio', 'fechaFin', 'desde', 'hasta', 'motivo', 'createdAt'])
+            && d.tipo in ['bloqueo', 'apertura']
+            && isDate(d.fechaInicio) && isDate(d.fechaFin)
+            && d.fechaInicio <= d.fechaFin
+            && ((d.tipo == 'bloqueo'
+                 && d.get('desde', null) == null && d.get('hasta', null) == null)
+                || (isTime(d.get('desde', null)) && isTime(d.get('hasta', null))
+                    && d.desde < d.hasta))
+            && optString(d, 'motivo', 120)
+            && d.createdAt == request.time;
         }
       }
     }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'animal_type.dart';
 import 'clinic_service.dart';
 import 'opening_hours.dart';
+import 'weekly_schedule.dart';
 
 /// `clinics.estado`: pasa de incompleto a activo al configurar el perfil de
 /// atención (RF-04).
@@ -38,6 +39,8 @@ class Clinic {
     this.categoriasServicio = const [],
     this.atencionEmergencias = false,
     this.horarioBase,
+    this.horarioSemanal,
+    this.reservas,
     this.calificacion,
     this.estado = ClinicStatus.incompleto,
     this.createdAt,
@@ -65,6 +68,12 @@ class Clinic {
       horarioBase: map['horarioBase'] is Map
           ? OpeningHours.fromMap(Map<String, dynamic>.from(map['horarioBase'] as Map))
           : null,
+      horarioSemanal: map['horarioSemanal'] is Map
+          ? WeeklySchedule.fromMap(Map<String, dynamic>.from(map['horarioSemanal'] as Map))
+          : null,
+      reservas: map['reservas'] is Map
+          ? BookingSettings.fromMap(Map<String, dynamic>.from(map['reservas'] as Map))
+          : null,
       calificacion: (map['calificacion'] as num?)?.toDouble(),
       estado: ClinicStatus.fromValue(map['estado']),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
@@ -90,8 +99,30 @@ class Clinic {
   final List<ServiceCategory> categoriasServicio;
   final bool atencionEmergencias;
 
-  /// null hasta que la clínica configure su horario (RF-06).
+  /// Horario antiguo (RF-06): uno solo para todos los días. Reemplazado por
+  /// [horarioSemanal] (Cambio 2); se lee solo si la clínica no se ha migrado.
   final OpeningHours? horarioBase;
+
+  /// Horario por día de la semana (Cambio 2).
+  final WeeklySchedule? horarioSemanal;
+
+  /// Reglas para agendar (Cambio 2).
+  final BookingSettings? reservas;
+
+  /// Horario efectivo: [horarioSemanal] o, sin migrar, [horarioBase] todos
+  /// los días (igual que `horarioDeClinica` en el servidor). null si la
+  /// clínica no ha configurado ninguno.
+  WeeklySchedule? get schedule =>
+      horarioSemanal ??
+      (horarioBase == null ? null : WeeklySchedule.fromOpeningHours(horarioBase!));
+
+  /// Reglas efectivas para agendar (con la duración de [horarioBase] si no
+  /// se ha migrado).
+  BookingSettings get bookingSettings =>
+      reservas ??
+      BookingSettings(
+        duracionSlotMin: horarioBase?.duracionSlotMin ?? 30,
+      );
 
   final double? calificacion;
   final ClinicStatus estado;
@@ -116,6 +147,8 @@ class Clinic {
         'categoriasServicio': [for (final c in categoriasServicio) c.value],
         'atencionEmergencias': atencionEmergencias,
         'horarioBase': horarioBase?.toMap(),
+        'horarioSemanal': horarioSemanal?.toMap(),
+        'reservas': reservas?.toMap(),
         'calificacion': calificacion,
         'estado': estado.value,
         'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!),
@@ -127,6 +160,8 @@ class Clinic {
         'tiposAnimales': [for (final t in tiposAnimales) t.value],
         'atencionEmergencias': atencionEmergencias,
         if (horarioBase != null) 'horarioBase': horarioBase!.toMap(),
+        if (horarioSemanal != null) 'horarioSemanal': horarioSemanal!.toMap(),
+        if (reservas != null) 'reservas': reservas!.toMap(),
         'telefono': telefono,
         'direccion': direccion,
         'estado': estado.value,
@@ -140,6 +175,8 @@ class Clinic {
     List<ServiceCategory>? categoriasServicio,
     bool? atencionEmergencias,
     OpeningHours? horarioBase,
+    WeeklySchedule? horarioSemanal,
+    BookingSettings? reservas,
     ClinicStatus? estado,
   }) =>
       Clinic(
@@ -155,6 +192,8 @@ class Clinic {
         categoriasServicio: categoriasServicio ?? this.categoriasServicio,
         atencionEmergencias: atencionEmergencias ?? this.atencionEmergencias,
         horarioBase: horarioBase ?? this.horarioBase,
+        horarioSemanal: horarioSemanal ?? this.horarioSemanal,
+        reservas: reservas ?? this.reservas,
         calificacion: calificacion,
         estado: estado ?? this.estado,
         createdAt: createdAt,
@@ -175,6 +214,8 @@ class Clinic {
       listEquals(other.categoriasServicio, categoriasServicio) &&
       other.atencionEmergencias == atencionEmergencias &&
       other.horarioBase == horarioBase &&
+      other.horarioSemanal == horarioSemanal &&
+      other.reservas == reservas &&
       other.calificacion == calificacion &&
       other.estado == estado &&
       other.createdAt == createdAt;
@@ -193,6 +234,8 @@ class Clinic {
         Object.hashAll(categoriasServicio),
         atencionEmergencias,
         horarioBase,
+        horarioSemanal,
+        reservas,
         calificacion,
         estado,
         createdAt,

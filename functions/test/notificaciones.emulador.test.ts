@@ -190,7 +190,10 @@ describe.skipIf(!host)("notificaciones (emulador)", () => {
     });
     await poner("users/vet", { role: "clinica", estado: "activo", clinicId: "c1" });
     await poner("users/vet/devices/dv", { fcmToken: "tok-vet", valido: true });
-    await poner("clinics/c1", { ownerUid: "vet", nombre: "Vet Norte", estado: "activo" });
+    await poner("clinics/c1", {
+      ownerUid: "vet", nombre: "Vet Norte", estado: "activo",
+      horarioBase: { apertura: "08:00", cierre: "18:00", duracionSlotMin: 30 },
+    });
     await poner("clinics/c1/services/s1", { nombre: "Consulta", precio: 1000, activo: true });
     await poner("clinics/c1/slots/2026-11-05_09:30", { fecha: "2026-11-05", hora: "09:30", estado: "disponible" });
     await poner("pets/p1", { ownerUid: "ana", nombre: "Luna" });

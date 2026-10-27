@@ -109,12 +109,20 @@ describe.skipIf(!host)("Edge Function citas (emulador)", () => {
     await poner("users/susp", { role: "dueno", estado: "suspendido" });
     await poner("users/vet", { role: "clinica", estado: "activo", clinicId: "c1" });
     await poner("users/vet2", { role: "clinica", estado: "activo", clinicId: "c2" });
-    await poner("clinics/c1", { ownerUid: "vet", nombre: "Vet Norte", estado: "activo" });
+    // Cambio 2: lunes a sábado de 8:00 a 12:00 con descanso de 10:00 a 10:30.
+    const dia = { abierto: true, apertura: "08:00", cierre: "12:00", descansoInicio: "10:00", descansoFin: "10:30" };
+    await poner("clinics/c1", {
+      ownerUid: "vet", nombre: "Vet Norte", estado: "activo",
+      horarioSemanal: { lun: dia, mar: dia, mie: dia, jue: dia, vie: dia, sab: dia, dom: { abierto: false } },
+      reservas: { duracionSlotMin: 30, anticipacionMaxDias: 30, anticipacionMinMin: 120 },
+    });
     await poner("clinics/c2", { ownerUid: "vet2", nombre: "Vet Sur", estado: "activo" });
     await poner("clinics/c1/services/s1", {
       nombre: "Consulta general", precio: 45000, duracionMin: 30, activo: true,
     });
     await poner("clinics/c1/services/s2", { nombre: "Baño", precio: 30000, activo: false });
+    await poner("clinics/c1/services/s60", { nombre: "Cirugía menor", precio: 90000, duracionMin: 60, activo: true });
+    // Franja de antes del Cambio 2 (creada por la clínica): sigue sirviendo.
     await poner("clinics/c1/slots/2026-11-05_09:30", {
       fecha: "2026-11-05", hora: "09:30", serviceId: "s1", estado: "disponible",
       // Un teléfono en otra zona horaria pudo guardar mal el inicio: no se usa.
@@ -204,16 +212,17 @@ describe.skipIf(!host)("Edge Function citas (emulador)", () => {
         .toBe("Este servicio ya no está disponible.");
       expect((await error(como("ana", { ...solicitud, clinicId: "c2" }))).codigo)
         .toBe("failed-precondition"); // c2 no tiene ese servicio
+      // Cambio 2: en el descanso o fuera del horario no se puede.
       expect((await error(como("ana", { ...solicitud, slotId: "2026-11-05_10:00" }))).codigo)
-        .toBe("aborted"); // franja inexistente
+        .toBe("aborted");
+      expect((await error(como("ana", { ...solicitud, slotId: "2026-11-05_15:00" }))).message)
+        .toBe(MENSAJE_HORARIO_OCUPADO);
+      expect((await error(como("ana", { ...solicitud, slotId: "2026-11-08_09:00" }))).codigo)
+        .toBe("aborted"); // domingo, cerrado
       expect((await error(como("ana", { ...solicitud, comentario: "x".repeat(501) }))).codigo)
         .toBe("invalid-argument");
       expect((await error(como("ana", { ...solicitud, petId: "../x" }))).codigo).toBe("invalid-argument");
       expect((await error(como("ana", { accion: "borrar" }))).codigo).toBe("invalid-argument");
-
-      await poner("clinics/c1/services/s3", { nombre: "Cirugía", precio: 1, activo: true });
-      expect((await error(como("ana", { ...solicitud, serviceId: "s3" }))).message)
-        .toBe("Este horario no es para el servicio seleccionado.");
 
       ahora = new Date("2026-11-05T14:30:00Z");
       expect((await error(como("ana", solicitud))).message)
@@ -221,6 +230,90 @@ describe.skipIf(!host)("Edge Function citas (emulador)", () => {
 
       expect(await slotEstado()).toBe("disponible");
       expect(cambios).toHaveLength(0);
+    });
+  });
+
+  describe("Cambio 2: disponibilidad según el horario", () => {
+    it("sin franja creada: se reserva dentro del horario y se crea el candado", async () => {
+      const { appointmentId } = await como("ana", {
+        ...solicitud, slotId: undefined, fecha: "2026-11-05", hora: "08:00",
+      }) as { appointmentId: string };
+      const cita = (await leer(`appointments/${appointmentId}`))!;
+      expect(cita).toMatchObject({ slotId: "2026-11-05_08:00", slotIds: ["2026-11-05_08:00"], hora: "08:00" });
+      expect(await leer("clinics/c1/slots/2026-11-05_08:00")).toMatchObject({
+        fecha: "2026-11-05", hora: "08:00", estado: "reservado_temporal", appointmentId,
+      });
+    });
+
+    it("un servicio de 60 min aparta 2 franjas y las libera al cancelar", async () => {
+      const { appointmentId } = await como("ana", {
+        ...solicitud, serviceId: "s60", slotId: "2026-11-05_08:30",
+      }) as { appointmentId: string };
+      expect((await leer(`appointments/${appointmentId}`))!.slotIds)
+        .toEqual(["2026-11-05_08:30", "2026-11-05_09:00"]);
+      expect(await slotEstado("2026-11-05_08:30")).toBe("reservado_temporal");
+      expect(await slotEstado("2026-11-05_09:00")).toBe("reservado_temporal");
+
+      // Ya no cabe un servicio de 30 min a las 9:00.
+      const e = await error(como("beto", { ...solicitud, petId: "p2", slotId: "2026-11-05_09:00" }));
+      expect(e.message).toBe(MENSAJE_HORARIO_OCUPADO);
+
+      await como("vet", { accion: "responder", appointmentId, aprobar: true });
+      expect(await slotEstado("2026-11-05_09:00")).toBe("ocupado");
+
+      await como("ana", { accion: "cancelar", appointmentId });
+      expect(await slotEstado("2026-11-05_08:30")).toBe("disponible");
+      expect((await leer("clinics/c1/slots/2026-11-05_09:00"))!.appointmentId).toBeUndefined();
+      // Y se puede volver a reservar.
+      await como("beto", { ...solicitud, petId: "p2", slotId: "2026-11-05_09:00" });
+    });
+
+    it("carrera entre servicios que se solapan (60 min a las 8:30 y 30 min a las 9:00): solo uno gana", async () => {
+      const resultados = await Promise.allSettled([
+        como("ana", { ...solicitud, serviceId: "s60", slotId: "2026-11-05_08:30" }),
+        como("beto", { ...solicitud, petId: "p2", slotId: "2026-11-05_09:00" }),
+      ]);
+      expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      const [perdida] = resultados.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+      expect(perdida.reason.message).toBe(MENSAJE_HORARIO_OCUPADO);
+      expect(await db.consultar({ coleccion: "appointments", filtros: [] })).toHaveLength(1);
+    });
+
+    it("un servicio de 60 min no cruza el descanso", async () => {
+      const e = await error(como("ana", { ...solicitud, serviceId: "s60", slotId: "2026-11-05_09:30" }));
+      expect(e.codigo).toBe("aborted");
+    });
+
+    it("respeta los bloqueos de la clínica", async () => {
+      await poner("clinics/c1/excepciones/x1", {
+        tipo: "bloqueo", fechaInicio: "2026-11-05", fechaFin: "2026-11-06", motivo: "Festivo",
+      });
+      expect((await error(como("ana", solicitud))).codigo).toBe("aborted");
+      // Una apertura extra el domingo sí se puede reservar.
+      await poner("clinics/c1/excepciones/x2", {
+        tipo: "apertura", fechaInicio: "2026-11-08", fechaFin: "2026-11-08", desde: "09:00", hasta: "10:00",
+      });
+      await como("ana", { ...solicitud, slotId: "2026-11-08_09:00" });
+    });
+
+    it("anticipación mínima y máxima", async () => {
+      ahora = new Date("2026-11-05T13:00:00Z"); // 8:00 a. m.; la cita es a las 9:30
+      expect((await error(como("ana", solicitud))).message)
+        .toBe("Debes reservar con al menos 2 horas de anticipación.");
+      ahora = AHORA;
+      expect((await error(como("ana", { ...solicitud, slotId: "2026-12-05_09:30" }))).message)
+        .toBe("Solo puedes reservar con hasta 30 días de anticipación.");
+    });
+
+    it("una clínica sin migrar (solo horarioBase) sigue recibiendo citas", async () => {
+      await poner("clinics/c1", {
+        ownerUid: "vet", nombre: "Vet Norte", estado: "activo",
+        horarioBase: { apertura: "08:00", cierre: "18:00", duracionSlotMin: 30 },
+      });
+      await como("ana", { ...solicitud, slotId: "2026-11-08_15:00" }); // domingo: todos los días abiertos
+      await poner("clinics/c2/services/s1", { nombre: "Consulta", precio: 1, activo: true });
+      expect((await error(como("ana", { ...solicitud, clinicId: "c2" }))).message)
+        .toBe("Esta clínica aún no tiene horario de atención.");
     });
   });
 

@@ -306,74 +306,100 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
     });
   });
 
-  describe("slots (RF-06)", () => {
+  describe("slots, horario y excepciones (Cambio 2)", () => {
     const franja = {
-      fecha: "2026-10-15",
-      hora: "09:30",
-      inicio: new Date("2026-10-15T09:30:00-05:00"),
-      serviceId: "s1",
-      precio: 45000,
-      estado: "disponible",
+      fecha: "2026-10-15", hora: "09:30", inicio: new Date("2026-10-15T09:30:00-05:00"),
+      estado: "reservado_temporal", appointmentId: "a1",
     };
     const id = "clinics/c1/slots/2026-10-15_09:30";
+    const dia = { abierto: true, apertura: "08:00", cierre: "18:00", descansoInicio: "12:00", descansoFin: "14:00" };
+    const semana = { lun: dia, mar: dia, mie: dia, jue: dia, vie: dia, sab: dia, dom: { abierto: false } };
+    const reservas = { duracionSlotMin: 30, anticipacionMaxDias: 30, anticipacionMinMin: 120 };
 
-    async function sembrar(estado: string) {
+    it("las franjas las escribe solo el servidor; cualquiera con sesión las lee", async () => {
       await env.withSecurityRulesDisabled(async (ctx) => {
-        await setDoc(doc(ctx.firestore(), id), { ...franja, estado });
+        await setDoc(doc(ctx.firestore(), id), franja);
       });
-    }
-
-    it("la clínica dueña publica franjas disponibles y bloquea horarios", async () => {
       const vet = env.authenticatedContext("vet").firestore();
-      await assertSucceeds(setDoc(doc(vet, id), franja));
-      await assertSucceeds(setDoc(doc(vet, "clinics/c1/slots/2026-10-15_12:00"), {
-        fecha: "2026-10-15",
-        hora: "12:00",
-        inicio: new Date("2026-10-15T12:00:00-05:00"),
-        estado: "no_disponible",
-      }));
-    });
-
-    it("rechaza franjas inválidas", async () => {
-      const slot = doc(env.authenticatedContext("vet").firestore(), id);
-      for (const malo of [
-        { estado: "libre" },
-        { estado: "ocupado" }, // lo pone el agendamiento, no la clínica
-        { estado: "reservado_temporal" },
-        { serviceId: null }, // 'disponible' exige servicio
-        { hora: "9:30" },
-        { fecha: "15/10/2026" },
-        { hora: "10:00" }, // el id debe ser {fecha}_{hora}
-        { precio: 0 },
-        { inicio: "2026-10-15" },
-        { extra: 1 },
-      ]) {
-        await assertFails(setDoc(slot, { ...franja, ...malo }));
-      }
-    });
-
-    it("no se modifica ni borra una franja ocupada o reservada (flujo alterno)", async () => {
-      const slot = doc(env.authenticatedContext("vet").firestore(), id);
-      for (const estado of ["ocupado", "reservado_temporal"]) {
-        await sembrar(estado);
-        await assertFails(updateDoc(slot, { estado: "no_disponible", serviceId: null }));
-        await assertFails(deleteDoc(slot));
-      }
-      await sembrar("disponible");
-      await assertSucceeds(updateDoc(slot, { estado: "no_disponible", serviceId: null }));
-      await assertSucceeds(deleteDoc(slot));
-    });
-
-    it("solo la dueña escribe; cualquier usuario con sesión lee", async () => {
-      await sembrar("disponible");
       const ana = env.authenticatedContext("ana").firestore();
-      const vet2 = env.authenticatedContext("vet2").firestore();
-      await assertFails(setDoc(doc(ana, id), franja));
-      await assertFails(setDoc(doc(vet2, id), franja));
+      await assertFails(setDoc(doc(vet, "clinics/c1/slots/2026-10-15_10:00"), { ...franja, hora: "10:00" }));
+      await assertFails(updateDoc(doc(vet, id), { estado: "disponible" }));
+      await assertFails(deleteDoc(doc(vet, id)));
+      await assertFails(setDoc(doc(ana, "clinics/c1/slots/2026-10-15_10:00"), { ...franja, hora: "10:00" }));
       await assertSucceeds(getDoc(doc(ana, id)));
-      await assertSucceeds(getDocs(query(collection(ana, "clinics/c1/slots"),
-        where("fecha", "==", "2026-10-15"), where("estado", "==", "disponible"))));
+      await assertSucceeds(getDocs(query(collection(ana, "clinics/c1/slots"), where("fecha", "==", "2026-10-15"))));
       await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), id)));
+    });
+
+    it("la clínica guarda su horario semanal y sus reglas de reserva válidos", async () => {
+      const vet = env.authenticatedContext("vet").firestore();
+      await assertSucceeds(updateDoc(doc(vet, "clinics/c1"), { horarioSemanal: semana, reservas }));
+      // Un día cerrado puede conservar sus horas.
+      await assertSucceeds(updateDoc(doc(vet, "clinics/c1"), {
+        horarioSemanal: { ...semana, dom: { abierto: false, apertura: "08:00", cierre: "18:00" } },
+      }));
+      // Las reglas validan la estructura; las horas las validan la app y la
+      // Edge Function (comparar 28 horas supera el límite de las reglas).
+      for (const malo of [
+        { ...semana, dom: undefined }, // faltan días
+        { ...semana, lun: "abierto" },
+        { ...semana, lun: { ...dia, abierto: "si" } },
+        { ...semana, lun: { ...dia, extra: 1 } },
+        { ...semana, feriado: dia },
+      ]) {
+        const limpio = JSON.parse(JSON.stringify(malo));
+        await assertFails(updateDoc(doc(vet, "clinics/c1"), { horarioSemanal: limpio }));
+      }
+      for (const malo of [
+        { ...reservas, duracionSlotMin: 20 }, { ...reservas, anticipacionMaxDias: 0 },
+        { ...reservas, anticipacionMaxDias: 400 }, { ...reservas, anticipacionMinMin: -1 },
+        { ...reservas, anticipacionMinMin: 20000 }, { duracionSlotMin: 30 },
+      ]) {
+        await assertFails(updateDoc(doc(vet, "clinics/c1"), { reservas: malo }));
+      }
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      await assertFails(updateDoc(doc(vet2, "clinics/c1"), { horarioSemanal: semana }));
+    });
+
+    it("la clínica dueña crea y borra excepciones válidas; todos con sesión las leen", async () => {
+      const vet = env.authenticatedContext("vet").firestore();
+      const ex = (id: string) => doc(vet, `clinics/c1/excepciones/${id}`);
+      await assertSucceeds(setDoc(ex("x1"), {
+        tipo: "bloqueo", fechaInicio: "2026-12-24", fechaFin: "2026-12-26", motivo: "Vacaciones",
+        createdAt: serverTimestamp(),
+      }));
+      await assertSucceeds(setDoc(ex("x2"), {
+        tipo: "bloqueo", fechaInicio: "2026-12-01", fechaFin: "2026-12-01", desde: "12:00", hasta: "13:00",
+        createdAt: serverTimestamp(),
+      }));
+      await assertSucceeds(setDoc(ex("x3"), {
+        tipo: "apertura", fechaInicio: "2026-12-06", fechaFin: "2026-12-06", desde: "09:00", hasta: "12:00",
+        createdAt: serverTimestamp(),
+      }));
+      const base = { tipo: "bloqueo", fechaInicio: "2026-12-01", fechaFin: "2026-12-01", createdAt: serverTimestamp() };
+      for (const malo of [
+        { ...base, tipo: "cerrado" },
+        { ...base, fechaFin: "2026-11-30" }, // fin antes del inicio
+        { ...base, fechaInicio: "1/12/2026" },
+        { ...base, tipo: "apertura" }, // una apertura necesita horas
+        { ...base, desde: "13:00", hasta: "12:00" },
+        { ...base, desde: "12:00" },
+        { ...base, motivo: "x".repeat(121) },
+        { ...base, createdAt: new Date(0) },
+        { ...base, extra: 1 },
+      ]) {
+        await assertFails(setDoc(ex("malo"), malo));
+      }
+      await assertFails(updateDoc(ex("x1"), { motivo: "Otro" }));
+
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertSucceeds(getDocs(query(collection(ana, "clinics/c1/excepciones"),
+        where("fechaFin", ">=", "2026-12-01"))));
+      await assertFails(setDoc(doc(ana, "clinics/c1/excepciones/y"), base));
+      await assertFails(deleteDoc(doc(ana, "clinics/c1/excepciones/x1")));
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      await assertFails(setDoc(doc(vet2, "clinics/c1/excepciones/y"), base));
+      await assertSucceeds(deleteDoc(ex("x1")));
     });
   });
 

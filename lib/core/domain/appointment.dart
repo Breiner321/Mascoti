@@ -118,6 +118,7 @@ class Appointment {
     this.clinicOwnerUid = '',
     this.ownerNombre = '',
     this.duracionMin,
+    this.slotIds = const [],
     this.comentario = '',
     this.motivoRechazo,
     this.motivoCancelacion,
@@ -140,6 +141,9 @@ class Appointment {
         precioAcordado: (map['precioAcordado'] as num?)?.toDouble() ?? 0,
         duracionMin: (map['duracionMin'] as num?)?.toInt(),
         slotId: map['slotId'] as String? ?? '',
+        slotIds: map['slotIds'] is List
+            ? [for (final v in map['slotIds'] as List) if (v is String) v]
+            : const [],
         fecha: map['fecha'] as String? ?? '',
         hora: map['hora'] as String? ?? '',
         inicio: (map['inicio'] as Timestamp?)?.toDate().toUtc() ??
@@ -173,8 +177,16 @@ class Appointment {
   final double precioAcordado;
   final int? duracionMin;
 
-  /// `{fecha}_{hora}` de `clinics/{clinicId}/slots`.
+  /// `{fecha}_{hora}` de `clinics/{clinicId}/slots`: la primera franja.
   final String slotId;
+
+  /// Todas las franjas que aparta la cita (Cambio 2: un servicio de 60 min
+  /// con franjas de 30 aparta 2). Vacío en citas anteriores al cambio; usa
+  /// [allSlotIds].
+  final List<String> slotIds;
+
+  /// Franjas de la cita, también para las anteriores al Cambio 2.
+  List<String> get allSlotIds => slotIds.isNotEmpty ? slotIds : [if (slotId.isNotEmpty) slotId];
 
   /// 'YYYY-MM-DD' y 'HH:mm' (24 h) en hora de Bogotá.
   final String fecha;
@@ -218,6 +230,7 @@ class Appointment {
         'precioAcordado': precioAcordado,
         'duracionMin': duracionMin,
         'slotId': slotId,
+        if (slotIds.isNotEmpty) 'slotIds': slotIds,
         'fecha': fecha,
         'hora': hora,
         'inicio': Timestamp.fromDate(inicio),
@@ -250,6 +263,7 @@ class Appointment {
         precioAcordado: precioAcordado,
         duracionMin: duracionMin,
         slotId: slotId,
+        slotIds: slotIds,
         fecha: fecha,
         hora: hora,
         inicio: inicio,
@@ -278,6 +292,7 @@ class Appointment {
       other.precioAcordado == precioAcordado &&
       other.duracionMin == duracionMin &&
       other.slotId == slotId &&
+      listEquals(other.slotIds, slotIds) &&
       other.fecha == fecha &&
       other.hora == hora &&
       other.inicio == inicio &&
@@ -292,7 +307,8 @@ class Appointment {
   @override
   int get hashCode => Object.hashAll([
         id, clinicId, clinicNombre, clinicOwnerUid, ownerUid, ownerNombre, petId, petNombre,
-        serviceId, serviceNombre, precioAcordado, duracionMin, slotId, fecha, hora, inicio,
+        serviceId, serviceNombre, precioAcordado, duracionMin, slotId, Object.hashAll(slotIds),
+        fecha, hora, inicio,
         comentario, estado, motivoRechazo, motivoCancelacion, canceladoPor, createdAt, updatedAt,
       ]);
 }

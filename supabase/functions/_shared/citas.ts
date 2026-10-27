@@ -2,7 +2,14 @@ import type { BaseDatos, DocumentoLeido, Escritura } from "./cliente_firestore.t
 import { ErrorFuncion } from "./errores.ts";
 import { type EstadoCita, puedeTransicionar } from "./estados_cita.ts";
 import { actualizarCampos, agregarAArreglo, crearDocumento, HORA_SERVIDOR } from "./firestore.ts";
-import { inicioEnBogota } from "./hora_bogota.ts";
+import {
+  type Excepcion,
+  franjasDe,
+  horarioDeClinica,
+  horasDisponibles,
+  reservasDeClinica,
+} from "./disponibilidad.ts";
+import { inicioEnBogota, sumarDias } from "./hora_bogota.ts";
 import { nombreVisible } from "./nombres.ts";
 import type { UsuarioFirebase } from "./registro.ts";
 
@@ -154,21 +161,50 @@ async function avisar(deps: DependenciasCambio, cambio: CambioCita): Promise<voi
   }
 }
 
-function rutaSlot(cita: Record<string, unknown>): string {
-  return `clinics/${texto(cita.clinicId)}/slots/${texto(cita.slotId)}`;
+/** Franjas de la cita (Cambio 2: `slotIds`; antes, solo `slotId`). */
+function franjasDeCita(cita: Record<string, unknown>): string[] {
+  const ids = Array.isArray(cita.slotIds)
+    ? cita.slotIds.filter((v): v is string => typeof v === "string")
+    : [];
+  return ids.length > 0 ? ids : [texto(cita.slotId)].filter((v) => v.length > 0);
 }
 
-/** Cambia el estado de la franja de la cita, si todavía existe. */
+/**
+ * Cambia el estado de las franjas de la cita que todavía existan. Al
+ * liberarlas ('disponible') se quita también `appointmentId`.
+ */
 async function escrituraSlot(
   deps: DependenciasCambio,
   cita: Record<string, unknown>,
   estado: "disponible" | "ocupado",
 ): Promise<Escritura[]> {
-  const slot = await deps.db.leer(rutaSlot(cita));
-  if (!slot) return [];
-  return [
-    actualizarCampos(deps.db.proyecto, slot.ruta, { estado }, { updateTime: slot.updateTime }),
-  ];
+  const escrituras: Escritura[] = [];
+  for (const slotId of franjasDeCita(cita)) {
+    const slot = await deps.db.leer(`clinics/${texto(cita.clinicId)}/slots/${slotId}`);
+    if (!slot) continue;
+    const campos = estado === "disponible" ? { estado, appointmentId: undefined } : { estado };
+    escrituras.push(
+      actualizarCampos(deps.db.proyecto, slot.ruta, campos, { updateTime: slot.updateTime }),
+    );
+  }
+  return escrituras;
+}
+
+/** 'YYYY-MM-DD' + 'HH:mm' del cuerpo, o de `slotId` ('2026-11-05_09:30'). */
+function fechaHora(cuerpo: Cuerpo): { fecha: string; hora: string } {
+  if (typeof cuerpo.fecha === "string" && typeof cuerpo.hora === "string") {
+    return { fecha: cuerpo.fecha, hora: cuerpo.hora };
+  }
+  const [fecha, hora] = id(cuerpo, "slotId").split("_");
+  return { fecha: fecha ?? "", hora: hora ?? "" };
+}
+
+function duracionLegible(minutos: number): string {
+  if (minutos % 60 === 0) {
+    const horas = minutos / 60;
+    return `${horas} ${horas === 1 ? "hora" : "horas"}`;
+  }
+  return `${minutos} minutos`;
 }
 
 /** Clínica del usuario, o error si no es una clínica. */
@@ -265,7 +301,7 @@ export async function solicitarCita(
   const clinicId = id(cuerpo, "clinicId");
   const serviceId = id(cuerpo, "serviceId");
   const petId = id(cuerpo, "petId");
-  const slotId = id(cuerpo, "slotId");
+  const { fecha, hora } = fechaHora(cuerpo);
   const comentario = typeof cuerpo.comentario === "string" ? cuerpo.comentario.trim() : "";
   if (comentario.length > MAX_COMENTARIO) {
     throw new ErrorFuncion(
@@ -293,25 +329,60 @@ export async function solicitarCita(
     throw new ErrorFuncion("failed-precondition", "Este servicio ya no está disponible.");
   }
   const precio = typeof servicio.datos.precio === "number" ? servicio.datos.precio : 0;
-  const duracion = typeof servicio.datos.duracionMin === "number" ? servicio.datos.duracionMin : null;
 
+  // Cambio 2: la disponibilidad sale del horario semanal y las excepciones;
+  // las franjas solo existen como candado de las reservas.
+  const horario = horarioDeClinica(clinica.datos);
+  if (!horario) {
+    throw new ErrorFuncion("failed-precondition", "Esta clínica aún no tiene horario de atención.");
+  }
+  const reservas = reservasDeClinica(clinica.datos);
+  const duracion = typeof servicio.datos.duracionMin === "number" && servicio.datos.duracionMin > 0
+    ? servicio.datos.duracionMin
+    : reservas.duracionSlotMin;
+
+  // El inicio se calcula en hora de Bogotá.
+  const inicio = inicioEnBogota(fecha, hora);
+  if (!inicio) throw new ErrorFuncion("invalid-argument", "Este horario no es válido.");
+  const ahora = deps.ahora();
+  if (inicio.getTime() <= ahora.getTime()) {
+    throw new ErrorFuncion("failed-precondition", "Este horario ya pasó, por favor selecciona otro.");
+  }
+  if (inicio.getTime() < ahora.getTime() + reservas.anticipacionMinMin * 60_000) {
+    throw new ErrorFuncion(
+      "failed-precondition",
+      `Debes reservar con al menos ${duracionLegible(reservas.anticipacionMinMin)} de anticipación.`,
+    );
+  }
+  if (fecha > sumarDias(ahora, reservas.anticipacionMaxDias)) {
+    throw new ErrorFuncion(
+      "failed-precondition",
+      `Solo puedes reservar con hasta ${reservas.anticipacionMaxDias} días de anticipación.`,
+    );
+  }
+
+  const excepciones = (await deps.db.consultar({
+    padre: `clinics/${clinicId}`,
+    coleccion: "excepciones",
+    filtros: [{ campo: "fechaFin", op: "GREATER_THAN_OR_EQUAL", valor: fecha }],
+  })).map((e) => e.datos as unknown as Excepcion);
+  const celdas = franjasDe(hora, duracion, reservas.duracionSlotMin);
+  const slotIds = celdas.map((c) => `${fecha}_${c}`);
   const appointmentId = deps.nuevoId();
 
   return await conReintentos(async () => {
-    const slot = await deps.db.leer(`clinics/${clinicId}/slots/${slotId}`);
-    if (!slot || slot.datos.estado !== "disponible") {
-      throw new ErrorFuncion("aborted", MENSAJE_HORARIO_OCUPADO);
-    }
-    if (typeof slot.datos.serviceId === "string" && slot.datos.serviceId !== serviceId) {
-      throw new ErrorFuncion("invalid-argument", "Este horario no es para el servicio seleccionado.");
-    }
-    // El inicio se calcula en hora de Bogotá; no se usa el `inicio` que
-    // guardó el teléfono de la clínica.
-    const inicio = inicioEnBogota(slot.datos.fecha, slot.datos.hora);
-    if (!inicio) throw new ErrorFuncion("failed-precondition", "Este horario no es válido.");
-    if (inicio.getTime() <= deps.ahora().getTime()) {
-      throw new ErrorFuncion("failed-precondition", "Este horario ya pasó, por favor selecciona otro.");
-    }
+    const slots = await Promise.all(
+      slotIds.map((s) => deps.db.leer(`clinics/${clinicId}/slots/${s}`)),
+    );
+    const franjas: Record<string, string> = {};
+    slots.forEach((slot, i) => {
+      if (slot) franjas[celdas[i]] = texto(slot.datos.estado);
+    });
+    const libres = horasDisponibles({
+      fecha, duracionMin: duracion, horario, reservas, ahora, excepciones, franjas,
+    });
+    // Ocupada por otra cita, bloqueada o fuera del horario: la app refresca.
+    if (!libres.includes(hora)) throw new ErrorFuncion("aborted", MENSAJE_HORARIO_OCUPADO);
 
     const cita = {
       clinicId,
@@ -325,9 +396,10 @@ export async function solicitarCita(
       serviceNombre: texto(servicio.datos.nombre),
       precioAcordado: precio,
       duracionMin: duracion,
-      slotId,
-      fecha: texto(slot.datos.fecha),
-      hora: texto(slot.datos.hora),
+      slotId: slotIds[0],
+      slotIds,
+      fecha,
+      hora,
       inicio,
       comentario,
       estado: "pendiente",
@@ -339,11 +411,24 @@ export async function solicitarCita(
         createdAt: HORA_SERVIDOR,
         updatedAt: HORA_SERVIDOR,
       }),
-      actualizarCampos(
-        deps.db.proyecto,
-        slot.ruta,
-        { estado: "reservado_temporal" },
-        { updateTime: slot.updateTime },
+      // Una franja con documento (liberada antes) se actualiza si no cambió;
+      // una sin documento se crea. Si otra reserva tocó alguna, el commit
+      // falla y se vuelve a calcular.
+      ...slots.map((slot, i) =>
+        slot
+          ? actualizarCampos(
+            deps.db.proyecto,
+            slot.ruta,
+            { estado: "reservado_temporal", appointmentId },
+            { updateTime: slot.updateTime },
+          )
+          : crearDocumento(deps.db.proyecto, `clinics/${clinicId}/slots/${slotIds[i]}`, {
+            fecha,
+            hora: celdas[i],
+            inicio: inicioEnBogota(fecha, celdas[i])!,
+            estado: "reservado_temporal",
+            appointmentId,
+          })
       ),
       agregarAArreglo(deps.db.proyecto, `pets/${petId}`, "clinicasAutorizadas", [clinicId]),
     ]);
