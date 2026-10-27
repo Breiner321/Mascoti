@@ -100,8 +100,12 @@ describe.skipIf(!host)("Edge Function citas (emulador)", () => {
       },
     };
 
-    await poner("users/ana", { role: "dueno", estado: "activo", displayName: "Ana Pérez" });
-    await poner("users/beto", { role: "dueno", estado: "activo", displayName: "Beto" });
+    // Cambio 1: la cita copia `nombre`, no el nombre de Google ni el correo.
+    await poner("users/ana", {
+      role: "dueno", estado: "activo", nombre: "Ana Pérez", displayName: "ana.p", email: "ana@gmail.com",
+    });
+    // Registrado antes del Cambio 1 (sin nombre): se usa el de Google.
+    await poner("users/beto", { role: "dueno", estado: "activo", displayName: "Beto", email: "beto@gmail.com" });
     await poner("users/susp", { role: "dueno", estado: "suspendido" });
     await poner("users/vet", { role: "clinica", estado: "activo", clinicId: "c1" });
     await poner("users/vet2", { role: "clinica", estado: "activo", clinicId: "c2" });
@@ -176,6 +180,11 @@ describe.skipIf(!host)("Edge Function citas (emulador)", () => {
         ...((await leer("pets/p2"))!.clinicasAutorizadas as string[]),
       ];
       expect(autorizadas).toEqual(["c1"]);
+    });
+
+    it("Cambio 1: sin nombre propio usa el de Google, nunca el correo", async () => {
+      const { appointmentId } = await como("beto", { ...solicitud, petId: "p2" }) as { appointmentId: string };
+      expect((await leer(`appointments/${appointmentId}`))!.ownerNombre).toBe("Beto");
     });
 
     it("horario ya apartado → mensaje del RF", async () => {

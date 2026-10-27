@@ -75,3 +75,23 @@ final currentUserProvider = Provider<AppUser?>((ref) {
   final session = ref.watch(sessionProvider);
   return session is SignedIn ? session.user : null;
 });
+
+/// Nombre comercial de la clínica [clinicId], en tiempo real.
+final clinicNameProvider = StreamProvider.autoDispose.family<String?, String>(
+  (ref, clinicId) => ref.watch(authRepositoryProvider).watchClinicName(clinicId),
+  retry: _noRetry,
+);
+
+/// Nombre visible del usuario con sesión (Cambio 1), la única fuente para
+/// mostrar a la persona en la app:
+/// - dueño: [AppUser.nombreVisible] (su nombre → nombre de Google → "Usuario");
+/// - clínica: el nombre comercial de `clinics/{clinicId}`, nunca el de Google.
+final displayNameProvider = Provider<String>((ref) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return '';
+  if (user.role != UserRole.clinica) return user.nombreVisible;
+  final clinicId = user.clinicId;
+  final name = clinicId == null ? null : ref.watch(clinicNameProvider(clinicId)).value;
+  final trimmed = name?.trim() ?? '';
+  return trimmed.isEmpty ? 'Clínica' : trimmed;
+});

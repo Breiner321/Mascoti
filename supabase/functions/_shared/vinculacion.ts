@@ -1,4 +1,5 @@
 import { ErrorFuncion } from "./errores.ts";
+import { nombreVisible } from "./nombres.ts";
 import type { UsuarioFirebase } from "./registro.ts";
 
 /** Igual que PatientCode en lib/core/domain/patient_code.dart. */
@@ -128,7 +129,7 @@ export async function vincularMascota(
     nombre: texto(mascota.nombre),
     especie: texto(mascota.especie),
     fotoPath: typeof mascota.fotoPath === "string" ? mascota.fotoPath : null,
-    duenoNombre: texto(dueno?.displayName),
+    duenoNombre: nombreVisible(dueno),
     nueva: !yaAutorizada,
   };
 }

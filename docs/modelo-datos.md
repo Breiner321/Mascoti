@@ -15,11 +15,13 @@ Convenciones: nombres de campos en español como en los RF; fechas como `Timesta
 | Campo | Tipo | Notas |
 |---|---|---|
 | uid | string | = id de Firebase Auth |
-| email, displayName, photoURL | string | de Google |
+| email, displayName, photoURL | string | de Google. **No se muestran como nombre de la persona**: usa `AppUser.nombreVisible` (Cambio 1) |
+| nombre | string? | nombre completo del **dueño** (Cambio 1): obligatorio al registrarse, 3–60 caracteres sin espacios en los extremos. Lo valida `completar-registro` y las reglas; el dueño lo edita en Perfil. Falta en dueños registrados antes del cambio (la app los lleva a "Completa tu perfil"). La clínica no lo usa: su nombre visible es `clinics.nombre` |
 | role | `'dueno' \| 'clinica'` | inmutable (las reglas lo leen con `hasRole()`) |
 | estado | `'activo' \| 'suspendido'` | solo lo cambia un administrador (Admin SDK). Se cambia con el script `npm run suspender -- <uid> [--reactivar]` (`functions/admin/`), que además deshabilita la cuenta en Firebase Auth y revoca sus sesiones (o la habilita al reactivar). Una cuenta suspendida solo puede leer su propio perfil |
 | clinicId | string? | solo si role = clinica |
-| telefono, ciudad, direccion | string? | perfil del dueño (RF-10, RF-12) |
+| telefono | string? | 10 dígitos. Obligatorio para el dueño desde el Cambio 1 (registro y "Completa tu perfil") |
+| ciudad, direccion | string? | perfil del dueño (RF-10, RF-12) |
 | onboardingVisto | bool | RF-01 paso 14. `false` al registrarse; el dueño lo pone en `true` al terminar o saltar el onboarding (las reglas solo aceptan un `bool`). Si falta, la app lo trata como `false` |
 | createdAt, lastLoginAt | Timestamp | |
 | estadoActualizadoEn | Timestamp? | lo pone el script de suspensión |
@@ -84,6 +86,8 @@ Tabla `public.intentos_vinculacion (clinic_id, intentado_en)` y función `regist
 ## `appointments/{appointmentId}` — RF-14 · *solo la escribe el servidor*
 
 Modelo `Appointment` (`lib/core/domain`), repositorio `AppointmentsRepository` (`lib/core/data`). La crea y la cambia **solo** la Edge Function `citas` (y la tarea programada); las reglas niegan toda escritura desde la app. La leen el dueño de la cita y la clínica (activos).
+
+`ownerNombre` = `nombreVisible` del dueño al solicitar (Cambio 1; copia histórica, no cambia si el dueño edita su nombre).
 
 `{clinicId, clinicNombre, clinicOwnerUid, ownerUid, ownerNombre, petId, petNombre, serviceId, serviceNombre, precioAcordado, duracionMin?, slotId, fecha, hora, inicio:Timestamp, comentario, estado, motivoRechazo?, motivoCancelacion?, canceladoPor?, createdAt, updatedAt}`
 

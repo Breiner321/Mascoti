@@ -78,3 +78,14 @@ Cada persona trabaja con **su propia sesión de Claude Code en su propia rama**.
 | Registros médicos (soporte) | 🟨 | pestaña "Pacientes" de la clínica (`/clinica/pacientes`): lista en tiempo real con buscador y estado vacío; "Vincular paciente" con el código MSC-XXXX (`vincular-mascota`, mensajes de código inexistente y límite de intentos) y nombre del dueño en `clinics/{id}/pacientes`; perfil del paciente de solo lectura con alergias y condiciones en rojo e historial; formulario de consulta (fecha, diagnóstico, tratamiento, vacunas con lote y próxima dosis, adjuntos JPG/PNG/PDF ≤ 10 MB con reintento) que se corrige 24 h y luego es de solo lectura; pruebas. Falta: desplegar las reglas, vista de PDF en la app y prueba de punta a punta con Supabase |
 
 Leyenda: ⬜ pendiente · 🟨 en curso · 🟩 integrado en `main`
+
+## Cambios de alcance (después de las pruebas del equipo)
+
+Detalle en [cambios-alcance.md](cambios-alcance.md).
+
+| # | Cambio | Estado | Notas |
+|---|---|---|---|
+| 1 | Nombre del dueño | ✅ | `users.nombre` y `telefono` en el registro, `nombreVisible` como única fuente, "Completa tu perfil", "Editar perfil"; citas, vinculación y notificaciones con el nombre real |
+| 2 | Disponibilidad automática según el horario | ⬜ | |
+| 3 | Accesibilidad | ⬜ | |
+| 4 | Mapa con todas las veterinarias | ⬜ | |

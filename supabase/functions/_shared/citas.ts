@@ -3,6 +3,7 @@ import { ErrorFuncion } from "./errores.ts";
 import { type EstadoCita, puedeTransicionar } from "./estados_cita.ts";
 import { actualizarCampos, agregarAArreglo, crearDocumento, HORA_SERVIDOR } from "./firestore.ts";
 import { inicioEnBogota } from "./hora_bogota.ts";
+import { nombreVisible } from "./nombres.ts";
 import type { UsuarioFirebase } from "./registro.ts";
 
 /**
@@ -317,7 +318,7 @@ export async function solicitarCita(
       clinicNombre: texto(clinica.datos.nombre),
       clinicOwnerUid: texto(clinica.datos.ownerUid),
       ownerUid: uid,
-      ownerNombre: texto(perfil.displayName),
+      ownerNombre: nombreVisible(perfil),
       petId,
       petNombre: texto(mascota.datos.nombre),
       serviceId,

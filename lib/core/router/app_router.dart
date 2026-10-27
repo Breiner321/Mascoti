@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_providers.dart';
 import '../auth/domain/session_state.dart';
+import '../auth/presentation/complete_profile_page.dart';
+import '../auth/presentation/edit_profile_page.dart';
 import '../auth/presentation/profile_page.dart';
 import '../auth/presentation/registration_page.dart';
 import '../auth/presentation/splash_page.dart';
@@ -66,6 +68,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: CoreRoutes.suspended,
         builder: (context, state) => const SuspendedPage(),
       ),
+      GoRoute(
+        path: CoreRoutes.completeProfile,
+        builder: (context, state) => const CompleteProfilePage(),
+      ),
       ...pluginRoutes.where(isFullScreen),
       ShellRoute(
         builder: (context, state, child) =>
@@ -81,6 +87,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: CoreRoutes.profile,
             builder: (context, state) => const ProfilePage(),
+          ),
+          GoRoute(
+            path: CoreRoutes.editProfile,
+            builder: (context, state) => const EditProfilePage(),
           ),
           GoRoute(
             path: CoreRoutes.notifications,

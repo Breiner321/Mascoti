@@ -58,8 +58,25 @@ service cloud.firestore {
       // (estado lo cambia solo un administrador con el Admin SDK).
       allow update: if isSelf(uid)
         && resource.data.estado == 'activo'
-        && onlyChanges(['lastLoginAt', 'displayName', 'photoURL', 'telefono', 'ciudad', 'direccion', 'onboardingVisto'])
-        && request.resource.data.get('onboardingVisto', false) is bool;
+        && onlyChanges(['lastLoginAt', 'displayName', 'photoURL', 'nombre', 'telefono', 'ciudad', 'direccion', 'onboardingVisto'])
+        && request.resource.data.get('onboardingVisto', false) is bool
+        && ownerNameValid(request.resource.data)
+        && phoneValid(request.resource.data);
+
+      // Cambio 1: nombre completo del dueño (3-60, sin espacios en los
+      // extremos). Si cambia, debe quedar válido: no se puede borrar.
+      function ownerNameValid(data) {
+        return !('nombre' in changedKeys())
+          || (data.get('nombre', null) is string
+              && data.nombre.size() >= 3
+              && data.nombre.size() <= 60
+              && data.nombre == data.nombre.trim());
+      }
+
+      function phoneValid(data) {
+        return !('telefono' in changedKeys())
+          || (data.get('telefono', null) is string && data.telefono.matches('^[0-9]{10}$'));
+      }
 
       // Tokens FCM (RF-13). Borrar el propio token se permite siempre (logout).
       // La app siempre lo guarda como válido; solo el servidor lo marca

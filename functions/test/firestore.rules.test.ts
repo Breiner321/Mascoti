@@ -16,6 +16,7 @@ import {
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -128,6 +129,21 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
     await assertSucceeds(updateDoc(doc(vet, "clinics/c1"), { estado: "activo", tiposAnimales: ["perros"] }));
     await assertFails(updateDoc(doc(vet, "clinics/c1"), { estado: "verificada" }));
     await assertFails(updateDoc(doc(vet, "clinics/c1"), { createdAt: new Date() }));
+  });
+
+  it("Cambio 1: el dueño edita su nombre y teléfono solo con valores válidos", async () => {
+    const ana = env.authenticatedContext("ana").firestore();
+    await assertSucceeds(updateDoc(doc(ana, "users/ana"), { nombre: "Ana Pérez", telefono: "3001234567" }));
+    await assertSucceeds(updateDoc(doc(ana, "users/ana"), { nombre: "x".repeat(60) }));
+    for (const malo of [
+      { nombre: "Al" }, { nombre: "x".repeat(61) }, { nombre: " Ana Pérez" }, { nombre: 7 },
+      { nombre: deleteField() }, { telefono: "300123" }, { telefono: "30012345ab" }, { telefono: 3001234567 },
+    ]) {
+      await assertFails(updateDoc(doc(ana, "users/ana"), malo));
+    }
+    // Nadie edita el perfil de otra persona.
+    const vet = env.authenticatedContext("vet").firestore();
+    await assertFails(updateDoc(doc(vet, "users/ana"), { nombre: "Otro Nombre" }));
   });
 
   it("el dueño marca el onboarding como visto (RF-01 paso 14)", async () => {

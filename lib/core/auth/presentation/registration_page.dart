@@ -11,8 +11,9 @@ import '../domain/registration_failure.dart';
 import '../domain/session_state.dart';
 import 'widgets/role_card.dart';
 
-/// RF-01: selección de rol (parte inferior del mockup LOGIN) y, si es Clínica,
-/// datos del negocio con dirección de OpenStreetMap.
+/// RF-01: selección de rol (parte inferior del mockup LOGIN). Si es Dueño,
+/// nombre completo y teléfono (Cambio 1); si es Clínica, datos del negocio con
+/// dirección de OpenStreetMap.
 ///
 /// Al terminar, el router lleva al dueño a su home (con onboarding) y a la
 /// clínica a /clinica/perfil-atencion (paso obligatorio del plugin clinica).
@@ -27,31 +28,45 @@ class _RegistrationPageState extends ConsumerState<RegistrationPage> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _phone = TextEditingController();
+  final _ownerName = TextEditingController();
+  final _ownerPhone = TextEditingController();
 
   UserRole? _role;
   PlaceAddress? _address;
   bool _submitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Prellenado con el nombre de Google; el dueño puede corregirlo.
+    final session = ref.read(sessionProvider);
+    if (session is NeedsRegistration) {
+      _ownerName.text = RegistrationValidators.normalizeName(session.displayName ?? '');
+    }
+  }
+
+  @override
   void dispose() {
     _name.dispose();
     _phone.dispose();
+    _ownerName.dispose();
+    _ownerPhone.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     final role = _role;
     if (role == null) return;
-    if (role == UserRole.clinica && !(_formKey.currentState?.validate() ?? false)) {
-      return;
-    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final address = _address;
     // El validador del campo ya lo impide; se repite por seguridad.
     if (role == UserRole.clinica && address == null) return;
 
     final request = address == null || role == UserRole.dueno
-        ? const RegistrationRequest.owner()
+        ? RegistrationRequest.owner(
+            OwnerRegistration(nombre: _ownerName.text, telefono: _ownerPhone.text),
+          )
         : RegistrationRequest.clinic(
             ClinicRegistration(
               nombre: _name.text,
@@ -152,6 +167,37 @@ class _RegistrationPageState extends ConsumerState<RegistrationPage> {
                       selected: _role == UserRole.clinica,
                       onTap: _submitting ? null : () => _selectRole(UserRole.clinica),
                     ),
+                    if (_role == UserRole.dueno) ...[
+                      const SizedBox(height: 24),
+                      Text(
+                        'TUS DATOS',
+                        style: textTheme.labelMedium?.copyWith(
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _ownerName,
+                        enabled: !_submitting,
+                        decoration: const InputDecoration(labelText: 'Nombre completo'),
+                        textCapitalization: TextCapitalization.words,
+                        maxLength: RegistrationValidators.maxOwnerName,
+                        validator: RegistrationValidators.ownerName,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                      ),
+                      const SizedBox(height: 4),
+                      TextFormField(
+                        controller: _ownerPhone,
+                        enabled: !_submitting,
+                        decoration: const InputDecoration(labelText: 'Teléfono (10 dígitos)'),
+                        keyboardType: TextInputType.phone,
+                        maxLength: 10,
+                        validator: RegistrationValidators.phone,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                      ),
+                    ],
                     if (_role == UserRole.clinica) ...[
                       const SizedBox(height: 24),
                       Text(

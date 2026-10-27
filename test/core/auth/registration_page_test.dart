@@ -18,14 +18,14 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 void main() {
   late _MockAuthRepository repository;
 
-  setUpAll(() => registerFallbackValue(const RegistrationRequest.owner()));
+  setUpAll(() => registerFallbackValue(const RegistrationRequest.owner(OwnerRegistration(nombre: 'Ana Pérez', telefono: '3001234567'))));
 
   setUp(() {
     repository = _MockAuthRepository();
     when(() => repository.completeRegistration(any())).thenAnswer((_) async {});
   });
 
-  Future<void> pumpPage(WidgetTester tester) async {
+  Future<void> pumpPage(WidgetTester tester, {String? displayName}) async {
     tester.view.physicalSize = const Size(1080, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -34,7 +34,7 @@ void main() {
       ProviderScope(
         overrides: [
           sessionProvider.overrideWithValue(
-            const NeedsRegistration(uid: 'u1', email: 'vet@correo.co'),
+            NeedsRegistration(uid: 'u1', email: 'vet@correo.co', displayName: displayName),
           ),
           authRepositoryProvider.overrideWithValue(repository),
           addressSearchServiceProvider.overrideWithValue(FakeAddressSearch()),
@@ -59,6 +59,11 @@ void main() {
 
   Future<void> fillClinic(WidgetTester tester) async {
     await tester.enterText(nameField, 'Vet Norte');
+    await tester.enterText(phoneField, '3001234567');
+  }
+
+  Future<void> fillOwner(WidgetTester tester) async {
+    await tester.enterText(find.widgetWithText(TextFormField, 'Nombre completo'), 'Ana Pérez');
     await tester.enterText(phoneField, '3001234567');
   }
 
@@ -91,15 +96,44 @@ void main() {
     expect(isEnabled(tester), isTrue);
   });
 
-  testWidgets('el dueño se registra sin formulario adicional', (tester) async {
-    await pumpPage(tester);
+  testWidgets('Cambio 1: el dueño escribe su nombre (prellenado con Google) y teléfono',
+      (tester) async {
+    await pumpPage(tester, displayName: 'ana.p  gmail');
     await chooseRole(tester, 'Dueño de Mascota');
     expect(nameField, findsNothing);
+    final ownerName = find.widgetWithText(TextFormField, 'Nombre completo');
+    expect(find.text('ana.p gmail'), findsOneWidget);
 
+    // Sin teléfono no se envía.
+    await tester.tap(submit);
+    await tester.pump();
+    expect(find.text('El teléfono es obligatorio'), findsOneWidget);
+    verifyNever(() => repository.completeRegistration(any()));
+
+    await tester.enterText(ownerName, ' Ana   Pérez ');
+    await tester.enterText(phoneField, '3001234567');
     await tester.tap(submit);
     await tester.pump();
 
-    expect((await sentRequest()).toMap(), {'role': 'dueno'});
+    expect((await sentRequest()).toMap(), {
+      'role': 'dueno',
+      'dueno': {'nombre': 'Ana Pérez', 'telefono': '3001234567'},
+    });
+  });
+
+  testWidgets('Cambio 1: nombre del dueño obligatorio y de 3 a 60 caracteres', (tester) async {
+    await pumpPage(tester);
+    await chooseRole(tester, 'Dueño de Mascota');
+    await tester.enterText(phoneField, '3001234567');
+
+    await tester.tap(submit);
+    await tester.pump();
+    expect(find.text('El nombre completo es obligatorio'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextFormField, 'Nombre completo'), 'Al');
+    await tester.pump();
+    expect(find.text('Mínimo 3 caracteres'), findsOneWidget);
+    verifyNever(() => repository.completeRegistration(any()));
   });
 
   testWidgets('la clínica ve los errores de validación y no se envía',
@@ -161,6 +195,7 @@ void main() {
     );
     await pumpPage(tester);
     await chooseRole(tester, 'Dueño de Mascota');
+    await fillOwner(tester);
     await tester.tap(submit);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -182,6 +217,7 @@ void main() {
     );
     await pumpPage(tester);
     await chooseRole(tester, 'Dueño de Mascota');
+    await fillOwner(tester);
     await tester.tap(submit);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));

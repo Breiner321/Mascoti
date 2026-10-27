@@ -19,6 +19,8 @@ void main() {
     email: 'a@b.co',
     displayName: 'Ana',
     role: UserRole.dueno,
+    nombre: 'Ana Pérez',
+    telefono: '3001234567',
   );
 
   String? go(SessionState s, String location) =>
@@ -95,6 +97,39 @@ void main() {
       expect(goStep(setup, const AsyncData(null)), isNull);
       expect(goStep(CoreRoutes.splash, const AsyncData(null)), '/clinica');
       expect(goStep('/mascotas', const AsyncData(null)), '/clinica');
+    });
+  });
+
+  group('Cambio 1: "Completa tu perfil"', () {
+    const legacy = AppUser(uid: 'u2', email: 'b@b.co', displayName: 'Beto G', role: UserRole.dueno);
+    const clinic = AppUser(
+      uid: 'v1', email: 'v@b.co', displayName: 'Vet', role: UserRole.clinica, clinicId: 'c1');
+
+    test('un dueño sin nombre va a completar su perfil desde cualquier pantalla', () {
+      for (final location in ['/mascotas', CoreRoutes.profile, CoreRoutes.welcome, '/clinica']) {
+        expect(go(const SignedIn(legacy), location), CoreRoutes.completeProfile, reason: location);
+      }
+      expect(go(const SignedIn(legacy), CoreRoutes.completeProfile), isNull);
+      // Antes que cualquier paso obligatorio de un plugin (p. ej. onboarding).
+      expect(
+        resolveRedirect(
+          session: const SignedIn(legacy),
+          location: '/mascotas',
+          registry: registry,
+          pendingStep: const AsyncData('/mascotas/bienvenida'),
+        ),
+        CoreRoutes.completeProfile,
+      );
+    });
+
+    test('con nombre sale de la pantalla y la clínica nunca la ve', () {
+      expect(go(const SignedIn(owner), CoreRoutes.completeProfile), '/mascotas');
+      expect(go(const SignedIn(clinic), '/clinica'), isNull);
+      expect(go(const SignedIn(clinic), CoreRoutes.completeProfile), '/clinica');
+    });
+
+    test('editar perfil es una ruta del core dentro de la app', () {
+      expect(go(const SignedIn(owner), CoreRoutes.editProfile), isNull);
     });
   });
 }
