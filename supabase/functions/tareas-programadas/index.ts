@@ -14,7 +14,13 @@ import type { BaseDatos } from "../_shared/cliente_firestore.ts";
 import { leerCuentaServicio } from "../_shared/cuenta_servicio.ts";
 import { clienteFirestore, dependenciasNotificaciones } from "../_shared/google.ts";
 import { enviarRecordatoriosDiarios, notificarCambioCita } from "../_shared/notificaciones.ts";
-import { consultarOverpass, cuadrosPorRenovar, guardarCache, leerCache } from "../_shared/overpass.ts";
+import {
+  consultarOverpass,
+  consultarPhoton,
+  cuadrosPorRenovar,
+  guardarCache,
+  leerCache,
+} from "../_shared/overpass.ts";
 import {
   precargarVeterinarias,
   type ResumenPrecarga,
@@ -42,6 +48,7 @@ function precargar(db: BaseDatos): Promise<ResumenPrecarga> {
     leerCache,
     guardarCache,
     consultarOverpass: (consulta) => consultarOverpass(consulta, (SEGUNDOS_OVERPASS_PRECARGA + 5) * 1000),
+    consultarPhoton,
     ahora: () => new Date(),
     log: console.warn,
   }, LIMITE_PRECARGA_MS);

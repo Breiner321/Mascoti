@@ -12,6 +12,11 @@ import type { ResultadoIntento } from "./vinculacion.ts";
  *   en Postgres. Al abrir el mapa se sirve lo que haya en caché (aunque sea
  *   viejo) y solo se consulta Overpass por los cuadros que faltan: los
  *   servidores públicos de Overpass a veces tardan más de 40 s.
+ * - Respaldo: si Overpass falla, Photon (el buscador de direcciones, mismos
+ *   datos de OSM) por texto con el filtro amenity=veterinary. Trae menos
+ *   (solo nombres con "veterinaria", "pet"…, ~10 por búsqueda y sin teléfono
+ *   ni horario), así que se guarda como vencido: la precarga lo reemplaza
+ *   con Overpass cuando vuelva.
  * - Precarga ([precargarVeterinarias], tarea programada cada 2 h): renueva
  *   los cuadros de más de [HORAS_CACHE] h, los pendientes (Overpass falló
  *   al abrir el mapa) y los alrededores de las clínicas y las ciudades
@@ -35,7 +40,7 @@ export const MENSAJE_NO_DISPONIBLE = "No se pudieron cargar otras veterinarias."
 
 /** Segundos que Overpass puede tardar al abrir el mapa y en la precarga. */
 export const SEGUNDOS_OVERPASS_MAPA = 45;
-export const SEGUNDOS_OVERPASS_PRECARGA = 90;
+export const SEGUNDOS_OVERPASS_PRECARGA = 60;
 
 export interface Area {
   sur: number;
@@ -68,11 +73,14 @@ export interface DependenciasOsm {
   /** Cuenta una consulta del usuario (atómico, en Postgres). */
   registrarConsulta(uid: string): Promise<ResultadoIntento>;
   leerCache(cuadros: string[]): Promise<Map<string, EntradaCache>>;
-  guardarCache(entradas: Map<string, VeterinariaOsm[]>): Promise<void>;
+  /** [actualizado] por defecto: ahora. */
+  guardarCache(entradas: Map<string, VeterinariaOsm[]>, actualizado?: Date): Promise<void>;
   /** Marca cuadros sin datos para que la precarga los llene. */
   marcarPendientes(cuadros: string[]): Promise<void>;
   /** Ejecuta una consulta Overpass QL y devuelve el JSON. */
   consultarOverpass(consulta: string): Promise<unknown>;
+  /** Búsqueda de Photon por [texto] en [area] (respaldo); devuelve el JSON. */
+  consultarPhoton(texto: string, area: Area): Promise<unknown>;
   ahora(): Date;
   log?(mensaje: string): void;
 }
@@ -147,6 +155,66 @@ function redondear(v: number): string {
 export function consultaOverpass(area: Area, segundos = SEGUNDOS_OVERPASS_MAPA): string {
   const bbox = [area.sur, area.oeste, area.norte, area.este].map(redondear).join(",");
   return `[out:json][timeout:${segundos}];nwr["amenity"="veterinary"](${bbox});out center tags;`;
+}
+
+// ---------------------------------------------------------------------------
+// Respaldo: Photon
+// ---------------------------------------------------------------------------
+
+/** Palabras con las que se busca en Photon (cubren la mayoría de nombres). */
+export const PALABRAS_PHOTON = ["veterinaria", "veterinario", "vet", "pet", "mascotas"];
+
+interface ElementoPhoton {
+  geometry?: { coordinates?: [number, number] };
+  properties?: Record<string, unknown>;
+}
+
+const TIPO_OSM: Record<string, string> = { N: "node", W: "way", R: "relation" };
+
+function texto(v: unknown): string | undefined {
+  return typeof v === "string" ? limpio(v) : undefined;
+}
+
+/** JSON de Photon → veterinarias (solo `amenity=veterinary`). */
+export function leerPhoton(json: unknown): VeterinariaOsm[] {
+  const elementos = (json as { features?: ElementoPhoton[] })?.features ?? [];
+  const vistas = new Map<string, VeterinariaOsm>();
+  for (const e of elementos) {
+    const p = e.properties ?? {};
+    const [lng, lat] = e.geometry?.coordinates ?? [];
+    const tipo = TIPO_OSM[String(p.osm_type)];
+    if (typeof lat !== "number" || typeof lng !== "number" || !tipo || p.osm_id === undefined) continue;
+    if (p.osm_key !== "amenity" || p.osm_value !== "veterinary") continue;
+    const vet: VeterinariaOsm = { osmId: `${tipo}/${p.osm_id}`, nombre: texto(p.name) ?? "Veterinaria", lat, lng };
+    const calle = texto(p.street);
+    const numero = texto(p.housenumber);
+    const linea = calle ? (numero ? `${calle} # ${numero}` : calle) : undefined;
+    const direccion = [linea, texto(p.city)].filter((x): x is string => Boolean(x)).join(", ");
+    if (direccion) vet.direccion = direccion;
+    vistas.set(vet.osmId, vet);
+  }
+  return [...vistas.values()];
+}
+
+/**
+ * Busca en Photon con todas las [PALABRAS_PHOTON] a la vez. Falla solo si
+ * fallan todas las búsquedas.
+ */
+export async function buscarConPhoton(
+  deps: Pick<DependenciasOsm, "consultarPhoton">,
+  area: Area,
+): Promise<VeterinariaOsm[]> {
+  const respuestas = await Promise.allSettled(PALABRAS_PHOTON.map((p) => deps.consultarPhoton(p, area)));
+  const exitos = respuestas.filter((r): r is PromiseFulfilledResult<unknown> => r.status === "fulfilled");
+  if (exitos.length === 0) throw (respuestas[0] as PromiseRejectedResult).reason;
+  const vistas = new Map<string, VeterinariaOsm>();
+  for (const r of exitos) for (const v of leerPhoton(r.value)) vistas.set(v.osmId, v);
+  return [...vistas.values()].filter((v) => dentro(v, area));
+}
+
+/** Lo que trae Photon se guarda como vencido: la precarga lo renueva con Overpass. */
+function fechaRespaldo(ahora: Date): Date {
+  return new Date(ahora.getTime() - (HORAS_RENOVAR + 1) * 60 * 60 * 1000);
 }
 
 /** Reparte las veterinarias de Overpass en sus cuadros (todos los pedidos, también vacíos). */
@@ -280,25 +348,34 @@ export async function veterinariasEnArea(
       );
     }
     let nuevas: VeterinariaOsm[];
+    let actualizado: Date | undefined;
     try {
       nuevas = leerOverpass(await deps.consultarOverpass(consultaOverpass(unionDe(faltan))));
     } catch (e) {
-      deps.log?.(`Overpass no respondió (${faltan.length} cuadros pendientes): ${e}`);
+      deps.log?.(`Overpass no respondió (${faltan.length} cuadros): ${e}`);
       try {
-        await deps.marcarPendientes(faltan);
+        nuevas = await buscarConPhoton(deps, unionDe(faltan));
+        actualizado = fechaRespaldo(deps.ahora());
       } catch (e2) {
-        deps.log?.(`No se pudieron marcar los cuadros pendientes: ${e2}`);
+        deps.log?.(`Photon tampoco respondió: ${e2}`);
+        try {
+          await deps.marcarPendientes(faltan);
+        } catch (e3) {
+          deps.log?.(`No se pudieron marcar los cuadros pendientes: ${e3}`);
+        }
+        if (faltan.length === cuadros.length) throw new ErrorFuncion("internal", MENSAJE_NO_DISPONIBLE);
+        return { veterinarias: respuesta(), incompleto: true };
       }
-      if (faltan.length === cuadros.length) throw new ErrorFuncion("internal", MENSAJE_NO_DISPONIBLE);
-      return { veterinarias: respuesta(), incompleto: true };
     }
     const porCuadro = repartir(faltan, nuevas);
     for (const lista of porCuadro.values()) for (const v of lista) resultado.set(v.osmId, v);
     try {
-      await deps.guardarCache(porCuadro);
+      await deps.guardarCache(porCuadro, actualizado);
     } catch (e) {
       deps.log?.(`No se pudo guardar la caché de OSM: ${e}`);
     }
+    // Con Photon pueden faltar veterinarias (nombres sin "veterinaria"…).
+    if (actualizado) return { veterinarias: respuesta(), incompleto: true };
   }
 
   return { veterinarias: respuesta() };
@@ -349,8 +426,9 @@ export interface DependenciasPrecarga {
   /** Cuadros en caché vencidos (antes de [antesDe]) o pendientes. */
   cuadrosPorRenovar(antesDe: Date): Promise<string[]>;
   leerCache(cuadros: string[]): Promise<Map<string, EntradaCache>>;
-  guardarCache(entradas: Map<string, VeterinariaOsm[]>): Promise<void>;
+  guardarCache(entradas: Map<string, VeterinariaOsm[]>, actualizado?: Date): Promise<void>;
   consultarOverpass(consulta: string): Promise<unknown>;
+  consultarPhoton(texto: string, area: Area): Promise<unknown>;
   ahora(): Date;
   log?(mensaje: string): void;
 }
@@ -359,6 +437,8 @@ export interface ResumenPrecarga {
   porRenovar: number;
   consultas: number;
   actualizados: number;
+  /** Cuadros llenados con Photon (respaldo) porque Overpass falló. */
+  conPhoton: number;
   errores: number;
   /** Cuadros que quedan para la próxima vuelta (se acabó el tiempo). */
   quedan: number;
@@ -382,9 +462,13 @@ function bloqueDe(cuadro: string): string {
 /**
  * Llena y renueva la caché en segundo plano. Prioridad: pendientes, los que
  * no están y los más viejos. Agrupa los cuadros en bloques de
- * [LADO_BLOQUE]² (una consulta por bloque) y para al llegar a [limiteMs]:
- * lo que falte queda para la próxima vuelta. Tras 3 fallos seguidos
- * (Overpass caído) también para.
+ * [LADO_BLOQUE]² (una consulta a Overpass por bloque) y para al llegar a
+ * [limiteMs]: lo que falte queda para la próxima vuelta.
+ *
+ * Si Overpass falla en un bloque, los cuadros sin datos (pendientes o que no
+ * están) se llenan con Photon, uno por uno; los que ya tienen datos viejos se
+ * dejan como están. Tras 3 fallos seguidos de Overpass ya no se le pregunta
+ * en esta vuelta (está caído) y se sigue solo con Photon.
  */
 export async function precargarVeterinarias(
   deps: DependenciasPrecarga,
@@ -423,24 +507,45 @@ export async function precargarVeterinarias(
     bloques.set(b, [...(bloques.get(b) ?? []), c]);
   }
 
-  const resumen: ResumenPrecarga = { porRenovar: porRenovar.length, consultas: 0, actualizados: 0, errores: 0, quedan: 0 };
+  const resumen: ResumenPrecarga = {
+    porRenovar: porRenovar.length, consultas: 0, actualizados: 0, conPhoton: 0, errores: 0, quedan: 0,
+  };
+  const sinTiempo = () => deps.ahora().getTime() - inicio >= limiteMs;
   let fallosSeguidos = 0;
   for (const cuadros of bloques.values()) {
-    if (deps.ahora().getTime() - inicio >= limiteMs || fallosSeguidos >= 3) {
+    if (sinTiempo()) {
       resumen.quedan += cuadros.length;
       continue;
     }
-    resumen.consultas++;
-    try {
-      const json = await deps.consultarOverpass(consultaOverpass(unionDe(cuadros), SEGUNDOS_OVERPASS_PRECARGA));
-      await deps.guardarCache(repartir(cuadros, leerOverpass(json)));
-      resumen.actualizados += cuadros.length;
-      fallosSeguidos = 0;
-    } catch (e) {
-      resumen.errores++;
-      resumen.quedan += cuadros.length;
-      fallosSeguidos++;
-      deps.log?.(`Precarga OSM: falló un bloque de ${cuadros.length} cuadros: ${e}`);
+    if (fallosSeguidos < 3) {
+      resumen.consultas++;
+      try {
+        const json = await deps.consultarOverpass(consultaOverpass(unionDe(cuadros), SEGUNDOS_OVERPASS_PRECARGA));
+        await deps.guardarCache(repartir(cuadros, leerOverpass(json)));
+        resumen.actualizados += cuadros.length;
+        fallosSeguidos = 0;
+        continue;
+      } catch (e) {
+        resumen.errores++;
+        fallosSeguidos++;
+        deps.log?.(`Precarga OSM: Overpass falló en un bloque de ${cuadros.length} cuadros: ${e}`);
+      }
+    }
+    // Respaldo: Photon, solo para los cuadros que no tienen datos.
+    for (const c of cuadros) {
+      const e = cache.get(c);
+      if ((e && !e.pendiente) || sinTiempo()) {
+        resumen.quedan++;
+        continue;
+      }
+      try {
+        const vets = await buscarConPhoton(deps, areaDeCuadro(c));
+        await deps.guardarCache(new Map([[c, vets]]), fechaRespaldo(deps.ahora()));
+        resumen.conPhoton++;
+      } catch (e2) {
+        resumen.quedan++;
+        deps.log?.(`Precarga OSM: Photon falló en el cuadro ${c}: ${e2}`);
+      }
     }
   }
   return resumen;

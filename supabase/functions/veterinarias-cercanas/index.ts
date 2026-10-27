@@ -4,7 +4,13 @@
 // ../_shared/veterinarias_osm.ts (con pruebas en functions/test/).
 import { ErrorFuncion } from "../_shared/errores.ts";
 import { verificarTokenFirebase } from "../_shared/google.ts";
-import { consultarOverpass, guardarCache, leerCache, marcarPendientes } from "../_shared/overpass.ts";
+import {
+  consultarOverpass,
+  consultarPhoton,
+  guardarCache,
+  leerCache,
+  marcarPendientes,
+} from "../_shared/overpass.ts";
 import { rpc } from "../_shared/supabase_rest.ts";
 import {
   MAX_CONSULTAS,
@@ -17,7 +23,8 @@ import {
 const PROYECTO_FIREBASE = Deno.env.get("FIREBASE_PROJECT_ID") ?? "mascoti-b27cf";
 
 /** Lo que puede esperar a Overpass (la app espera 65 s en total). */
-const PLAZO_OVERPASS_MS = (SEGUNDOS_OVERPASS_MAPA + 5) * 1000;
+// Deja ~10 s para el respaldo con Photon si Overpass falla.
+const PLAZO_OVERPASS_MS = (SEGUNDOS_OVERPASS_MAPA - 5) * 1000;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -54,6 +61,7 @@ Deno.serve(async (req) => {
         guardarCache,
         marcarPendientes,
         consultarOverpass: (consulta) => consultarOverpass(consulta, PLAZO_OVERPASS_MS),
+        consultarPhoton,
         ahora: () => new Date(),
         log: console.warn,
       },

@@ -1,13 +1,14 @@
 // Solo para Deno (Edge Functions). Cliente de Overpass (OpenStreetMap) y
 // acceso a la caché de veterinarias en Postgres (Cambio 4), compartidos por
 // veterinarias-cercanas y la precarga de tareas-programadas.
-import type { EntradaCache, VeterinariaOsm } from "./veterinarias_osm.ts";
+import type { Area, EntradaCache, VeterinariaOsm } from "./veterinarias_osm.ts";
 import { filas, guardar, seleccionar } from "./supabase_rest.ts";
 
 /** Servidores públicos de Overpass, en orden: si uno falla, el siguiente. */
+// Sin overpass.kumi.systems: cuando falla se queda sin responder y se come
+// el plazo; estos contestan el error en segundos (y queda el respaldo Photon).
 const SERVIDORES = [
   "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
@@ -42,6 +43,25 @@ export async function consultarOverpass(consulta: string, plazoMs: number): Prom
   throw ultimo;
 }
 
+/** Búsqueda de Photon (respaldo de Overpass), solo `amenity=veterinary`. */
+export async function consultarPhoton(texto: string, area: Area): Promise<unknown> {
+  const parametros = new URLSearchParams({
+    q: texto,
+    osm_tag: "amenity:veterinary",
+    bbox: [area.oeste, area.sur, area.este, area.norte].join(","),
+    limit: "50",
+  });
+  const respuesta = await fetch(`https://photon.komoot.io/api/?${parametros}`, {
+    headers: { "User-Agent": USER_AGENT },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!respuesta.ok) {
+    await respuesta.body?.cancel();
+    throw new Error(`Photon ${respuesta.status}`);
+  }
+  return await respuesta.json();
+}
+
 const TABLA = "cache_veterinarias_osm";
 
 interface FilaCache {
@@ -62,8 +82,8 @@ export async function leerCache(cuadros: string[]): Promise<Map<string, EntradaC
   return mapa;
 }
 
-export function guardarCache(entradas: Map<string, VeterinariaOsm[]>): Promise<void> {
-  const actualizado = new Date().toISOString();
+export function guardarCache(entradas: Map<string, VeterinariaOsm[]>, fecha = new Date()): Promise<void> {
+  const actualizado = fecha.toISOString();
   return guardar(
     TABLA,
     [...entradas].map(([cuadro, datos]) => ({ cuadro, datos, actualizado, pendiente: false })),

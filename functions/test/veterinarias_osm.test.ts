@@ -11,6 +11,7 @@ import {
   type DependenciasPrecarga,
   type EntradaCache,
   leerOverpass,
+  leerPhoton,
   MENSAJE_ACERCA,
   MENSAJE_NO_DISPONIBLE,
   normalizarTelefono,
@@ -40,6 +41,33 @@ const RESPUESTA = {
     { type: "relation", id: 4, tags: { name: "Sin coordenadas" } },
   ],
 };
+
+/** Respuesta de Photon: una veterinaria, una tienda (se descarta) y una sin coordenadas. */
+const PHOTON = {
+  features: [
+    {
+      geometry: { coordinates: [-74.0605, 4.6515] },
+      properties: {
+        osm_type: "N", osm_id: 7, osm_key: "amenity", osm_value: "veterinary",
+        name: "Vet Photon", street: "Carrera 7", housenumber: "45", city: "Bogotá",
+      },
+    },
+    {
+      geometry: { coordinates: [-74.06, 4.65] },
+      properties: { osm_type: "N", osm_id: 8, osm_key: "shop", osm_value: "pet", name: "Tienda" },
+    },
+    { properties: { osm_type: "W", osm_id: 9, osm_key: "amenity", osm_value: "veterinary" } },
+  ],
+};
+
+describe("lectura de Photon (respaldo)", () => {
+  it("solo amenity=veterinary, con el mismo osmId que Overpass", () => {
+    expect(leerPhoton(PHOTON)).toEqual([{
+      osmId: "node/7", nombre: "Vet Photon", lat: 4.6515, lng: -74.0605, direccion: "Carrera 7 # 45, Bogotá",
+    }]);
+    expect(leerPhoton({})).toEqual([]);
+  });
+});
 
 describe("lectura de Overpass", () => {
   it("nodos y edificios, dirección, teléfono, horario y sin repetir", () => {
@@ -108,7 +136,9 @@ describe("veterinariasEnArea (Edge Function)", () => {
   let intentos: string[];
   let permitido: boolean;
   let guardado: Map<string, VeterinariaOsm[]> | null;
+  let guardadoEn: Date | undefined;
   let pendientes: string[];
+  let photon: string[];
   let deps: DependenciasOsm;
 
   beforeEach(() => {
@@ -117,7 +147,9 @@ describe("veterinariasEnArea (Edge Function)", () => {
     intentos = [];
     permitido = true;
     guardado = null;
+    guardadoEn = undefined;
     pendientes = [];
+    photon = [];
     deps = {
       verificarToken: async (t) => {
         if (t !== "ok") throw new Error("token");
@@ -128,8 +160,9 @@ describe("veterinariasEnArea (Edge Function)", () => {
         return { permitido, reintentarEnSegundos: permitido ? 0 : 90 };
       },
       leerCache: async (cuadros) => new Map([...cache].filter(([c]) => cuadros.includes(c))),
-      guardarCache: async (e) => {
+      guardarCache: async (e, fecha) => {
         guardado = e;
+        guardadoEn = fecha;
       },
       marcarPendientes: async (c) => {
         pendientes.push(...c);
@@ -137,6 +170,10 @@ describe("veterinariasEnArea (Edge Function)", () => {
       consultarOverpass: async (q) => {
         consultas.push(q);
         return RESPUESTA;
+      },
+      consultarPhoton: async (texto) => {
+        photon.push(texto);
+        return PHOTON;
       },
       ahora: () => AHORA,
     };
@@ -182,8 +219,37 @@ describe("veterinariasEnArea (Edge Function)", () => {
     expect(r.veterinarias).toHaveLength(3);
   });
 
-  it("si Overpass falla sin caché: marca pendientes y responde el error", async () => {
+  it("si Overpass falla, responde con Photon y lo guarda como vencido", async () => {
     deps.consultarOverpass = async () => {
+      throw new Error("502");
+    };
+    const r = await veterinariasEnArea(deps, "Bearer ok", area);
+    expect(photon.sort()).toEqual(["mascotas", "pet", "vet", "veterinaria", "veterinario"]);
+    expect(r.veterinarias.map((v) => v.nombre)).toEqual(["Vet Photon"]);
+    expect(r.incompleto).toBe(true);
+    expect([...guardado!.keys()].sort()).toEqual(cuadrosDe(area).sort());
+    // Vencido: la precarga lo reemplaza con Overpass cuando vuelva.
+    expect(guardadoEn!.getTime()).toBeLessThan(AHORA.getTime() - 20 * 60 * 60 * 1000);
+    expect(pendientes).toEqual([]);
+  });
+
+  it("Photon sirve aunque falle alguna de sus búsquedas", async () => {
+    deps.consultarOverpass = async () => {
+      throw new Error("502");
+    };
+    deps.consultarPhoton = async (texto) => {
+      if (texto !== "vet") throw new Error("timeout");
+      return PHOTON;
+    };
+    const r = await veterinariasEnArea(deps, "Bearer ok", area);
+    expect(r.veterinarias).toHaveLength(1);
+  });
+
+  it("si Overpass y Photon fallan sin caché: marca pendientes y responde el error", async () => {
+    deps.consultarOverpass = async () => {
+      throw new Error("timeout");
+    };
+    deps.consultarPhoton = async () => {
       throw new Error("timeout");
     };
     const e = await veterinariasEnArea(deps, "Bearer ok", area).catch((x) => x);
@@ -193,13 +259,16 @@ describe("veterinariasEnArea (Edge Function)", () => {
     expect(pendientes.sort()).toEqual(cuadrosDe(area).sort());
   });
 
-  it("si Overpass falla con parte en caché: responde lo que hay, incompleto", async () => {
+  it("si ambos fallan con parte en caché: responde lo que hay, incompleto", async () => {
     const [primero, ...resto] = cuadrosDe(area);
     cache.set(primero, {
       datos: [{ osmId: "node/9", nombre: "En caché", lat: 4.65, lng: -74.06 }],
       actualizado: AHORA,
     });
     deps.consultarOverpass = async () => {
+      throw new Error("502");
+    };
+    deps.consultarPhoton = async () => {
       throw new Error("502");
     };
     const r = await veterinariasEnArea(deps, "Bearer ok", area);
@@ -237,6 +306,7 @@ describe("precarga (tarea programada)", () => {
   let cache: Map<string, EntradaCache>;
   let consultas: string[];
   let guardados: string[];
+  let conFecha: Map<string, Date | undefined>;
   let reloj: number;
   let deps: DependenciasPrecarga;
 
@@ -244,19 +314,22 @@ describe("precarga (tarea programada)", () => {
     cache = new Map();
     consultas = [];
     guardados = [];
+    conFecha = new Map();
     reloj = AHORA.getTime();
     deps = {
       clinicas: async () => [],
       cuadrosPorRenovar: async (antes) =>
         [...cache].filter(([, e]) => e.pendiente || e.actualizado < antes).map(([c]) => c),
       leerCache: async (cuadros) => new Map([...cache].filter(([c]) => cuadros.includes(c))),
-      guardarCache: async (e) => {
+      guardarCache: async (e, fecha) => {
         guardados.push(...e.keys());
+        for (const c of e.keys()) conFecha.set(c, fecha);
       },
       consultarOverpass: async (q) => {
         consultas.push(q);
         return RESPUESTA;
       },
+      consultarPhoton: async () => PHOTON,
       ahora: () => new Date(reloj),
     };
   });
@@ -276,7 +349,8 @@ describe("precarga (tarea programada)", () => {
     // Una consulta por bloque de 4×4 cuadros, no una por cuadro.
     expect(r.consultas).toBe(consultas.length);
     expect(consultas.length).toBeLessThan(esperados.size / 3);
-    expect(consultas[0]).toContain("[timeout:90]");
+    expect(consultas[0]).toContain("[timeout:60]");
+    expect(r.conPhoton).toBe(0);
     expect(r.quedan).toBe(0);
   });
 
@@ -305,9 +379,37 @@ describe("precarga (tarea programada)", () => {
     expect(r.quedan).toBeGreaterThan(0);
   });
 
-  it("si Overpass está caído, para tras 3 fallos seguidos", async () => {
+  it("con Overpass caído: tras 3 fallos sigue solo con Photon en los cuadros sin datos", async () => {
+    ciudadesAlDia();
+    const clinica = { lat: 2.5, lng: -76.6 };
+    deps.clinicas = async () => [clinica];
+    const alrededor = cuadrosAlrededor(clinica);
+    // Uno con datos viejos: se deja como está; los demás no existen.
+    cache.set(alrededor[0], { datos: [], actualizado: new Date(AHORA.getTime() - 30 * HORA) });
+    cache.set("1_1", { datos: [], actualizado: AHORA, pendiente: true });
     deps.consultarOverpass = async (q) => {
       consultas.push(q);
+      throw new Error("502");
+    };
+
+    const r = await precargarVeterinarias(deps);
+    expect(consultas).toHaveLength(3);
+    expect(r.errores).toBe(3);
+    expect(r.actualizados).toBe(0);
+    expect(r.conPhoton).toBe(alrededor.length); // 24 sin datos + el pendiente
+    expect(guardados).toContain("1_1");
+    expect(guardados).not.toContain(alrededor[0]);
+    expect(r.quedan).toBe(1);
+    // Lo de Photon queda vencido para que Overpass lo reemplace.
+    expect(conFecha.get("1_1")!.getTime()).toBeLessThan(AHORA.getTime() - 20 * HORA);
+  });
+
+  it("si Overpass y Photon fallan, todo queda para la próxima vuelta", async () => {
+    deps.consultarOverpass = async (q) => {
+      consultas.push(q);
+      throw new Error("502");
+    };
+    deps.consultarPhoton = async () => {
       throw new Error("502");
     };
     deps.clinicas = async () => {
@@ -315,8 +417,7 @@ describe("precarga (tarea programada)", () => {
     };
     const r = await precargarVeterinarias(deps);
     expect(consultas).toHaveLength(3);
-    expect(r.errores).toBe(3);
-    expect(r.actualizados).toBe(0);
+    expect(r.conPhoton).toBe(0);
     expect(r.quedan).toBe(r.porRenovar);
   });
 });
