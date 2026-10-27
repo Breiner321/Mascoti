@@ -77,7 +77,10 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 - **Sin duplicados:** una clínica aliada que también está en OSM aparece una sola vez, como aliada. Son la misma si la clínica tiene ese `osmId` (lo pone `npm run vincular-osm`) o, sin él, si están a menos de 50 m y el nombre se parece (≥ 0,5 de palabras en común, sin contar "clínica", "veterinaria", etc.). Dos veterinarias vecinas con nombres distintos no se unen.
 - "Abierto/Cerrado" del directorio usa ahora el horario semanal del Cambio 2 en hora de Colombia (antes, `horarioBase` en la hora del teléfono).
 
-**Cuidado del servicio gratuito.** La Edge Function guarda en Postgres de Supabase el resultado por cuadros de ~5 km durante 24 h (una consulta a Overpass por zona y día para todos los usuarios), permite 60 consultas por usuario por hora y rechaza áreas de más de 30 km de lado ("Acerca el mapa para ver otras veterinarias."). Usa `overpass-api.de` y, si falla, `overpass.kumi.systems`. Si Overpass no responde, los aliados se siguen viendo y aparece "Reintentar".
+**Cuidado del servicio gratuito.** Los resultados se guardan en Postgres de Supabase por cuadros de ~5 km. Los servidores públicos de Overpass a veces tardan más de 40 s (lo comprobamos al probar), así que:
+- **Precarga** (tarea `veterinarias-osm` de `tareas-programadas`, cada 2 h, en segundo plano): renueva los cuadros de más de 20 h, los "pendientes" y los alrededores (~10 km) de las clínicas activas y de las 15 ciudades principales, con una consulta por bloque de ~20 km y hasta 110 s por vuelta; lo que no alcanza sigue en la siguiente.
+- **Al abrir el mapa** se sirve la caché aunque esté vieja. Solo los cuadros que nunca se han cargado van a Overpass (hasta ~50 s; la app espera 65 s). Si Overpass falla, quedan "pendientes" para la precarga y se responde con lo que haya; si no hay nada, "No se pudieron cargar otras veterinarias." con "Reintentar".
+- Límite de 60 consultas a Overpass por usuario por hora y áreas de máximo 30 km de lado ("Acerca el mapa para ver otras veterinarias."). Servidores: `overpass-api.de`, `overpass.kumi.systems` y `maps.mail.ru`, en ese orden.
 
 **Por qué.** El dueño quiere ver todas las veterinarias de su zona, sobre todo en una urgencia, aunque no usen Mascoti; y la distinción "Aliado Mascoti" muestra a las clínicas el valor de registrarse.
 

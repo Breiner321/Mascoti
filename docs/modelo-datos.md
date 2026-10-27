@@ -86,7 +86,7 @@ Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**;
 ### Veterinarias de OpenStreetMap (Postgres de Supabase) — Cambio 4
 
 Las usa solo la Edge Function `veterinarias-cercanas` con la service_role key (RLS activado y sin políticas). Migración: `supabase/migrations/20261028000000_veterinarias_osm.sql`.
-- `public.cache_veterinarias_osm (cuadro, datos jsonb, actualizado)`: resultado de Overpass por cuadro de 0,05° (~5 km), válido 24 h. `datos` = lista de `{osmId, nombre, lat, lng, direccion?, telefono?, horario?, sitioWeb?}` (datos públicos de OSM, no de usuarios).
+- `public.cache_veterinarias_osm (cuadro, datos jsonb, actualizado, pendiente)`: resultado de Overpass por cuadro de 0,05° (~5 km). `datos` = lista de `{osmId, nombre, lat, lng, direccion?, telefono?, horario?, sitioWeb?}` (datos públicos de OSM, no de usuarios). El mapa la sirve aunque sea vieja; la precarga (cada 2 h) renueva lo de más de 20 h. `pendiente = true`: Overpass falló al pedirlo, no tiene datos y la precarga lo llena primero (migración `20261029000000_precarga_veterinarias_osm.sql`, que también programa la tarea en pg_cron).
 - `public.consultas_mapa (uid, consultado_en)` y función `registrar_consulta_mapa`: máximo **60 consultas por usuario por hora**.
 
 En Firestore no se guardan las veterinarias de OSM.

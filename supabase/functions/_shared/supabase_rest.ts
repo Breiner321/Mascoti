@@ -37,6 +37,14 @@ export async function seleccionar<T>(tabla: string, columna: string, valores: st
   return await respuesta.json() as T[];
 }
 
+/** Filas de [tabla] con una consulta de PostgREST ya armada (`select=…&…`). */
+export async function filas<T>(tabla: string, consulta: string): Promise<T[]> {
+  const { url, llave } = credenciales();
+  const respuesta = await fetch(`${url}/rest/v1/${tabla}?${consulta}`, { headers: encabezados(llave) });
+  if (!respuesta.ok) throw new Error(`${tabla} ${respuesta.status}: ${await respuesta.text()}`);
+  return await respuesta.json() as T[];
+}
+
 /** Inserta o reemplaza [filas] (por la clave primaria). */
 export async function guardar(tabla: string, filas: Record<string, unknown>[]): Promise<void> {
   if (filas.length === 0) return;

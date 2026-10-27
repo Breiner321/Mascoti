@@ -128,12 +128,16 @@ Se puede ejecutar varias veces. Sin migrar, la app y el servidor siguen leyendo 
 ## C3c. Otras veterinarias en el mapa (Cambio 4)
 
 Las veterinarias que aún no usan Mascoti salen de OpenStreetMap (API Overpass): gratis y **sin API key**; no hay que activar ninguna API de Google.
-1. Aplica la migración `supabase/migrations/20261028000000_veterinarias_osm.sql` (tablas de caché y límite). Si `supabase db push` no conecta, pega el archivo en Supabase → **SQL Editor** → Run. Se puede ejecutar varias veces.
+1. Aplica, en orden, `supabase/migrations/20261028000000_veterinarias_osm.sql` (tablas de caché y límite) y `20261029000000_precarga_veterinarias_osm.sql` (columna `pendiente` y la precarga cada 2 h en pg_cron; necesita la migración de tareas programadas). Si `supabase db push` no conecta, pega cada archivo en Supabase → **SQL Editor** → Run. Se pueden ejecutar varias veces.
 2. Despliega la función. No necesita secretos nuevos (`SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` los pone Supabase; el proyecto de Firebase es `mascoti-b27cf` salvo que definas `FIREBASE_PROJECT_ID`):
    ```powershell
    supabase functions deploy veterinarias-cercanas --project-ref tahnazumbqsupzpusrba --use-api
    ```
-   `verify_jwt = false` en `supabase/config.toml`: la función verifica el token de Firebase por su cuenta.
+   `verify_jwt = false` en `supabase/config.toml`: la función verifica el token de Firebase por su cuenta. Despliega también `tareas-programadas` (hace la precarga).
+   Para llenar la caché sin esperar al cron (tarda hasta ~2 min; repítelo hasta que `quedan` sea 0):
+   ```powershell
+   curl.exe -X POST https://tahnazumbqsupzpusrba.supabase.co/functions/v1/tareas-programadas -H "x-cron-secret: <CRON_SECRET>" -H "Content-Type: application/json" -d '{\"tarea\":\"veterinarias-osm\",\"esperar\":true}'
+   ```
 3. (Opcional) Vincula las clínicas aliadas con su lugar de OSM para que nunca salgan dos veces:
    ```powershell
    cd functions

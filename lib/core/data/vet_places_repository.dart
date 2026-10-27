@@ -37,7 +37,9 @@ class VetPlacesRepository {
   final FunctionsClient? _functions;
 
   static const functionName = 'veterinarias-cercanas';
-  static const _timeout = Duration(seconds: 35);
+  /// La Edge Function espera a Overpass hasta ~50 s si la zona no está en
+  /// caché (casi siempre lo está: la precarga corre cada 2 h).
+  static const _timeout = Duration(seconds: 65);
 
   /// Lanza [VetPlacesFailure].
   Future<List<VetPlace>> fetchIn(MapArea area) async {

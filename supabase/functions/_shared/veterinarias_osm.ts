@@ -8,10 +8,14 @@ import type { ResultadoIntento } from "./vinculacion.ts";
  * `veterinarias-cercanas`, sin dependencias (pruebas en functions/test/).
  *
  * - Fuente: Overpass API, `amenity=veterinary` (nodos y edificios).
- * - Caché: el área se divide en cuadros de [TAM_CUADRO]° (~5 km) que se
- *   guardan [HORAS_CACHE] h en Postgres: varias personas mirando la misma
- *   zona generan una sola consulta a Overpass (su política de uso pide no
- *   abusar de los servidores públicos).
+ * - Caché: el área se divide en cuadros de [TAM_CUADRO]° (~5 km) guardados
+ *   en Postgres. Al abrir el mapa se sirve lo que haya en caché (aunque sea
+ *   viejo) y solo se consulta Overpass por los cuadros que faltan: los
+ *   servidores públicos de Overpass a veces tardan más de 40 s.
+ * - Precarga ([precargarVeterinarias], tarea programada cada 2 h): renueva
+ *   los cuadros de más de [HORAS_CACHE] h, los pendientes (Overpass falló
+ *   al abrir el mapa) y los alrededores de las clínicas y las ciudades
+ *   principales, en segundo plano.
  * - Límite: [MAX_CONSULTAS] consultas por usuario por hora.
  * - Licencia ODbL: se muestra con la atribución "© colaboradores de
  *   OpenStreetMap"; la caché es interna y no se publica.
@@ -19,12 +23,19 @@ import type { ResultadoIntento } from "./vinculacion.ts";
 
 export const TAM_CUADRO = 0.05;
 export const HORAS_CACHE = 24;
+/** La precarga renueva un poco antes de las 24 h (corre cada 2 h). */
+export const HORAS_RENOVAR = 20;
 export const MAX_CONSULTAS = 60;
 export const VENTANA_MINUTOS = 60;
 /** Lado máximo del área visible que se consulta. */
 export const MAX_LADO_KM = 30;
 
 export const MENSAJE_ACERCA = "Acerca el mapa para ver otras veterinarias.";
+export const MENSAJE_NO_DISPONIBLE = "No se pudieron cargar otras veterinarias.";
+
+/** Segundos que Overpass puede tardar al abrir el mapa y en la precarga. */
+export const SEGUNDOS_OVERPASS_MAPA = 45;
+export const SEGUNDOS_OVERPASS_PRECARGA = 90;
 
 export interface Area {
   sur: number;
@@ -48,6 +59,8 @@ export interface VeterinariaOsm {
 export interface EntradaCache {
   datos: VeterinariaOsm[];
   actualizado: Date;
+  /** Overpass falló al pedirlo: no tiene datos y la precarga lo llena. */
+  pendiente?: boolean;
 }
 
 export interface DependenciasOsm {
@@ -56,6 +69,8 @@ export interface DependenciasOsm {
   registrarConsulta(uid: string): Promise<ResultadoIntento>;
   leerCache(cuadros: string[]): Promise<Map<string, EntradaCache>>;
   guardarCache(entradas: Map<string, VeterinariaOsm[]>): Promise<void>;
+  /** Marca cuadros sin datos para que la precarga los llene. */
+  marcarPendientes(cuadros: string[]): Promise<void>;
   /** Ejecuta una consulta Overpass QL y devuelve el JSON. */
   consultarOverpass(consulta: string): Promise<unknown>;
   ahora(): Date;
@@ -129,9 +144,16 @@ function redondear(v: number): string {
 }
 
 /** Consulta Overpass QL: veterinarias (nodos, edificios y relaciones) del área. */
-export function consultaOverpass(area: Area): string {
+export function consultaOverpass(area: Area, segundos = SEGUNDOS_OVERPASS_MAPA): string {
   const bbox = [area.sur, area.oeste, area.norte, area.este].map(redondear).join(",");
-  return `[out:json][timeout:25];nwr["amenity"="veterinary"](${bbox});out center tags;`;
+  return `[out:json][timeout:${segundos}];nwr["amenity"="veterinary"](${bbox});out center tags;`;
+}
+
+/** Reparte las veterinarias de Overpass en sus cuadros (todos los pedidos, también vacíos). */
+function repartir(cuadros: string[], veterinarias: VeterinariaOsm[]): Map<string, VeterinariaOsm[]> {
+  const porCuadro = new Map<string, VeterinariaOsm[]>(cuadros.map((c) => [c, []]));
+  for (const v of veterinarias) porCuadro.get(cuadroDe(v.lat, v.lng))?.push(v);
+  return porCuadro;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,18 +230,21 @@ function dentro(v: VeterinariaOsm, a: Area): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Veterinarias de OSM del área visible del mapa. Usa la caché por cuadros;
- * solo consulta Overpass por los cuadros que faltan o vencieron, en una
- * sola consulta.
+ * Veterinarias de OSM del área visible del mapa. Sirve la caché aunque sea
+ * vieja (la renueva la precarga) y solo consulta Overpass, en una sola
+ * consulta, por los cuadros que no están o están pendientes. Si Overpass
+ * falla, marca esos cuadros como pendientes y responde con lo que haya
+ * (`incompleto: true`); si no hay nada, error "No se pudieron cargar…".
  *
  * Errores: unauthenticated, invalid-argument (área), failed-precondition
- * (área muy grande: "Acerca el mapa…"), resource-exhausted (límite).
+ * (área muy grande: "Acerca el mapa…"), resource-exhausted (límite),
+ * internal (Overpass no respondió y no hay caché).
  */
 export async function veterinariasEnArea(
   deps: DependenciasOsm,
   autorizacion: string | null,
   cuerpo: unknown,
-): Promise<{ veterinarias: VeterinariaOsm[] }> {
+): Promise<{ veterinarias: VeterinariaOsm[]; incompleto?: boolean }> {
   const token = autorizacion?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) throw new ErrorFuncion("unauthenticated", "Debes iniciar sesión con Google.");
   let usuario: UsuarioFirebase;
@@ -232,10 +257,9 @@ export async function veterinariasEnArea(
   const area = validarArea(cuerpo);
   const cuadros = cuadrosDe(area);
   const cache = await deps.leerCache(cuadros);
-  const vence = deps.ahora().getTime() - HORAS_CACHE * 60 * 60 * 1000;
   const faltan = cuadros.filter((c) => {
     const entrada = cache.get(c);
-    return !entrada || entrada.actualizado.getTime() < vence;
+    return !entrada || entrada.pendiente === true;
   });
 
   const resultado = new Map<string, VeterinariaOsm>();
@@ -243,6 +267,7 @@ export async function veterinariasEnArea(
     if (faltan.includes(c)) continue;
     for (const v of cache.get(c)!.datos) resultado.set(v.osmId, v);
   }
+  const respuesta = () => [...resultado.values()].filter((v) => dentro(v, area));
 
   if (faltan.length > 0) {
     // Solo cuenta para el límite lo que de verdad va a Overpass.
@@ -254,15 +279,21 @@ export async function veterinariasEnArea(
         `Muchas búsquedas seguidas. Intenta de nuevo en ${minutos} ${minutos === 1 ? "minuto" : "minutos"}.`,
       );
     }
-    const nuevas = leerOverpass(await deps.consultarOverpass(consultaOverpass(unionDe(faltan))));
-    const porCuadro = new Map<string, VeterinariaOsm[]>(faltan.map((c) => [c, []]));
-    for (const v of nuevas) {
-      const lista = porCuadro.get(cuadroDe(v.lat, v.lng));
-      if (lista) {
-        lista.push(v);
-        resultado.set(v.osmId, v);
+    let nuevas: VeterinariaOsm[];
+    try {
+      nuevas = leerOverpass(await deps.consultarOverpass(consultaOverpass(unionDe(faltan))));
+    } catch (e) {
+      deps.log?.(`Overpass no respondió (${faltan.length} cuadros pendientes): ${e}`);
+      try {
+        await deps.marcarPendientes(faltan);
+      } catch (e2) {
+        deps.log?.(`No se pudieron marcar los cuadros pendientes: ${e2}`);
       }
+      if (faltan.length === cuadros.length) throw new ErrorFuncion("internal", MENSAJE_NO_DISPONIBLE);
+      return { veterinarias: respuesta(), incompleto: true };
     }
+    const porCuadro = repartir(faltan, nuevas);
+    for (const lista of porCuadro.values()) for (const v of lista) resultado.set(v.osmId, v);
     try {
       await deps.guardarCache(porCuadro);
     } catch (e) {
@@ -270,5 +301,147 @@ export async function veterinariasEnArea(
     }
   }
 
-  return { veterinarias: [...resultado.values()].filter((v) => dentro(v, area)) };
+  return { veterinarias: respuesta() };
+}
+
+// ---------------------------------------------------------------------------
+// Precarga (tarea programada)
+// ---------------------------------------------------------------------------
+
+export interface Punto {
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Ciudades principales de Colombia: se precargan aunque no tengan clínicas
+ * aliadas, para que el mapa abra rápido donde más se usa.
+ */
+export const CIUDADES: (Punto & { nombre: string })[] = [
+  { nombre: "Bogotá", lat: 4.65, lng: -74.1 },
+  { nombre: "Bogotá norte", lat: 4.75, lng: -74.05 },
+  { nombre: "Bogotá sur", lat: 4.55, lng: -74.13 },
+  { nombre: "Medellín", lat: 6.24, lng: -75.58 },
+  { nombre: "Cali", lat: 3.43, lng: -76.52 },
+  { nombre: "Barranquilla", lat: 10.98, lng: -74.8 },
+  { nombre: "Cartagena", lat: 10.4, lng: -75.5 },
+  { nombre: "Bucaramanga", lat: 7.12, lng: -73.12 },
+  { nombre: "Pereira", lat: 4.81, lng: -75.69 },
+  { nombre: "Manizales", lat: 5.07, lng: -75.51 },
+  { nombre: "Ibagué", lat: 4.44, lng: -75.22 },
+  { nombre: "Santa Marta", lat: 11.23, lng: -74.2 },
+  { nombre: "Villavicencio", lat: 4.14, lng: -73.63 },
+  { nombre: "Cúcuta", lat: 7.89, lng: -72.5 },
+  { nombre: "Pasto", lat: 1.21, lng: -77.28 },
+  { nombre: "Montería", lat: 8.75, lng: -75.88 },
+  { nombre: "Neiva", lat: 2.93, lng: -75.28 },
+  { nombre: "Armenia", lat: 4.53, lng: -75.68 },
+];
+
+/** Cuadros alrededor de cada punto: ±2 cuadros (~10 km a cada lado). */
+export const RADIO_PRECARGA = 2;
+/** Cuadros por lado de cada consulta de la precarga (~20 km). */
+export const LADO_BLOQUE = 4;
+
+export interface DependenciasPrecarga {
+  /** Ubicación de las clínicas activas. */
+  clinicas(): Promise<Punto[]>;
+  /** Cuadros en caché vencidos (antes de [antesDe]) o pendientes. */
+  cuadrosPorRenovar(antesDe: Date): Promise<string[]>;
+  leerCache(cuadros: string[]): Promise<Map<string, EntradaCache>>;
+  guardarCache(entradas: Map<string, VeterinariaOsm[]>): Promise<void>;
+  consultarOverpass(consulta: string): Promise<unknown>;
+  ahora(): Date;
+  log?(mensaje: string): void;
+}
+
+export interface ResumenPrecarga {
+  porRenovar: number;
+  consultas: number;
+  actualizados: number;
+  errores: number;
+  /** Cuadros que quedan para la próxima vuelta (se acabó el tiempo). */
+  quedan: number;
+}
+
+export function cuadrosAlrededor(p: Punto, radio = RADIO_PRECARGA): string[] {
+  const f0 = indice(p.lat);
+  const c0 = indice(p.lng);
+  const claves: string[] = [];
+  for (let f = f0 - radio; f <= f0 + radio; f++) {
+    for (let c = c0 - radio; c <= c0 + radio; c++) claves.push(`${f}_${c}`);
+  }
+  return claves;
+}
+
+function bloqueDe(cuadro: string): string {
+  const [f, c] = cuadro.split("_").map(Number);
+  return `${Math.floor(f / LADO_BLOQUE)}_${Math.floor(c / LADO_BLOQUE)}`;
+}
+
+/**
+ * Llena y renueva la caché en segundo plano. Prioridad: pendientes, los que
+ * no están y los más viejos. Agrupa los cuadros en bloques de
+ * [LADO_BLOQUE]² (una consulta por bloque) y para al llegar a [limiteMs]:
+ * lo que falte queda para la próxima vuelta. Tras 3 fallos seguidos
+ * (Overpass caído) también para.
+ */
+export async function precargarVeterinarias(
+  deps: DependenciasPrecarga,
+  limiteMs = 110_000,
+): Promise<ResumenPrecarga> {
+  const inicio = deps.ahora().getTime();
+  const renovarAntes = new Date(inicio - HORAS_RENOVAR * 60 * 60 * 1000);
+
+  let clinicas: Punto[] = [];
+  try {
+    clinicas = await deps.clinicas();
+  } catch (e) {
+    deps.log?.(`No se pudieron leer las clínicas: ${e}`);
+  }
+  const candidatos = new Set<string>(await deps.cuadrosPorRenovar(renovarAntes));
+  for (const p of [...CIUDADES, ...clinicas]) for (const c of cuadrosAlrededor(p)) candidatos.add(c);
+
+  const cache = await deps.leerCache([...candidatos]);
+  const prioridad = (c: string): number => {
+    const e = cache.get(c);
+    if (!e) return 1; // no está
+    if (e.pendiente) return 0;
+    return 2 + e.actualizado.getTime() / 1e15; // los más viejos primero
+  };
+  const porRenovar = [...candidatos]
+    .filter((c) => {
+      const e = cache.get(c);
+      return !e || e.pendiente === true || e.actualizado.getTime() < renovarAntes.getTime();
+    })
+    .sort((a, b) => prioridad(a) - prioridad(b));
+
+  // Bloques en el orden de su cuadro más urgente.
+  const bloques = new Map<string, string[]>();
+  for (const c of porRenovar) {
+    const b = bloqueDe(c);
+    bloques.set(b, [...(bloques.get(b) ?? []), c]);
+  }
+
+  const resumen: ResumenPrecarga = { porRenovar: porRenovar.length, consultas: 0, actualizados: 0, errores: 0, quedan: 0 };
+  let fallosSeguidos = 0;
+  for (const cuadros of bloques.values()) {
+    if (deps.ahora().getTime() - inicio >= limiteMs || fallosSeguidos >= 3) {
+      resumen.quedan += cuadros.length;
+      continue;
+    }
+    resumen.consultas++;
+    try {
+      const json = await deps.consultarOverpass(consultaOverpass(unionDe(cuadros), SEGUNDOS_OVERPASS_PRECARGA));
+      await deps.guardarCache(repartir(cuadros, leerOverpass(json)));
+      resumen.actualizados += cuadros.length;
+      fallosSeguidos = 0;
+    } catch (e) {
+      resumen.errores++;
+      resumen.quedan += cuadros.length;
+      fallosSeguidos++;
+      deps.log?.(`Precarga OSM: falló un bloque de ${cuadros.length} cuadros: ${e}`);
+    }
+  }
+  return resumen;
 }

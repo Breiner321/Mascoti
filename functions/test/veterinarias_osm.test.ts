@@ -3,13 +3,18 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ErrorFuncion } from "../../supabase/functions/_shared/errores.ts";
 import {
   areaDeCuadro,
+  CIUDADES,
   consultaOverpass,
+  cuadrosAlrededor,
   cuadrosDe,
   type DependenciasOsm,
+  type DependenciasPrecarga,
   type EntradaCache,
   leerOverpass,
   MENSAJE_ACERCA,
+  MENSAJE_NO_DISPONIBLE,
   normalizarTelefono,
+  precargarVeterinarias,
   validarArea,
   type VeterinariaOsm,
   veterinariasEnArea,
@@ -90,7 +95,7 @@ describe("área y cuadros", () => {
 
   it("consulta Overpass QL", () => {
     expect(consultaOverpass(bogota)).toBe(
-      '[out:json][timeout:25];nwr["amenity"="veterinary"](4.60000,-74.10000,4.70000,-74.00000);out center tags;',
+      '[out:json][timeout:45];nwr["amenity"="veterinary"](4.60000,-74.10000,4.70000,-74.00000);out center tags;',
     );
   });
 });
@@ -103,6 +108,7 @@ describe("veterinariasEnArea (Edge Function)", () => {
   let intentos: string[];
   let permitido: boolean;
   let guardado: Map<string, VeterinariaOsm[]> | null;
+  let pendientes: string[];
   let deps: DependenciasOsm;
 
   beforeEach(() => {
@@ -111,6 +117,7 @@ describe("veterinariasEnArea (Edge Function)", () => {
     intentos = [];
     permitido = true;
     guardado = null;
+    pendientes = [];
     deps = {
       verificarToken: async (t) => {
         if (t !== "ok") throw new Error("token");
@@ -123,6 +130,9 @@ describe("veterinariasEnArea (Edge Function)", () => {
       leerCache: async (cuadros) => new Map([...cache].filter(([c]) => cuadros.includes(c))),
       guardarCache: async (e) => {
         guardado = e;
+      },
+      marcarPendientes: async (c) => {
+        pendientes.push(...c);
       },
       consultarOverpass: async (q) => {
         consultas.push(q);
@@ -155,12 +165,47 @@ describe("veterinariasEnArea (Edge Function)", () => {
     expect(r.veterinarias.map((v) => v.nombre)).toEqual(["En caché"]);
   });
 
-  it("la caché de más de 24 h se renueva", async () => {
+  it("la caché vieja se sirve sin esperar a Overpass (la renueva la precarga)", async () => {
     for (const c of cuadrosDe(area)) {
-      cache.set(c, { datos: [], actualizado: new Date(AHORA.getTime() - 25 * 60 * 60 * 1000) });
+      cache.set(c, { datos: [], actualizado: new Date(AHORA.getTime() - 5 * 24 * 60 * 60 * 1000) });
     }
     await veterinariasEnArea(deps, "Bearer ok", area);
+    expect(consultas).toHaveLength(0);
+  });
+
+  it("un cuadro pendiente se vuelve a pedir", async () => {
+    for (const c of cuadrosDe(area)) {
+      cache.set(c, { datos: [], actualizado: AHORA, pendiente: true });
+    }
+    const r = await veterinariasEnArea(deps, "Bearer ok", area);
     expect(consultas).toHaveLength(1);
+    expect(r.veterinarias).toHaveLength(3);
+  });
+
+  it("si Overpass falla sin caché: marca pendientes y responde el error", async () => {
+    deps.consultarOverpass = async () => {
+      throw new Error("timeout");
+    };
+    const e = await veterinariasEnArea(deps, "Bearer ok", area).catch((x) => x);
+    expect(e).toBeInstanceOf(ErrorFuncion);
+    expect(e.codigo).toBe("internal");
+    expect(e.message).toBe(MENSAJE_NO_DISPONIBLE);
+    expect(pendientes.sort()).toEqual(cuadrosDe(area).sort());
+  });
+
+  it("si Overpass falla con parte en caché: responde lo que hay, incompleto", async () => {
+    const [primero, ...resto] = cuadrosDe(area);
+    cache.set(primero, {
+      datos: [{ osmId: "node/9", nombre: "En caché", lat: 4.65, lng: -74.06 }],
+      actualizado: AHORA,
+    });
+    deps.consultarOverpass = async () => {
+      throw new Error("502");
+    };
+    const r = await veterinariasEnArea(deps, "Bearer ok", area);
+    expect(r.incompleto).toBe(true);
+    expect(r.veterinarias.map((v) => v.nombre)).toEqual(["En caché"]);
+    expect(pendientes.sort()).toEqual(resto.sort());
   });
 
   it("límite por usuario, sesión y área muy grande", async () => {
@@ -183,5 +228,95 @@ describe("veterinariasEnArea (Edge Function)", () => {
     };
     const r = await veterinariasEnArea(deps, "Bearer ok", area);
     expect(r.veterinarias).toHaveLength(3);
+  });
+});
+
+describe("precarga (tarea programada)", () => {
+  const AHORA = new Date("2026-11-01T15:00:00Z");
+  const HORA = 60 * 60 * 1000;
+  let cache: Map<string, EntradaCache>;
+  let consultas: string[];
+  let guardados: string[];
+  let reloj: number;
+  let deps: DependenciasPrecarga;
+
+  beforeEach(() => {
+    cache = new Map();
+    consultas = [];
+    guardados = [];
+    reloj = AHORA.getTime();
+    deps = {
+      clinicas: async () => [],
+      cuadrosPorRenovar: async (antes) =>
+        [...cache].filter(([, e]) => e.pendiente || e.actualizado < antes).map(([c]) => c),
+      leerCache: async (cuadros) => new Map([...cache].filter(([c]) => cuadros.includes(c))),
+      guardarCache: async (e) => {
+        guardados.push(...e.keys());
+      },
+      consultarOverpass: async (q) => {
+        consultas.push(q);
+        return RESPUESTA;
+      },
+      ahora: () => new Date(reloj),
+    };
+  });
+
+  /** Todos los cuadros de las ciudades, recién actualizados. */
+  function ciudadesAlDia() {
+    for (const p of CIUDADES) {
+      for (const c of cuadrosAlrededor(p)) cache.set(c, { datos: [], actualizado: AHORA });
+    }
+  }
+
+  it("llena los alrededores de las clínicas y las ciudades, por bloques", async () => {
+    const r = await precargarVeterinarias(deps);
+    const esperados = new Set(CIUDADES.flatMap((p) => cuadrosAlrededor(p)));
+    expect(r.porRenovar).toBe(esperados.size);
+    expect(new Set(guardados)).toEqual(esperados);
+    // Una consulta por bloque de 4×4 cuadros, no una por cuadro.
+    expect(r.consultas).toBe(consultas.length);
+    expect(consultas.length).toBeLessThan(esperados.size / 3);
+    expect(consultas[0]).toContain("[timeout:90]");
+    expect(r.quedan).toBe(0);
+  });
+
+  it("no repite lo vigente; renueva lo vencido y lo pendiente primero", async () => {
+    ciudadesAlDia();
+    const clinica = { lat: 2.5, lng: -76.6 };
+    deps.clinicas = async () => [clinica];
+    for (const c of cuadrosAlrededor(clinica)) cache.set(c, { datos: [], actualizado: AHORA });
+    cache.set("1_1", { datos: [], actualizado: new Date(AHORA.getTime() - 21 * HORA) });
+    cache.set("9_9", { datos: [], actualizado: AHORA, pendiente: true });
+
+    const r = await precargarVeterinarias(deps);
+    expect(r.porRenovar).toBe(2);
+    expect(guardados).toEqual(["9_9", "1_1"]);
+  });
+
+  it("para al acabarse el tiempo y deja el resto para la próxima vuelta", async () => {
+    deps.consultarOverpass = async (q) => {
+      consultas.push(q);
+      reloj += 60_000;
+      return RESPUESTA;
+    };
+    const r = await precargarVeterinarias(deps, 110_000);
+    expect(r.consultas).toBe(2);
+    expect(r.quedan).toBe(r.porRenovar - r.actualizados);
+    expect(r.quedan).toBeGreaterThan(0);
+  });
+
+  it("si Overpass está caído, para tras 3 fallos seguidos", async () => {
+    deps.consultarOverpass = async (q) => {
+      consultas.push(q);
+      throw new Error("502");
+    };
+    deps.clinicas = async () => {
+      throw new Error("firestore");
+    };
+    const r = await precargarVeterinarias(deps);
+    expect(consultas).toHaveLength(3);
+    expect(r.errores).toBe(3);
+    expect(r.actualizados).toBe(0);
+    expect(r.quedan).toBe(r.porRenovar);
   });
 });
