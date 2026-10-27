@@ -80,7 +80,7 @@ class _VaccineFieldsState extends State<VaccineFields> {
         children: [
           Row(
             children: [
-              const Icon(Icons.vaccines_outlined, color: AppColors.primary),
+              Icon(Icons.vaccines_outlined, color: AppColors.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

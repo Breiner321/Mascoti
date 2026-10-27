@@ -15,6 +15,9 @@ abstract final class CoreRoutes {
   /// El dueño edita su nombre y teléfono (Cambio 1).
   static const editProfile = '/perfil/editar';
 
+  /// Tema, alto contraste, tamaño de texto y animaciones (Cambio 3).
+  static const accessibility = '/perfil/accesibilidad';
+
   /// Centro de notificaciones (RF-13).
   static const notifications = '/notificaciones';
 
@@ -22,7 +25,7 @@ abstract final class CoreRoutes {
   static const outsideShell = {splash, welcome, registration, suspended, completeProfile};
 
   /// Pantallas del core dentro del AppShell.
-  static const insideShell = {home, profile, editProfile, notifications};
+  static const insideShell = {home, profile, editProfile, accessibility, notifications};
 
   static const all = {...outsideShell, ...insideShell};
 }

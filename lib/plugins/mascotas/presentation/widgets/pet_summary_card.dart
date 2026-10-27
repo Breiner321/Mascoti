@@ -99,7 +99,7 @@ class _PetInfo extends StatelessWidget {
             onTap: open == null ? null : () => open(pet),
             child: Row(
               children: [
-                PetAvatar(photoPath: pet.fotoPath),
+                PetAvatar(name: pet.nombre, photoPath: pet.fotoPath),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -183,7 +183,7 @@ class _EmptyPet extends StatelessWidget {
             ),
           ),
           if (onAddPet != null)
-            const Icon(Icons.add_circle, color: AppColors.primary, size: 32),
+            Icon(Icons.add_circle, color: AppColors.primary, size: 32),
         ],
       ),
     );
@@ -199,7 +199,7 @@ class _PetError extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.cloud_off, color: AppColors.textMuted),
+        Icon(Icons.cloud_off, color: AppColors.textMuted),
         const SizedBox(width: 12),
         const Expanded(
           child: Text('No pudimos cargar tus mascotas. Verifica tu conexión.'),

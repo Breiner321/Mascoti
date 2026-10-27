@@ -49,12 +49,12 @@ class _AttachmentViewerPageState extends State<AttachmentViewerPage> {
               fit: BoxFit.contain,
               loadingBuilder: (context, child, progress) => progress == null
                   ? child
-                  : const CircularProgressIndicator(color: AppColors.onPrimary),
-              errorBuilder: (_, __, ___) => const Column(
+                  : CircularProgressIndicator(color: AppColors.onPrimary),
+              errorBuilder: (_, __, ___) => Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.broken_image_outlined, color: AppColors.onPrimary, size: 48),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text('Archivo no disponible', style: TextStyle(color: AppColors.onPrimary)),
                 ],
               ),

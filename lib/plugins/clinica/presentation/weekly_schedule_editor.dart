@@ -139,7 +139,7 @@ class _DayRow extends StatelessWidget {
                 ),
               ),
           ],
-          const Divider(color: AppColors.border),
+          Divider(color: AppColors.border),
         ],
       ),
     );

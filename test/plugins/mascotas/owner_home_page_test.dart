@@ -15,6 +15,8 @@ import 'package:mascoti/plugins/mascotas/presentation/widgets/shortcut_tile.dart
 
 import '../../core/fake_plugins.dart';
 
+import '../../a11y.dart';
+
 void main() {
   // Igual que hoy en plugin_manifest: mascotas + reservas (sin /reservas/nueva).
   final todayRegistry = PluginRegistry([
@@ -223,5 +225,20 @@ void main() {
     ];
     expect(nextAppointmentOf(list, now)?.id, 'cercana');
     expect(nextAppointmentOf(const [], now), isNull);
+  });
+
+  group('accesibilidad (Cambio 3)', () {
+    testWidgets('áreas táctiles, etiquetas y contraste', (tester) async {
+      await pumpHome(tester, pets: Stream.value(const []));
+      await tester.pumpAndSettle();
+      await expectAccessible(tester);
+    });
+
+    testWidgets('texto al 200 % sin desbordes', (tester) async {
+      useLargeText(tester);
+      await pumpHome(tester, pets: Stream.value(const []));
+      await tester.pumpAndSettle();
+      expectNoOverflow(tester);
+    });
   });
 }

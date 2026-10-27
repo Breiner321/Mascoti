@@ -3,6 +3,7 @@ import 'package:table_calendar/table_calendar.dart';
 
 import '../../../core/domain/slot.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/calendar_month_header.dart';
 
 /// Calendario mensual de la agenda (mockup "Mi día"): empieza en lunes,
 /// días como cuadros redondeados y un punto en los días con excepciones
@@ -25,8 +26,7 @@ class AgendaCalendar extends StatelessWidget {
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onPageChanged;
 
-  static String _capitalize(String s) =>
-      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+  static String _capitalize(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
   @override
   Widget build(BuildContext context) {
@@ -51,21 +51,29 @@ class AgendaCalendar extends StatelessWidget {
             startingDayOfWeek: StartingDayOfWeek.monday,
             availableCalendarFormats: const {CalendarFormat.month: 'Mes'},
             selectedDayPredicate: (day) => isSameDay(day, selectedDay),
-            eventLoader: (day) =>
-                configuredDays.contains(Slot.dateKey(day)) ? const [1] : const [],
+            eventLoader: (day) => configuredDays.contains(Slot.dateKey(day)) ? const [1] : const [],
             onDaySelected: (selected, _) => onDaySelected(selected),
             onPageChanged: onPageChanged,
-            rowHeight: 44,
+            rowHeight: 48, // Cambio 3: área táctil mínima de 48 dp.
             daysOfWeekHeight: 24,
-            headerStyle: HeaderStyle(
+            // Cambio 3: flechas propias, con nombre para el lector de pantalla.
+            headerStyle: const HeaderStyle(
               formatButtonVisible: false,
-              titleTextFormatter: (date, locale) =>
-                  _capitalize('${_monthName(date)} ${date.year}'),
-              titleTextStyle: textTheme.titleMedium!.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w800,
+              leftChevronVisible: false,
+              rightChevronVisible: false,
+              headerPadding: EdgeInsets.only(bottom: 4),
+            ),
+            calendarBuilders: CalendarBuilders(
+              outsideBuilder: (context, day, focused) => const SizedBox.shrink(),
+              disabledBuilder: (context, day, focused) =>
+                  day.month != focused.month ? const SizedBox.shrink() : null,
+              headerTitleBuilder: (context, day) => CalendarMonthHeader(
+                month: day,
+                title: _capitalize('${_monthName(day)} ${day.year}'),
+                firstMonth: DateTime(2024),
+                lastMonth: DateTime(2030, 12),
+                onChangeMonth: onPageChanged,
               ),
-              headerPadding: const EdgeInsets.only(bottom: 4),
             ),
             daysOfWeekStyle: DaysOfWeekStyle(
               dowTextFormatter: (date, locale) => _weekdayInitial(date),
@@ -73,21 +81,24 @@ class AgendaCalendar extends StatelessWidget {
               weekendStyle: textTheme.labelSmall!.copyWith(color: AppColors.textMuted),
             ),
             calendarStyle: CalendarStyle(
-              outsideDaysVisible: false,
+              // Cambio 3: los días de otros meses existen (con nombre para el lector)
+              // pero se dibujan vacíos; ocultos, table_calendar deja huecos
+              // tocables sin etiqueta.
+              outsideDaysVisible: true,
               cellMargin: const EdgeInsets.all(3),
               defaultDecoration: cell(AppColors.background),
               weekendDecoration: cell(AppColors.background),
               todayDecoration: cell(AppColors.primaryContainer),
               selectedDecoration: cell(AppColors.primary),
-              todayTextStyle: const TextStyle(
+              todayTextStyle: TextStyle(
                 color: AppColors.primary,
                 fontWeight: FontWeight.w700,
               ),
-              selectedTextStyle: const TextStyle(
+              selectedTextStyle: TextStyle(
                 color: AppColors.onPrimary,
                 fontWeight: FontWeight.w700,
               ),
-              markerDecoration: const BoxDecoration(
+              markerDecoration: BoxDecoration(
                 color: AppColors.primary,
                 shape: BoxShape.circle,
               ),
@@ -115,11 +126,27 @@ class AgendaCalendar extends StatelessWidget {
 }
 
 const _months = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
-  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
 ];
 const _weekdays = [
-  'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo',
+  'lunes',
+  'martes',
+  'miércoles',
+  'jueves',
+  'viernes',
+  'sábado',
+  'domingo',
 ];
 
 /// "Lunes 28 de septiembre" (encabezado del mockup "Mi día").

@@ -11,6 +11,8 @@ import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../a11y.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
@@ -117,5 +119,18 @@ void main() {
     expect(find.text('Vet Norte'), findsOneWidget);
     expect(find.text('Juan Google'), findsNothing);
     expect(find.text('Editar perfil'), findsNothing);
+  });
+
+  group('accesibilidad (Cambio 3)', () {
+    testWidgets('áreas táctiles, etiquetas y contraste', (tester) async {
+      await pump(tester, owner, const ProfilePage());
+      await expectAccessible(tester);
+    });
+
+    testWidgets('texto al 200 % sin desbordes', (tester) async {
+      useLargeText(tester);
+      await pump(tester, owner, const ProfilePage());
+      expectNoOverflow(tester);
+    });
   });
 }

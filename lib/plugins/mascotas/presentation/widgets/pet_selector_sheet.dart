@@ -32,11 +32,11 @@ class PetSelectorSheet extends StatelessWidget {
           ),
           for (final pet in pets)
             ListTile(
-              leading: PetAvatar(photoPath: pet.fotoPath, size: 40),
+              leading: PetAvatar(name: pet.nombre, photoPath: pet.fotoPath, size: 40),
               title: Text(pet.nombre),
               subtitle: Text(pet.summary(now)),
               trailing: pet.id == selectedId
-                  ? const Icon(Icons.check_circle, color: AppColors.primary)
+                  ? Icon(Icons.check_circle, color: AppColors.primary)
                   : null,
               onTap: () {
                 Navigator.pop(context);
@@ -45,7 +45,7 @@ class PetSelectorSheet extends StatelessWidget {
             ),
           if (onAddPet != null)
             ListTile(
-              leading: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+              leading: Icon(Icons.add_circle_outline, color: AppColors.primary),
               title: const Text('Agregar mascota'),
               onTap: () {
                 Navigator.pop(context);

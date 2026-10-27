@@ -1,82 +1,146 @@
 import 'package:flutter/material.dart';
 
-/// Colores tomados de docs/mockups/mockups_Mascoti.pdf.
+import 'app_palette.dart';
+
+export 'app_palette.dart';
+
+/// Colores de la paleta activa (Cambio 3: claro, oscuro y alto contraste).
+///
+/// Los widgets usan `AppColors.primary` etc. como siempre; los valores salen
+/// de [palette], que cambia MascotiApp según las preferencias de
+/// accesibilidad y luego reconstruye toda la app. Por eso no son `const`.
 abstract final class AppColors {
-  static const primary =
-      Color(0xFF7E22CE); // morado principal (encabezado, botones)
-  static const primaryLight = Color(0xFF9346D6);
-  static const primaryContainer = Color(0xFFF3E8FF); // tarjetas y chips
-  static const primarySoft =
-      Color(0xFFE9D5FF); // botón deshabilitado ("Continuar")
-  static const background = Color(0xFFFAF5FF); // fondo general
-  static const surface = Color(0xFFFFFFFF); // tarjetas y botones blancos
-  static const border = Color(0xFFEDE4F7); // borde de tarjetas
-  static const textPrimary = Color(0xFF1E1530); // títulos
-  static const onPrimary = Color(0xFFFFFFFF); // texto sobre morado o rojo
-  static const onPrimaryTranslucent =
-      Color(0x29FFFFFF); // botones del encabezado
-  static const sos = Color(0xFFDC2626); // botón SOS / emergencia
-  static const sosContainer = Color(0xFFFEF2F2); // tarjeta "Emergencia"
-  static const sosBorder = Color(0xFFFECACA);
-  static const success = Color(0xFF16A34A); // snackbar "Perfil actualizado"
-  static const textMuted = Color(0xFF81778C);
+  /// Paleta activa. Solo la cambia MascotiApp (y las pruebas).
+  static AppPalette palette = AppPalette.light;
 
-  // Directorio (RF-09): punto azul de "estás aquí" en el mapa.
-  static const mapUser = Color(0xFF2563EB);
-
-  // Agenda (RF-06): estados de las franjas.
-  static const slotAvailable = success; // disponible
-  static const slotAvailableContainer = Color(0xFFDCFCE7);
-  static const slotCovered =
-      Color(0xFFF0FDF4); // cubierta por un servicio largo
-  static const slotBlocked = Color(0xFFB45309); // no disponible (almuerzo…)
-  static const slotBlockedContainer = Color(0xFFFEF3C7);
-  static const slotLocked = Color(0xFF6B7280); // ocupada / reservada
-  static const slotLockedContainer = Color(0xFFE5E7EB);
+  static Color get primary => palette.primary;
+  static Color get primaryLight => palette.primaryLight;
+  static Color get primaryContainer => palette.primaryContainer;
+  static Color get primarySoft => palette.primarySoft;
+  static Color get background => palette.background;
+  static Color get surface => palette.surface;
+  static Color get border => palette.border;
+  static Color get outline => palette.outline;
+  static Color get textPrimary => palette.textPrimary;
+  static Color get textMuted => palette.textMuted;
+  static Color get onPrimary => palette.onPrimary;
+  static Color get onPrimaryTranslucent => palette.onPrimaryTranslucent;
+  static Color get sos => palette.sos;
+  static Color get sosText => palette.sosText;
+  static Color get sosContainer => palette.sosContainer;
+  static Color get sosBorder => palette.sosBorder;
+  static Color get success => palette.success;
+  static Color get mapUser => palette.mapUser;
+  static Color get slotAvailable => palette.slotAvailable;
+  static Color get slotAvailableContainer => palette.slotAvailableContainer;
+  static Color get slotCovered => palette.slotCovered;
+  static Color get slotBlocked => palette.slotBlocked;
+  static Color get slotBlockedContainer => palette.slotBlockedContainer;
+  static Color get slotLocked => palette.slotLocked;
+  static Color get slotLockedContainer => palette.slotLockedContainer;
 }
 
 abstract final class AppTheme {
-  static ThemeData light() {
+  /// Tema de los mockups (paleta clara).
+  static ThemeData light() => of(AppPalette.light);
+
+  /// Tema construido con [palette]; también deja [palette] como paleta
+  /// activa de [AppColors].
+  static ThemeData of(AppPalette palette, {bool reduceMotion = false}) {
+    AppColors.palette = palette;
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
-      primary: AppColors.primary,
-      primaryContainer: AppColors.primaryContainer,
-      error: AppColors.sos,
-      surface: AppColors.surface,
-      onPrimary: AppColors.onPrimary,
-      onSurface: AppColors.textPrimary,
+      seedColor: palette.primary,
+      brightness: palette.brightness,
+      primary: palette.primary,
+      onPrimary: palette.onPrimary,
+      primaryContainer: palette.primaryContainer,
+      onPrimaryContainer: palette.textPrimary,
+      error: palette.sosText,
+      surface: palette.surface,
+      onSurface: palette.textPrimary,
+      onSurfaceVariant: palette.textMuted,
+      outline: palette.outline,
+      outlineVariant: palette.border,
     );
 
     return ThemeData(
       useMaterial3: true,
+      brightness: palette.brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: AppColors.background,
+      scaffoldBackgroundColor: palette.background,
+      // Cambio 3: sin animaciones de página si el usuario las desactivó.
+      pageTransitionsTheme: reduceMotion
+          ? const PageTransitionsTheme(builders: {
+              TargetPlatform.android: _NoTransitionsBuilder(),
+              TargetPlatform.iOS: _NoTransitionsBuilder(),
+            })
+          : null,
+      appBarTheme: AppBarTheme(
+        backgroundColor: palette.background,
+        foregroundColor: palette.textPrimary,
+      ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.onPrimary,
+          backgroundColor: palette.primary,
+          foregroundColor: palette.onPrimary,
           // Mockup LOGIN: deshabilitado = morado claro con texto morado.
-          disabledBackgroundColor: AppColors.primarySoft,
-          disabledForegroundColor: AppColors.primary,
+          disabledBackgroundColor: palette.primarySoft,
+          disabledForegroundColor: palette.primary,
           minimumSize: const Size.fromHeight(52),
           textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: palette.primary,
+          side: BorderSide(color: palette.outline),
+          minimumSize: const Size(48, 48),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: palette.primary,
+          minimumSize: const Size(48, 48),
+        ),
+      ),
+      chipTheme: ChipThemeData(side: BorderSide(color: palette.outline)),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: palette.surface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.border),
+          // Borde de control: 3:1 contra el fondo (WCAG 1.4.11).
+          borderSide: BorderSide(color: palette.outline),
         ),
       ),
-      navigationBarTheme: const NavigationBarThemeData(
-        backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.primaryContainer,
+      cardTheme: CardThemeData(color: palette.surface),
+      dividerColor: palette.border,
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: palette.isDark ? palette.surface : palette.textPrimary,
+        contentTextStyle: TextStyle(color: palette.isDark ? palette.textPrimary : palette.surface),
+        actionTextColor: palette.isDark ? palette.primary : palette.primarySoft,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: palette.surface,
+        indicatorColor: palette.primaryContainer,
       ),
     );
   }
+}
+
+/// Cambio de página sin animación ("Reducir animaciones").
+class _NoTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) =>
+      child;
 }

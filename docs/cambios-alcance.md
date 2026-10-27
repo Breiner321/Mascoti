@@ -6,7 +6,7 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 |---|---|---|---|
 | 1 | Nombre del dueño en las notificaciones y en toda la app | RF-01, RF-03, RF-13, RF-14 | ✅ |
 | 2 | Disponibilidad automática según el horario de la clínica | RF-04, RF-06, RF-14 | ✅ |
-| 3 | Accesibilidad (WCAG 2.1 AA) | Todos | ⬜ |
+| 3 | Accesibilidad (WCAG 2.1 AA) y modo oscuro | Todos | ✅ |
 | 4 | Mapa con todas las veterinarias y "Aliados Mascoti" | RF-09, RF-10 | ⬜ |
 
 ---
@@ -45,3 +45,22 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 **Por qué.** Marcar franjas a diario era demasiado trabajo para las clínicas, y una clínica que no lo hacía quedaba sin citas.
 
 **Límite técnico.** Las reglas de Firestore solo validan la **estructura** de `horarioSemanal`: comparar las 28 horas de la semana supera el máximo de 1000 expresiones por evaluación. El formato y la coherencia de las horas los validan la app (`WeeklySchedule.validate`) y el servidor, que trata como cerrado un día con horas inválidas.
+
+---
+
+## Cambio 3 — Accesibilidad y modo oscuro
+
+**Qué decían los RF.** Nada sobre accesibilidad: solo los colores de los mockups, algunos por debajo del contraste mínimo (por ejemplo el texto gris claro sobre el fondo morado claro: 3.95:1).
+
+**Qué cambia.** Guía completa en [accesibilidad.md](accesibilidad.md).
+- Se mantiene el diseño de los mockups como **tema claro**, con los colores que no cumplían oscurecidos lo justo para llegar a 4.5:1.
+- **Modo oscuro** y **alto contraste** (claro u oscuro) en Perfil → Accesibilidad, junto con el tamaño de texto (100–150 %, combinado con el del sistema hasta 200 %) y "Reducir animaciones". Se guardan en el teléfono. "Sistema" sigue al tema de Android.
+- `AppColors` lee la **paleta activa** (antes eran constantes): así el modo oscuro cubre toda la app, también los widgets de los plugins. Por eso `AppColors` ya no se puede usar dentro de `const`.
+- Lector de pantalla: etiquetas en botones de ícono, fotos ("Foto de Luna"), flechas del calendario, estados anunciados ("9:30 a. m., disponible", "Estado: Confirmada"); el SOS se anuncia primero en el encabezado.
+- Áreas táctiles de 48 dp, estados con ícono y texto (no solo color), pantallas que se desplazan con texto grande.
+- Pruebas automáticas en las pantallas principales: `androidTapTargetGuideline`, `labeledTapTargetGuideline`, `textContrastGuideline` y texto al 200 % sin desbordes; contraste de las 4 paletas.
+
+**Por qué.** El equipo quiere que la app sea usable con TalkBack, texto grande, baja visión o daltonismo, y que ofrezca modo oscuro sin perder el diseño.
+
+**Límites.** El encabezado morado crece solo hasta 130 % con el texto grande (logo e íconos); el resto de la app llega a 200 %. table_calendar no etiqueta sus flechas ni los huecos de otros meses: se reemplazaron por botones propios y celdas vacías con nombre.
+

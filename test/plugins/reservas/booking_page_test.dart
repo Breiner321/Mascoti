@@ -20,6 +20,8 @@ import 'package:mocktail/mocktail.dart';
 
 import 'fakes.dart';
 
+import '../../a11y.dart';
+
 class _MockAppointments extends Mock implements AppointmentsRepository {}
 
 void main() {
@@ -192,5 +194,26 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('detalle cita1'), findsOneWidget);
+  });
+
+  group('accesibilidad (Cambio 3)', () {
+    testWidgets('áreas táctiles, etiquetas y contraste', (tester) async {
+      await pumpBooking(tester);
+      slots.add(const []);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('6'));
+      await tester.pumpAndSettle();
+      await expectAccessible(tester);
+    });
+
+    testWidgets('texto al 200 % sin desbordes', (tester) async {
+      useLargeText(tester);
+      await pumpBooking(tester);
+      slots.add(const []);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('6'));
+      await tester.pumpAndSettle();
+      expectNoOverflow(tester);
+    });
   });
 }

@@ -36,7 +36,7 @@ class _ClinicServicesPageState extends ConsumerState<ClinicServicesPage> {
         backgroundColor: AppColors.success,
         content: Text(
           service == null ? 'Servicio creado' : 'Servicio actualizado',
-          style: const TextStyle(color: AppColors.onPrimary),
+          style: TextStyle(color: AppColors.onPrimary),
         ),
       ),
     );

@@ -52,11 +52,11 @@ class _EmptyHistory extends StatelessWidget {
             Container(
               width: 96,
               height: 96,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.medical_information_outlined,
+              child: Icon(Icons.medical_information_outlined,
                   size: 48, color: AppColors.primary),
             ),
             const SizedBox(height: 16),

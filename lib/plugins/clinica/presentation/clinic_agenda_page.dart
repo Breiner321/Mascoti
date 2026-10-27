@@ -129,7 +129,7 @@ class _AgendaBodyState extends ConsumerState<_AgendaBody> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: success ? AppColors.success : null,
-        content: Text(text, style: success ? const TextStyle(color: AppColors.onPrimary) : null),
+        content: Text(text, style: success ? TextStyle(color: AppColors.onPrimary) : null),
       ),
     );
   }
@@ -472,7 +472,7 @@ class _HolidaySuggestions extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.celebration_outlined, color: AppColors.primary),
+              Icon(Icons.celebration_outlined, color: AppColors.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Próximos festivos', style: textTheme.titleSmall),

@@ -92,7 +92,7 @@ class UpcomingAppointmentsCard extends ConsumerWidget {
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -155,10 +155,10 @@ class _AppointmentRow extends StatelessWidget {
       ),
       subtitle: Text('${TimeFormat.hour(a.hora)} · ${a.petNombre}'),
       trailing: pending
-          ? const Text('Por aprobar',
+          ? Text('Por aprobar',
               style: TextStyle(
                   color: AppColors.slotBlocked, fontWeight: FontWeight.w600))
-          : const Icon(Icons.chevron_right, color: AppColors.textMuted),
+          : Icon(Icons.chevron_right, color: AppColors.textMuted),
     );
   }
 }

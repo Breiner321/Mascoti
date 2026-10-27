@@ -18,6 +18,8 @@ import 'package:mascoti/plugins/clinica/data/slots_repository.dart';
 import 'package:mascoti/plugins/clinica/presentation/clinic_agenda_page.dart';
 import 'package:mascoti/plugins/clinica/presentation/clinic_providers.dart';
 
+import '../../a11y.dart';
+
 /// Agenda de la clínica por EXCEPCIONES (Cambio 2).
 void main() {
   late FakeFirebaseFirestore firestore;
@@ -265,5 +267,20 @@ void main() {
     await tester.tap(franja('09:30'));
     await tester.pumpAndSettle();
     expect(find.text('Cita a1'), findsOneWidget);
+  });
+
+  group('accesibilidad (Cambio 3)', () {
+    testWidgets('áreas táctiles, etiquetas y contraste', (tester) async {
+      await addService();
+      await pumpPage(tester);
+      await expectAccessible(tester);
+    });
+
+    testWidgets('texto al 200 % sin desbordes', (tester) async {
+      useLargeText(tester);
+      await addService();
+      await pumpPage(tester);
+      expectNoOverflow(tester);
+    });
   });
 }

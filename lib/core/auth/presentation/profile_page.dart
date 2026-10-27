@@ -47,13 +47,16 @@ class ProfilePage extends ConsumerWidget {
       padding: const EdgeInsets.all(24),
       children: [
         Center(
-          child: CircleAvatar(
-            radius: 40,
-            backgroundColor: AppColors.primaryContainer,
-            backgroundImage: photo != null ? NetworkImage(photo) : null,
-            child: photo == null
-                ? const Icon(Icons.person, size: 40, color: AppColors.primary)
-                : null,
+          child: Semantics(
+            image: true,
+            label: 'Foto de perfil',
+            excludeSemantics: true,
+            child: CircleAvatar(
+              radius: 40,
+              backgroundColor: AppColors.primaryContainer,
+              backgroundImage: photo != null ? NetworkImage(photo) : null,
+              child: photo == null ? Icon(Icons.person, size: 40, color: AppColors.primary) : null,
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -67,13 +70,13 @@ class ProfilePage extends ConsumerWidget {
           Text(
             user.telefono!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textMuted),
+            style: TextStyle(color: AppColors.textMuted),
           ),
         // El correo solo identifica la cuenta de Google con la que entró.
         Text(
           user.email,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.textMuted),
+          style: TextStyle(color: AppColors.textMuted),
         ),
         const SizedBox(height: 8),
         Center(
@@ -87,13 +90,22 @@ class ProfilePage extends ConsumerWidget {
         if (isOwner)
           Card(
             child: ListTile(
-              leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
+              leading: Icon(Icons.edit_outlined, color: AppColors.primary),
               title: const Text('Editar perfil'),
               subtitle: const Text('Nombre y teléfono'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push(CoreRoutes.editProfile),
             ),
           ),
+        Card(
+          child: ListTile(
+            leading: Icon(Icons.accessibility_new, color: AppColors.primary),
+            title: const Text('Accesibilidad'),
+            subtitle: const Text('Modo oscuro, contraste y tamaño de texto'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(CoreRoutes.accessibility),
+          ),
+        ),
         for (final link in links)
           Card(
             child: ListTile(

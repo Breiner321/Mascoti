@@ -27,54 +27,57 @@ class ShortcutTile extends StatelessWidget {
     return Semantics(
       button: true,
       enabled: enabled,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.6,
-        child: Material(
-          color: emergency ? AppColors.sosContainer : AppColors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: BorderSide(
-              color: emergency ? AppColors.sosBorder : AppColors.border,
-            ),
+      // Cambio 3: deshabilitado = etiqueta "Próximamente" y texto atenuado,
+      // sin bajar la opacidad (el texto quedaba ilegible).
+      child: Material(
+        color: emergency ? AppColors.sosContainer : AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: emergency ? AppColors.sosBorder : AppColors.border,
           ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: emergency ? AppColors.sos : AppColors.primaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          icon,
-                          size: 22,
-                          color: emergency ? AppColors.onPrimary : AppColors.primary,
-                        ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: emergency ? AppColors.sos : AppColors.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const Spacer(),
-                      if (!enabled) const ComingSoonBadge(),
-                    ],
-                  ),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: emergency ? AppColors.sos : AppColors.textPrimary,
+                      child: Icon(
+                        icon,
+                        size: 22,
+                        color: emergency ? AppColors.onPrimary : AppColors.primary,
+                      ),
                     ),
+                    const Spacer(),
+                    if (!enabled) const ComingSoonBadge(),
+                  ],
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: !enabled
+                        ? AppColors.textMuted
+                        : emergency
+                            ? AppColors.sosText
+                            : AppColors.textPrimary,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

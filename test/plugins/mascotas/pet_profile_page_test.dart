@@ -7,6 +7,8 @@ import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pet_profile_page.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pets_providers.dart';
 
+import '../../a11y.dart';
+
 void main() {
   Future<void> pumpProfile(WidgetTester tester, Stream<Pet?> pet) async {
     tester.view.physicalSize = const Size(1080, 2600);
@@ -69,5 +71,22 @@ void main() {
   testWidgets('error al cargar muestra "Reintentar"', (tester) async {
     await pumpProfile(tester, Stream.error(Exception('sin conexión')));
     expect(find.text('Reintentar'), findsOneWidget);
+  });
+
+  group('accesibilidad (Cambio 3)', () {
+    testWidgets('áreas táctiles, etiquetas y contraste', (tester) async {
+      await pumpProfile(tester, Stream.value(const Pet(
+          id: 'p1', ownerUid: 'ana', nombre: 'Luna', especie: PetSpecies.perro, raza: 'Criolla')));
+      await tester.pumpAndSettle();
+      await expectAccessible(tester);
+    });
+
+    testWidgets('texto al 200 % sin desbordes', (tester) async {
+      useLargeText(tester);
+      await pumpProfile(tester, Stream.value(const Pet(
+          id: 'p1', ownerUid: 'ana', nombre: 'Luna', especie: PetSpecies.perro, raza: 'Criolla')));
+      await tester.pumpAndSettle();
+      expectNoOverflow(tester);
+    });
   });
 }

@@ -96,7 +96,7 @@ class _AppointmentList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items.isEmpty) {
       return Center(
-        child: Text(empty, style: const TextStyle(color: AppColors.textMuted)),
+        child: Text(empty, style: TextStyle(color: AppColors.textMuted)),
       );
     }
     return ListView.separated(
@@ -123,7 +123,7 @@ class _AppointmentTile extends StatelessWidget {
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),

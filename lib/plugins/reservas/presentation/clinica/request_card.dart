@@ -28,7 +28,7 @@ class RequestCard extends ConsumerWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -40,7 +40,7 @@ class RequestCard extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  AppointmentPetAvatar(photoPath: pet?.fotoPath),
+                  AppointmentPetAvatar(name: a.petNombre, photoPath: pet?.fotoPath),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -60,7 +60,7 @@ class RequestCard extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                  Icon(Icons.chevron_right, color: AppColors.textMuted),
                 ],
               ),
               const SizedBox(height: 12),

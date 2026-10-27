@@ -20,36 +20,42 @@ class ServiceShortcut extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
+    // Cambio 3: deshabilitado se indica con texto ("Próximamente") y no con
+    // transparencia, que dejaba el texto por debajo del contraste mínimo.
     return Tooltip(
       message: enabled ? label : '$label · Próximamente',
-      child: Opacity(
-        opacity: enabled ? 1 : 0.6,
+      child: Semantics(
+        button: true,
+        enabled: enabled,
         child: Material(
           color: AppColors.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: AppColors.border),
+            side: BorderSide(color: AppColors.border),
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(18),
             onTap: onTap,
-            child: SizedBox(
-              width: 96,
-              height: 88,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: AppColors.primary, size: 28),
-                  const SizedBox(height: 8),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: AppColors.primary,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 96, minHeight: 88),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, color: enabled ? AppColors.primary : AppColors.textMuted, size: 28),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: enabled ? AppColors.primary : AppColors.textMuted,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

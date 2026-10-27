@@ -326,7 +326,7 @@ class _MedicalRecordFormState extends ConsumerState<MedicalRecordForm> {
       backgroundColor: AppColors.success,
       content: Text(
         existing == null ? 'Consulta guardada' : 'Consulta actualizada',
-        style: const TextStyle(color: AppColors.onPrimary),
+        style: TextStyle(color: AppColors.onPrimary),
       ),
     ));
     if (mounted) Navigator.of(context).pop();
@@ -528,7 +528,7 @@ class _ReadOnlyBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.lock_outline, color: AppColors.slotLocked),
+            Icon(Icons.lock_outline, color: AppColors.slotLocked),
             const SizedBox(width: 8),
             Expanded(child: Text(text)),
           ],
@@ -540,15 +540,15 @@ class _Unavailable extends StatelessWidget {
   const _Unavailable();
 
   @override
-  Widget build(BuildContext context) => const SizedBox(
+  Widget build(BuildContext context) => SizedBox(
         height: 200,
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.broken_image_outlined, size: 48, color: AppColors.textMuted),
-              SizedBox(height: 8),
-              Text('Archivo no disponible'),
+              const SizedBox(height: 8),
+              const Text('Archivo no disponible'),
             ],
           ),
         ),

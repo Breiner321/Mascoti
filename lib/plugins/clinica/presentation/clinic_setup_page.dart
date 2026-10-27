@@ -176,7 +176,7 @@ class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
             reservas: _settings,
           );
       messenger.showSnackBar(
-        const SnackBar(
+        SnackBar(
           backgroundColor: AppColors.success,
           content: Text('Perfil actualizado',
               style: TextStyle(color: AppColors.onPrimary)),
@@ -384,7 +384,7 @@ class _Section extends StatelessWidget {
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: Padding(

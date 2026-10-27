@@ -29,7 +29,7 @@ class NotificationBell extends ConsumerWidget {
         style: IconButton.styleFrom(
           backgroundColor: AppColors.onPrimaryTranslucent,
           foregroundColor: AppColors.onPrimary,
-          fixedSize: const Size(40, 40),
+          fixedSize: const Size(48, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),

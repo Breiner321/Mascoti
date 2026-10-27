@@ -13,6 +13,8 @@ import 'package:mocktail/mocktail.dart';
 
 import '../fakes/fake_address_search.dart';
 
+import '../../a11y.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
@@ -224,5 +226,22 @@ void main() {
 
     expect(find.text('Esta cuenta ya está registrada. Iniciando sesión...'),
         findsOneWidget);
+  });
+
+  group('accesibilidad (Cambio 3)', () {
+    testWidgets('áreas táctiles, etiquetas y contraste', (tester) async {
+      await pumpPage(tester, displayName: 'Ana');
+      await tester.tap(find.text('Dueño de Mascota'));
+      await tester.pumpAndSettle();
+      await expectAccessible(tester);
+    });
+
+    testWidgets('texto al 200 % sin desbordes', (tester) async {
+      useLargeText(tester);
+      await pumpPage(tester, displayName: 'Ana');
+      await tester.tap(find.text('Dueño de Mascota'));
+      await tester.pumpAndSettle();
+      expectNoOverflow(tester);
+    });
   });
 }

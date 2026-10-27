@@ -37,11 +37,11 @@ class BrandLogo extends StatelessWidget {
         color: AppColors.primaryContainer,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.pets, size: 18, color: AppColors.primary),
-          SizedBox(width: 6),
+          const SizedBox(width: 6),
           Text(
             'Mascoti',
             style: TextStyle(

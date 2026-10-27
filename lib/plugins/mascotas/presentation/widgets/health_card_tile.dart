@@ -26,7 +26,7 @@ class HealthCardTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.vaccines_outlined, color: AppColors.primary),
+                  Icon(Icons.vaccines_outlined, color: AppColors.primary),
                   const Spacer(),
                   if (onTap == null) const ComingSoonBadge(),
                 ],

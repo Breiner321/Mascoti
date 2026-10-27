@@ -270,10 +270,18 @@ class _BookingPageState extends ConsumerState<BookingPage> {
               runSpacing: 8,
               children: [
                 for (final h in hours)
-                  ChoiceChip(
-                    label: Text(TimeFormat.hour(h)),
+                  // Cambio 3: "9:30 a. m., disponible" para el lector de pantalla.
+                  Semantics(
+                    label: '${TimeFormat.hour(h)}, disponible',
                     selected: h == hora,
-                    onSelected: (_) => setState(() => _hora = h),
+                    button: true,
+                    excludeSemantics: true,
+                    onTap: () => setState(() => _hora = h),
+                    child: ChoiceChip(
+                      label: Text(TimeFormat.hour(h)),
+                      selected: h == hora,
+                      onSelected: (_) => setState(() => _hora = h),
+                    ),
                   ),
               ],
             ),

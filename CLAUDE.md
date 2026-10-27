@@ -51,7 +51,8 @@ lib/
 - Estados de la UI siempre cubiertos: cargando, vacío, error (con reintento) y datos.
 - Validaciones de formularios exactamente como dicen los RF (longitudes, rangos, mensajes).
 - Mensajes al usuario: los textos literales de los RF.
-- Colores solo desde `AppColors` / `Theme.of(context)`; nada de colores sueltos.
+- Colores solo desde `AppColors` / `Theme.of(context)`; nada de colores sueltos. `AppColors` lee la paleta activa (claro, oscuro, alto contraste): no se usa dentro de `const`.
+- Accesibilidad (WCAG 2.1 AA, ver `docs/accesibilidad.md`): `tooltip` en botones de ícono, 48 dp, estados con ícono o texto (no solo color), sin alturas fijas con texto; las pantallas nuevas llevan las pruebas de `test/a11y.dart`.
 - Fechas en Firestore como `Timestamp`; en Dart como `DateTime`.
 
 ## Seguridad (obligatorio en cada PR que toque datos)

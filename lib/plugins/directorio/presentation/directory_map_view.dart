@@ -117,7 +117,7 @@ class _DirectoryMapViewState extends State<DirectoryMapView> {
                       border: Border.all(color: AppColors.surface, width: 3),
                     ),
                   )
-                : const Icon(Icons.person_pin_circle,
+                : Icon(Icons.person_pin_circle,
                     color: AppColors.mapUser, size: 24),
           ),
           for (final n in data.clinics)

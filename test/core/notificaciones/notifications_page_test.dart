@@ -18,6 +18,8 @@ import 'package:mascoti/core/widgets/app_shell.dart';
 
 import '../fake_plugins.dart';
 
+import '../../a11y.dart';
+
 void main() {
   const owner = AppUser(uid: 'ana', email: 'ana@correo.co', displayName: 'Ana', role: UserRole.dueno);
   late FakeFirebaseFirestore firestore;
@@ -170,5 +172,22 @@ void main() {
     navigator.open({'tipo': 'pedido', 'referenciaId': 'o1'});
     await tester.pumpAndSettle();
     expect(find.text('Mis citas'), findsOneWidget);
+  });
+
+  group('accesibilidad (Cambio 3)', () {
+    testWidgets('áreas táctiles, etiquetas y contraste', (tester) async {
+      await seed('n1');
+      await seed('n2', leido: true);
+      await pumpPage(tester);
+      await expectAccessible(tester);
+    });
+
+    testWidgets('texto al 200 % sin desbordes', (tester) async {
+      useLargeText(tester);
+      await seed('n1');
+      await seed('n2', leido: true);
+      await pumpPage(tester);
+      expectNoOverflow(tester);
+    });
   });
 }

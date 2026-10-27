@@ -58,7 +58,7 @@ class DayExceptionsView extends StatelessWidget {
           Card(
             color: AppColors.slotBlockedContainer,
             child: ListTile(
-              leading: const Icon(Icons.block, color: AppColors.slotBlocked),
+              leading: Icon(Icons.block, color: AppColors.slotBlocked),
               title: const Text('Día bloqueado'),
               subtitle: Text(_describe(block)),
               trailing: TextButton(

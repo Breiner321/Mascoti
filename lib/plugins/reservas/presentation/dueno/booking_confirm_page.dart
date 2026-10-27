@@ -116,7 +116,7 @@ class _BookingConfirmPageState extends ConsumerState<BookingConfirmPage> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: AppColors.primary),
+                Icon(Icons.info_outline, color: AppColors.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

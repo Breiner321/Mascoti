@@ -45,13 +45,13 @@ class FirebasePushMessaging implements PushMessaging {
   final _taps = StreamController<Map<String, String>>.broadcast();
 
   /// Canales de Android; iguales a CANAL_GENERAL / CANAL_URGENTE del servidor.
-  static const general = AndroidNotificationChannel(
+  static final general = const AndroidNotificationChannel(
     'mascoti_general',
     'Citas y recordatorios',
     description: 'Cambios de tus citas y recordatorios de citas y vacunas',
     importance: Importance.high,
   );
-  static const urgent = AndroidNotificationChannel(
+  static final urgent = const AndroidNotificationChannel(
     'mascoti_urgente',
     'Avisos urgentes',
     description: 'Citas canceladas por la clínica',

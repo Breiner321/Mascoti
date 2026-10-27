@@ -22,18 +22,42 @@ class AppointmentStatusChip extends StatelessWidget {
           (AppColors.slotLocked, AppColors.slotLockedContainer),
       };
 
+  /// Ícono de cada estado: el estado no depende solo del color (Cambio 3).
+  static IconData iconOf(AppointmentStatus status) => switch (status) {
+        AppointmentStatus.pendiente => Icons.hourglass_top,
+        AppointmentStatus.confirmada => Icons.check_circle,
+        AppointmentStatus.completada => Icons.task_alt,
+        AppointmentStatus.rechazada => Icons.cancel,
+        AppointmentStatus.noAsistio => Icons.person_off,
+        AppointmentStatus.cancelada => Icons.event_busy,
+        AppointmentStatus.expirada => Icons.timer_off,
+      };
+
   @override
   Widget build(BuildContext context) {
     final (fg, bg) = colorsOf(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-      child: Text(
-        status.label,
-        style: Theme.of(context)
-            .textTheme
-            .labelMedium
-            ?.copyWith(color: fg, fontWeight: FontWeight.w700),
+    return Semantics(
+      label: 'Estado: ${status.label}',
+      excludeSemantics: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(iconOf(status), size: 16, color: fg),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                status.label,
+                style: Theme.of(context)
+                    .textTheme
+                    .labelMedium
+                    ?.copyWith(color: fg, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

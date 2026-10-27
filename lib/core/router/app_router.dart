@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../accessibility/accessibility_page.dart';
 import '../auth/auth_providers.dart';
 import '../auth/domain/session_state.dart';
 import '../auth/presentation/complete_profile_page.dart';
@@ -87,6 +88,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: CoreRoutes.profile,
             builder: (context, state) => const ProfilePage(),
+          ),
+          GoRoute(
+            path: CoreRoutes.accessibility,
+            builder: (context, state) => const AccessibilityPage(),
           ),
           GoRoute(
             path: CoreRoutes.editProfile,

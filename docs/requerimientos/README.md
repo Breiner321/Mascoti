@@ -35,3 +35,5 @@ Conversión a Markdown del documento *Requerimientos Funcionales APP Veterinaria
 - **Horario base de la clínica** (hora de apertura y cierre, duración del slot) para RF-06, y el campo `atencionEmergencias` para RF-10.
 
 Se planifican en la semana 3 (ver [`../plan.md`](../plan.md)).
+
+> **Cambio de alcance 3 (accesibilidad y modo oscuro):** aplica a todos los RF. Toda pantalla debe cumplir WCAG 2.1 AA (contraste, 48 dp, etiquetas para el lector, texto hasta 200 %, estados no solo por color) y funcionar en modo claro, oscuro y alto contraste. Ver [accesibilidad.md](../accesibilidad.md).

@@ -56,7 +56,7 @@ class RecordTimelineTile extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: AppColors.border),
+              side: BorderSide(color: AppColors.border),
             ),
             child: ExpansionTile(
               shape: const Border(),
@@ -87,7 +87,7 @@ class RecordTimelineTile extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Row(
                   children: [
-                    const Icon(Icons.local_hospital_outlined,
+                    Icon(Icons.local_hospital_outlined,
                         size: 16, color: AppColors.textMuted),
                     const SizedBox(width: 4),
                     Expanded(
@@ -138,7 +138,7 @@ class _RecordDetail extends StatelessWidget {
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.vaccines_outlined, color: AppColors.primary),
+              leading: Icon(Icons.vaccines_outlined, color: AppColors.primary),
               title: Text(v.nombre),
               subtitle: Text([
                 'Lote ${v.lote}',

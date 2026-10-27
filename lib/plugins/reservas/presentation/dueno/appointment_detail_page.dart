@@ -246,7 +246,7 @@ class _Notice extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.sosBorder),
       ),
-      child: Text(text, style: const TextStyle(color: AppColors.sos)),
+      child: Text(text, style: TextStyle(color: AppColors.sos)),
     );
   }
 }
