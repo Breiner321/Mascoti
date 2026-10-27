@@ -125,6 +125,25 @@ npm run migrar-horario -- --aplicar  # escribe los cambios
 ```
 Se puede ejecutar varias veces. Sin migrar, la app y el servidor siguen leyendo `horarioBase` igual.
 
+## C3c. Otras veterinarias en el mapa (Cambio 4)
+
+Las veterinarias que aún no usan Mascoti salen de OpenStreetMap (API Overpass): gratis y **sin API key**; no hay que activar ninguna API de Google.
+1. Aplica la migración `supabase/migrations/20261028000000_veterinarias_osm.sql` (tablas de caché y límite). Si `supabase db push` no conecta, pega el archivo en Supabase → **SQL Editor** → Run. Se puede ejecutar varias veces.
+2. Despliega la función. No necesita secretos nuevos (`SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` los pone Supabase; el proyecto de Firebase es `mascoti-b27cf` salvo que definas `FIREBASE_PROJECT_ID`):
+   ```powershell
+   supabase functions deploy veterinarias-cercanas --project-ref tahnazumbqsupzpusrba --use-api
+   ```
+   `verify_jwt = false` en `supabase/config.toml`: la función verifica el token de Firebase por su cuenta.
+3. (Opcional) Vincula las clínicas aliadas con su lugar de OSM para que nunca salgan dos veces:
+   ```powershell
+   cd functions
+   $env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\<tu-usuario>\secretos\cuenta-servicio.json"
+   npm run vincular-osm               # solo muestra qué haría
+   npm run vincular-osm -- --aplicar  # escribe clinics.osmId
+   ```
+
+Sin la función desplegada, el mapa muestra los aliados y el aviso "No se pudieron cargar otras veterinarias." con "Reintentar". Sin `env/dev.json` (Supabase no configurado) solo muestra los aliados, sin aviso.
+
 ## C4. Notificaciones push (RF-13)
 
 No hay que configurar nada en Firebase: FCM viene con el proyecto y es gratis en el plan Spark. Las Edge Functions envían los push con la cuenta de servicio (secreto `FIREBASE_SERVICE_ACCOUNT`).

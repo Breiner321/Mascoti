@@ -7,7 +7,7 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 | 1 | Nombre del dueño en las notificaciones y en toda la app | RF-01, RF-03, RF-13, RF-14 | ✅ |
 | 2 | Disponibilidad automática según el horario de la clínica | RF-04, RF-06, RF-14 | ✅ |
 | 3 | Accesibilidad (WCAG 2.1 AA) y modo oscuro | Todos | ✅ |
-| 4 | Mapa con todas las veterinarias y "Aliados Mascoti" | RF-09, RF-10 | ⬜ |
+| 4 | Mapa con todas las veterinarias y "Aliados Mascoti" | RF-09, RF-10 | ✅ |
 
 ---
 
@@ -64,3 +64,21 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 
 **Límites.** El encabezado morado crece solo hasta 130 % con el texto grande (logo e íconos); el resto de la app llega a 200 %. table_calendar no etiqueta sus flechas ni los huecos de otros meses: se reemplazaron por botones propios y celdas vacías con nombre.
 
+## Cambio 4 — Mapa con todas las veterinarias y "Aliados Mascoti"
+
+**Qué decían los RF.** RF-09 mostraba solo las clínicas registradas en Mascoti, en un radio fijo alrededor del usuario, con Google Maps y Google Places.
+
+**Qué cambia.**
+- El mapa muestra también las **veterinarias que aún no usan Mascoti**, tomadas de **OpenStreetMap** (`amenity=veterinary`) por la Edge Function `veterinarias-cercanas`, que consulta la API Overpass. Es gratis y no necesita cuenta de Google Cloud (el equipo no tiene).
+- **Aliados Mascoti:** círculo morado con huella (rojo SOS si atiende emergencias) y el distintivo "Aliado Mascoti" en la lista, la tarjeta y el perfil. **Otras veterinarias:** círculo gris más pequeño con cruz médica. Se distinguen por forma y tamaño, no solo por color. Hay una leyenda bajo el mapa y el lector de pantalla dice "Aliado Mascoti: …" o "Veterinaria sin Mascoti: …".
+- La tarjeta de una veterinaria no aliada muestra nombre, dirección, distancia, horario (traducido de OSM: "Lu-Vi 8:00 a. m.–6:00 p. m."), teléfono, "Cómo llegar" y "Llamar" (solo si OSM tiene el teléfono), y el aviso "Esta veterinaria aún no usa Mascoti: no tiene citas ni servicios en la app." **No tiene "Agendar"** ni servicios.
+- **Recarga automática al mover el mapa** (decisión del equipo): 0,7 s después de mover o hacer zoom se buscan aliados y otras veterinarias en el área visible. El chip de distancia fija el zoom inicial.
+- Chip **"Solo aliados"**. Los filtros de especie, servicio y "24 horas" solo existen para los aliados: con ellos activos las otras veterinarias se ocultan y se explica con un aviso.
+- **Sin duplicados:** una clínica aliada que también está en OSM aparece una sola vez, como aliada. Son la misma si la clínica tiene ese `osmId` (lo pone `npm run vincular-osm`) o, sin él, si están a menos de 50 m y el nombre se parece (≥ 0,5 de palabras en común, sin contar "clínica", "veterinaria", etc.). Dos veterinarias vecinas con nombres distintos no se unen.
+- "Abierto/Cerrado" del directorio usa ahora el horario semanal del Cambio 2 en hora de Colombia (antes, `horarioBase` en la hora del teléfono).
+
+**Cuidado del servicio gratuito.** La Edge Function guarda en Postgres de Supabase el resultado por cuadros de ~5 km durante 24 h (una consulta a Overpass por zona y día para todos los usuarios), permite 60 consultas por usuario por hora y rechaza áreas de más de 30 km de lado ("Acerca el mapa para ver otras veterinarias."). Usa `overpass-api.de` y, si falla, `overpass.kumi.systems`. Si Overpass no responde, los aliados se siguen viendo y aparece "Reintentar".
+
+**Por qué.** El dueño quiere ver todas las veterinarias de su zona, sobre todo en una urgencia, aunque no usen Mascoti; y la distinción "Aliado Mascoti" muestra a las clínicas el valor de registrarse.
+
+**Límites.** Los datos de OSM los mantiene la comunidad: pueden faltar veterinarias o tener datos viejos (la tarjeta dice "Datos de OpenStreetMap"). El SOS (RF-10) aún no existe como pantalla; cuando se construya puede usar `nearbyVetPlacesProvider`, `VetMatching` y `ExternalLinks` del core.

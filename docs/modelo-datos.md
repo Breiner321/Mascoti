@@ -42,6 +42,7 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 | horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | **Obsoleto (Cambio 2).** Horario único de antes; se lee solo si la clínica no tiene `horarioSemanal` (todos los días abiertos con ese horario). Lo convierte `npm run migrar-horario` |
 | horarioSemanal | map `{lun…dom: {abierto, apertura, cierre, descansoInicio?, descansoFin?}}` | Cambio 2 (`WeeklySchedule`). Horas `HH:mm` en múltiplos de la franja; el descanso va dentro del horario. Las reglas validan la estructura (7 días, campos permitidos, `abierto` booleano); las horas las validan la app y el servidor |
 | reservas | map `{duracionSlotMin: 15\|30\|60, anticipacionMaxDias: 1–365, anticipacionMinMin: 0–10080}` | Cambio 2 (`BookingSettings`). Por defecto 30 min, 30 días y 120 min |
+| osmId | string? | Cambio 4: lugar de OpenStreetMap que corresponde a la clínica (`node/123`, `way/45`), para no mostrarla dos veces en el mapa. Lo escribe solo `npm run vincular-osm` (las reglas no dejan cambiarlo desde la app) |
 | calificacion | number? | promedio (futuro) |
 | estado | `'incompleto' \| 'activo'` | pasa a activo en RF-04. Mientras sea `incompleto`, la app obliga a la clínica a ir a `/clinica/perfil-atencion` |
 | createdAt | Timestamp | |
@@ -81,6 +82,14 @@ Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**;
 ## `codigosPaciente/{codigo}` — semana 3 · *nadie lo lee desde la app*
 
 `{petId, ownerUid, createdAt}`. El id del documento (`MSC-XXXX`) hace único el código: las reglas solo permiten **crearlo** (junto con la mascota que lo usa), así que si ya existe el lote completo falla y la app prueba otro código. Lo lee la Edge Function `vincular-mascota` con la cuenta de servicio.
+
+### Veterinarias de OpenStreetMap (Postgres de Supabase) — Cambio 4
+
+Las usa solo la Edge Function `veterinarias-cercanas` con la service_role key (RLS activado y sin políticas). Migración: `supabase/migrations/20261028000000_veterinarias_osm.sql`.
+- `public.cache_veterinarias_osm (cuadro, datos jsonb, actualizado)`: resultado de Overpass por cuadro de 0,05° (~5 km), válido 24 h. `datos` = lista de `{osmId, nombre, lat, lng, direccion?, telefono?, horario?, sitioWeb?}` (datos públicos de OSM, no de usuarios).
+- `public.consultas_mapa (uid, consultado_en)` y función `registrar_consulta_mapa`: máximo **60 consultas por usuario por hora**.
+
+En Firestore no se guardan las veterinarias de OSM.
 
 ### Límite de intentos de vinculación (Postgres de Supabase)
 

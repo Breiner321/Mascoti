@@ -12,7 +12,8 @@
     "suspender": "node admin/suspender-cuenta.mjs",
     "verificar-geo": "node admin/verificar-geo-clinicas.mjs",
     "seed:historial": "node admin/seed-historial.mjs",
-    "migrar-horario": "node admin/migrar-horario.mjs"
+    "migrar-horario": "node admin/migrar-horario.mjs",
+    "vincular-osm": "node admin/vincular-osm.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0"

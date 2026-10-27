@@ -13,6 +13,7 @@ class DirectoryFilters {
     this.service,
     this.emergencies = false,
     this.radiusKm = defaultRadiusKm,
+    this.onlyAllies = false,
   });
 
   /// Radio del control deslizante (RF-09: "ampliar el radio de búsqueda").
@@ -31,6 +32,10 @@ class DirectoryFilters {
   final bool emergencies;
   final double radiusKm;
 
+  /// Chip "Solo aliados" (Cambio 4): oculta las veterinarias de
+  /// OpenStreetMap que aún no usan Mascoti.
+  final bool onlyAllies;
+
   /// Radio dentro de 5–50 km, redondeado al kilómetro.
   static double clampRadius(double km) =>
       km.clamp(minRadiusKm, maxRadiusKm).roundToDouble();
@@ -46,7 +51,13 @@ class DirectoryFilters {
   int get activeCount =>
       (animalTypes.isEmpty ? 0 : 1) +
       (service == null ? 0 : 1) +
-      (emergencies ? 1 : 0);
+      (emergencies ? 1 : 0) +
+      (onlyAllies ? 1 : 0);
+
+  /// Filtros que solo pueden aplicarse a los aliados: las veterinarias de
+  /// OpenStreetMap no tienen especies, servicios ni emergencias en Mascoti.
+  bool get hasAllyOnlyFilters =>
+      animalTypes.isNotEmpty || service != null || emergencies;
 
   bool get hasFilters => activeCount > 0;
 
@@ -62,9 +73,12 @@ class DirectoryFilters {
         service: service == category ? null : category,
         emergencies: emergencies,
         radiusKm: radiusKm,
+        onlyAllies: onlyAllies,
       );
 
   DirectoryFilters toggleEmergencies() => _copy(emergencies: !emergencies);
+
+  DirectoryFilters toggleOnlyAllies() => _copy(onlyAllies: !onlyAllies);
 
   DirectoryFilters withRadius(double km) => _copy(radiusKm: clampRadius(km));
 
@@ -74,12 +88,14 @@ class DirectoryFilters {
   DirectoryFilters _copy(
           {Set<AnimalType>? animalTypes,
           bool? emergencies,
-          double? radiusKm}) =>
+          double? radiusKm,
+          bool? onlyAllies}) =>
       DirectoryFilters(
         animalTypes: animalTypes ?? this.animalTypes,
         service: service,
         emergencies: emergencies ?? this.emergencies,
         radiusKm: radiusKm ?? this.radiusKm,
+        onlyAllies: onlyAllies ?? this.onlyAllies,
       );
 
   @override
@@ -88,11 +104,12 @@ class DirectoryFilters {
       setEquals(other.animalTypes, animalTypes) &&
       other.service == service &&
       other.emergencies == emergencies &&
-      other.radiusKm == radiusKm;
+      other.radiusKm == radiusKm &&
+      other.onlyAllies == onlyAllies;
 
   @override
   int get hashCode => Object.hash(
-      Object.hashAllUnordered(animalTypes), service, emergencies, radiusKm);
+      Object.hashAllUnordered(animalTypes), service, emergencies, radiusKm, onlyAllies);
 }
 
 /// "850 m" o "2,3 km".

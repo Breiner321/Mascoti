@@ -430,3 +430,6 @@ verify_jwt = false
 
 [functions.tareas-programadas]
 verify_jwt = false
+
+[functions.veterinarias-cercanas]
+verify_jwt = false

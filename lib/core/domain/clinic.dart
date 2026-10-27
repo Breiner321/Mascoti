@@ -41,6 +41,7 @@ class Clinic {
     this.horarioBase,
     this.horarioSemanal,
     this.reservas,
+    this.osmId,
     this.calificacion,
     this.estado = ClinicStatus.incompleto,
     this.createdAt,
@@ -74,6 +75,7 @@ class Clinic {
       reservas: map['reservas'] is Map
           ? BookingSettings.fromMap(Map<String, dynamic>.from(map['reservas'] as Map))
           : null,
+      osmId: map['osmId'] as String?,
       calificacion: (map['calificacion'] as num?)?.toDouble(),
       estado: ClinicStatus.fromValue(map['estado']),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
@@ -108,6 +110,11 @@ class Clinic {
 
   /// Reglas para agendar (Cambio 2).
   final BookingSettings? reservas;
+
+  /// Lugar de OpenStreetMap que corresponde a esta clínica ('node/123'),
+  /// para no mostrarla dos veces en el mapa (Cambio 4). Lo pone el script
+  /// `npm run vincular-osm`; la app no lo edita.
+  final String? osmId;
 
   /// Horario efectivo: [horarioSemanal] o, sin migrar, [horarioBase] todos
   /// los días (igual que `horarioDeClinica` en el servidor). null si la
@@ -149,6 +156,7 @@ class Clinic {
         'horarioBase': horarioBase?.toMap(),
         'horarioSemanal': horarioSemanal?.toMap(),
         'reservas': reservas?.toMap(),
+        if (osmId != null) 'osmId': osmId,
         'calificacion': calificacion,
         'estado': estado.value,
         'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!),
@@ -194,6 +202,7 @@ class Clinic {
         horarioBase: horarioBase ?? this.horarioBase,
         horarioSemanal: horarioSemanal ?? this.horarioSemanal,
         reservas: reservas ?? this.reservas,
+        osmId: osmId,
         calificacion: calificacion,
         estado: estado ?? this.estado,
         createdAt: createdAt,
@@ -216,6 +225,7 @@ class Clinic {
       other.horarioBase == horarioBase &&
       other.horarioSemanal == horarioSemanal &&
       other.reservas == reservas &&
+      other.osmId == osmId &&
       other.calificacion == calificacion &&
       other.estado == estado &&
       other.createdAt == createdAt;
@@ -236,6 +246,7 @@ class Clinic {
         horarioBase,
         horarioSemanal,
         reservas,
+        osmId,
         calificacion,
         estado,
         createdAt,

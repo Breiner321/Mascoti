@@ -5,7 +5,7 @@ import '../../../core/domain/clinic_service.dart';
 import '../domain/directory_filters.dart';
 
 /// Chips de filtro del mockup (RF-09 paso 8): tipo de animal, servicio,
-/// "24 horas" (emergencias) y distancia.
+/// "24 horas" (emergencias), "Solo aliados" (Cambio 4) y distancia.
 class DirectoryFilterBar extends StatelessWidget {
   const DirectoryFilterBar(
       {super.key, required this.filters, required this.onChanged});
@@ -95,6 +95,13 @@ class DirectoryFilterBar extends StatelessWidget {
             tooltip: 'Clínicas con atención de emergencias',
             selected: filters.emergencies,
             onSelected: (_) => onChanged(filters.toggleEmergencies()),
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: const Text('Solo aliados'),
+            tooltip: 'Solo clínicas que usan Mascoti',
+            selected: filters.onlyAllies,
+            onSelected: (_) => onChanged(filters.toggleOnlyAllies()),
           ),
           const SizedBox(width: 8),
           FilterChip(

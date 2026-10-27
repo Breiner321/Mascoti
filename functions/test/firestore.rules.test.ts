@@ -88,6 +88,8 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
     await assertSucceeds(updateDoc(doc(vet, "clinics/c1"), { tiposAnimales: ["perros"] }));
     await assertFails(updateDoc(doc(ana, "clinics/c1"), { tiposAnimales: ["gatos"] }));
     await assertFails(updateDoc(doc(vet, "clinics/c1"), { ownerUid: "ana" }));
+    // Cambio 4: el osmId lo pone solo el script vincular-osm.
+    await assertFails(updateDoc(doc(vet, "clinics/c1"), { osmId: "node/1" }));
   });
 
   it("una cuenta suspendida solo lee su perfil (RF-02)", async () => {

@@ -4,10 +4,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/data/clinics_geo_providers.dart';
 import '../../../core/data/clinics_geo_repository.dart';
+import '../../../core/data/vet_places_providers.dart';
+import '../../../core/data/vet_places_repository.dart';
+import '../../../core/domain/map_vet.dart';
+import '../../../core/domain/vet_place.dart';
+import '../../../core/maps/external_links.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/location_service.dart';
 import '../directorio_routes.dart';
 import '../domain/directory_filters.dart';
+import 'ally_badge.dart';
 import 'clinic_list_tile.dart';
 import 'clinic_marker_card.dart';
 import 'directory_filter_bar.dart';
@@ -15,10 +21,16 @@ import 'directory_map_view.dart';
 import 'directory_providers.dart';
 import 'location_needed_view.dart';
 import 'no_clinics_view.dart';
+import 'open_external.dart';
 import 'schedule_action.dart';
+import 'vet_marker_icon.dart';
+import 'vet_place_card.dart';
+import 'vet_place_list_tile.dart';
 
 /// Pestaña "Mapa" del dueño (RF-09, mockup VISTA CLIENTE – Mapa): chips de
 /// filtro, mapa centrado en el usuario y lista de clínicas con "Agendar".
+/// Cambio 4: también las veterinarias de OpenStreetMap que aún no usan
+/// Mascoti (solo informativas), y al mover el mapa se vuelve a buscar.
 class DirectoryPage extends ConsumerWidget {
   const DirectoryPage({super.key});
 
@@ -28,6 +40,10 @@ class DirectoryPage extends ConsumerWidget {
   static const unavailableMessage =
       'No pudimos obtener tu ubicación. Activa el GPS del teléfono '
       'o busca por dirección o ciudad.';
+  static const allyOnlyFiltersNote =
+      'Los filtros de especie, servicio y 24 horas solo aplican a Aliados '
+      'Mascoti: las otras veterinarias se ocultan.';
+  static const othersLegend = 'Otras veterinarias';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -112,7 +128,8 @@ class DirectoryPage extends ConsumerWidget {
   }
 }
 
-/// Mapa y lista para un punto de búsqueda.
+/// Mapa y lista para un punto de búsqueda. Al mover el mapa (Cambio 4)
+/// vuelve a buscar aliados y otras veterinarias en el área visible.
 class _Results extends ConsumerStatefulWidget {
   const _Results(
       {required this.center, required this.filters, this.onUseMyLocation});
@@ -129,47 +146,130 @@ class _Results extends ConsumerStatefulWidget {
 
 class _ResultsState extends ConsumerState<_Results> {
   bool _hideAccuracyWarning = false;
-  String? _selectedId;
+  String? _selectedKey;
 
-  NearbyQuery get _query => NearbyQuery(
+  /// Lo que se ve del mapa (redondeado). null = todavía no se ha movido:
+  /// se busca en el radio del filtro alrededor del punto de búsqueda.
+  MapArea? _area;
+
+  @override
+  void didUpdateWidget(_Results old) {
+    super.didUpdateWidget(old);
+    // Otro punto o radio: el mapa se recentra y vuelve a informar el área.
+    if (old.center.lat != widget.center.lat ||
+        old.center.lng != widget.center.lng ||
+        old.filters.radiusKm != widget.filters.radiusKm) {
+      _area = null;
+    }
+  }
+
+  NearbyQuery get _allyQuery {
+    final area = _area;
+    if (area == null) {
+      return NearbyQuery(
         lat: widget.center.lat,
         lng: widget.center.lng,
         radiusKm: widget.filters.radiusKm,
         filters: widget.filters.toClinicFilters(),
       );
+    }
+    // Radio que cubre todo lo visible (hasta las esquinas).
+    final radius = (area.halfDiagonalKm * 10).ceilToDouble() / 10;
+    return NearbyQuery(
+      lat: area.centerLat,
+      lng: area.centerLng,
+      radiusKm: radius.clamp(1.0, DirectoryFilters.maxRadiusKm),
+      filters: widget.filters.toClinicFilters(),
+    );
+  }
+
+  MapArea get _osmArea => (_area ??
+          MapArea.around(
+              widget.center.lat, widget.center.lng, widget.filters.radiusKm))
+      .rounded();
+
+  /// Las otras veterinarias no tienen especies, servicios ni emergencias:
+  /// con esos filtros (o "Solo aliados") no se muestran.
+  bool get _showOsm =>
+      !widget.filters.onlyAllies && !widget.filters.hasAllyOnlyFilters;
+
+  void _onAreaChanged(MapArea area) {
+    final rounded = area.rounded();
+    if (rounded != _area) setState(() => _area = rounded);
+  }
 
   void _setRadius(double km) => ref
       .read(directoryFiltersProvider.notifier)
       .update((f) => f.withRadius(km));
 
-  void _showCard(NearbyClinic nearby) {
-    setState(() => _selectedId = nearby.clinic.id);
+  void _directions(MapVet vet) => openExternal(
+      context,
+      ref,
+      ExternalLinks.directions(vet.lat, vet.lng, vet.nombre),
+      'No se pudo abrir el mapa');
+
+  void _show(MapVet vet) {
+    setState(() => _selectedKey = vet.key);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (sheetContext) => ClinicMarkerCard(
-        nearby: nearby,
-        onViewProfile: () {
-          Navigator.pop(sheetContext);
-          context.push(DirectorioRoutes.clinic(nearby.clinic.id));
-        },
-        onSchedule: () {
-          Navigator.pop(sheetContext);
-          openSchedule(context, ref, nearby.clinic.id);
-        },
-      ),
+      isScrollControlled: true,
+      builder: (sheetContext) => switch (vet) {
+        AllyVet() => ClinicMarkerCard(
+            nearby: _nearbyOf(vet),
+            onViewProfile: () {
+              Navigator.pop(sheetContext);
+              context.push(DirectorioRoutes.clinic(vet.nearby.clinic.id));
+            },
+            onSchedule: () {
+              Navigator.pop(sheetContext);
+              openSchedule(context, ref, vet.nearby.clinic.id);
+            },
+          ),
+        OsmVet() => VetPlaceCard(
+            vet: vet,
+            onDirections: () => _directions(vet),
+            onCall: switch (vet.telefono) {
+              final phone? => () => openExternal(context, ref,
+                  [ExternalLinks.call(phone)], 'No se pudo abrir el teléfono'),
+              null => null,
+            },
+          ),
+      },
     );
   }
+
+  /// La clínica con la distancia desde el punto de búsqueda (no desde el
+  /// centro del mapa).
+  NearbyClinic _nearbyOf(AllyVet vet) =>
+      NearbyClinic(clinic: vet.nearby.clinic, distanceKm: vet.distanceKm);
 
   @override
   Widget build(BuildContext context) {
     final center = widget.center;
-    final clinics = ref.watch(nearbyClinicsProvider(_query));
+    final filters = widget.filters;
+    final allyQuery = _allyQuery;
+    final osmArea = _osmArea;
+    final allies = ref.watch(nearbyClinicsProvider(allyQuery));
+    final osm = _showOsm ? ref.watch(nearbyVetPlacesProvider(osmArea)) : null;
     final mapBuilder = ref.watch(directoryMapBuilderProvider);
+    final vets = VetMatching.merge(
+      allies: allies.value ?? const [],
+      places: osm?.value ?? const [],
+      fromLat: center.lat,
+      fromLng: center.lng,
+    );
     final accuracy = center.accuracyM;
     final showAccuracy = !_hideAccuracyWarning &&
         accuracy != null &&
         accuracy > LocationFound.impreciseAfterM;
+    // Sin Supabase configurado (env sin llenar) no se avisa nada.
+    final osmFailure = switch (osm) {
+      AsyncError(error: VetPlacesFailure.notConfigured) => null,
+      AsyncError(error: final VetPlacesFailure f) => f,
+      AsyncError() => VetPlacesFailure.unavailable,
+      _ => null,
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -195,6 +295,21 @@ class _ResultsState extends ConsumerState<_Results> {
               onPressed: () => setState(() => _hideAccuracyWarning = true),
             ),
           ),
+        if (!filters.onlyAllies && filters.hasAllyOnlyFilters)
+          const _InfoStrip(
+              icon: Icons.filter_alt_outlined,
+              text: DirectoryPage.allyOnlyFiltersNote),
+        if (osmFailure != null)
+          _InfoStrip(
+            icon: osmFailure.tooLarge ? Icons.zoom_in : Icons.cloud_off_outlined,
+            text: osmFailure.message,
+            action: osmFailure.tooLarge
+                ? null
+                : TextButton(
+                    onPressed: () =>
+                        ref.invalidate(nearbyVetPlacesProvider(osmArea)),
+                    child: const Text('Reintentar')),
+          ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: ClipRRect(
@@ -203,35 +318,47 @@ class _ResultsState extends ConsumerState<_Results> {
               height: 240,
               child: mapBuilder(DirectoryMapData(
                 center: center,
-                clinics: clinics.value ?? const [],
-                radiusKm: widget.filters.radiusKm,
-                onTapClinic: _showCard,
+                vets: vets,
+                radiusKm: filters.radiusKm,
+                onTapVet: _show,
+                onAreaChanged: _onAreaChanged,
               )),
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        _MapLegend(
+            showOthers: _showOsm, loadingOthers: osm?.isLoading ?? false),
         Expanded(
-          child: switch (clinics) {
-            AsyncData(:final value) when value.isEmpty => NoClinicsView(
-                radiusKm: widget.filters.radiusKm,
+          child: switch (allies) {
+            AsyncData() when vets.isEmpty && (osm?.isLoading ?? false) =>
+              const Center(child: CircularProgressIndicator()),
+            AsyncData() when vets.isEmpty => NoClinicsView(
+                radiusKm: filters.radiusKm,
                 onRadiusChanged: _setRadius,
-                onClearFilters: widget.filters.hasFilters
+                onClearFilters: filters.hasFilters
                     ? () => ref
                         .read(directoryFiltersProvider.notifier)
                         .update((f) => f.cleared())
                     : null,
               ),
-            AsyncData(:final value) => ListView.builder(
+            AsyncData() => ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                itemCount: value.length,
-                itemBuilder: (context, i) => ClinicListTile(
-                  nearby: value[i],
-                  selected: value[i].clinic.id == _selectedId,
-                  onTap: () => _showCard(value[i]),
-                  onSchedule: () =>
-                      openSchedule(context, ref, value[i].clinic.id),
-                ),
+                itemCount: vets.length,
+                itemBuilder: (context, i) => switch (vets[i]) {
+                  final AllyVet v => ClinicListTile(
+                      nearby: _nearbyOf(v),
+                      selected: v.key == _selectedKey,
+                      onTap: () => _show(v),
+                      onSchedule: () =>
+                          openSchedule(context, ref, v.nearby.clinic.id),
+                    ),
+                  final OsmVet v => VetPlaceListTile(
+                      vet: v,
+                      selected: v.key == _selectedKey,
+                      onTap: () => _show(v),
+                      onDirections: () => _directions(v),
+                    ),
+                },
               ),
             AsyncError() => Center(
                 child: Padding(
@@ -245,7 +372,7 @@ class _ResultsState extends ConsumerState<_Results> {
                       const SizedBox(height: 12),
                       FilledButton(
                         onPressed: () =>
-                            ref.invalidate(nearbyClinicsProvider(_query)),
+                            ref.invalidate(nearbyClinicsProvider(allyQuery)),
                         child: const Text('Reintentar'),
                       ),
                     ],
@@ -256,6 +383,48 @@ class _ResultsState extends ConsumerState<_Results> {
           },
         ),
       ],
+    );
+  }
+}
+
+/// Leyenda de los marcadores (Cambio 4).
+class _MapLegend extends StatelessWidget {
+  const _MapLegend({required this.showOthers, required this.loadingOthers});
+
+  final bool showOthers;
+  final bool loadingOthers;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const VetMarkerIcon(ally: true, scale: 0.5),
+            const SizedBox(width: 6),
+            Text(AllyBadge.label, style: style),
+          ]),
+          if (showOthers)
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              const VetMarkerIcon(ally: false, scale: 0.6),
+              const SizedBox(width: 6),
+              Text(DirectoryPage.othersLegend, style: style),
+              if (loadingOthers) ...[
+                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ],
+            ]),
+        ],
+      ),
     );
   }
 }
