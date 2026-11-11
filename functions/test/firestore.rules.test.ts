@@ -16,9 +16,11 @@ import {
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
+  increment,
   orderBy,
   query,
   serverTimestamp,
@@ -895,6 +897,248 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       await assertFails(setDoc(doc(ana, "users/vet/devices/d1"), token));
       await assertFails(getDoc(doc(ana, "users/vet/devices/d1")));
       await assertSucceeds(deleteDoc(doc(ana, "users/ana/devices/d1")));
+    });
+  });
+  describe("chats y messages (RF-15, RF-16)", () => {
+    const CHAT = "ana_c2";
+    const LARGO = 2000;
+
+    function chatNuevo(extra: Record<string, unknown> = {}) {
+      return {
+        participantes: ["ana", "vet2"],
+        ownerUid: "ana",
+        clinicId: "c2",
+        clinicOwnerUid: "vet2",
+        ownerNombre: "Ana Pérez",
+        clinicNombre: "Vet 2",
+        petIds: [],
+        lastMessage: null,
+        lastMessageId: null,
+        lastMessageAt: serverTimestamp(),
+        noLeidos: { ana: 0, vet2: 0 },
+        typing: {},
+        createdAt: serverTimestamp(),
+        ...extra,
+      };
+    }
+
+    /** Lote de envío: el mensaje y el chat actualizado (como ChatRepository). */
+    function enviar(
+      uid: string,
+      id: string,
+      mensaje: Record<string, unknown> = {},
+      chat: Record<string, unknown> = {},
+    ) {
+      const db = env.authenticatedContext(uid).firestore();
+      const receptor = uid === "ana" ? "vet2" : "ana";
+      const lote = writeBatch(db);
+      const base: Record<string, unknown> = {
+        senderUid: uid, tipo: "texto", texto: "Hola", timestamp: serverTimestamp(), leido: false,
+      };
+      if (mensaje.tipo === "adjunto") delete base.texto;
+      lote.set(doc(db, `chats/${CHAT}/messages/${id}`), { ...base, ...mensaje });
+      lote.update(doc(db, `chats/${CHAT}`), {
+        lastMessage: { texto: "Hola", tipo: (mensaje.tipo as string) ?? "texto", senderUid: uid },
+        lastMessageId: id,
+        lastMessageAt: serverTimestamp(),
+        [`noLeidos.${receptor}`]: increment(1),
+        ...chat,
+      });
+      return lote.commit();
+    }
+
+    beforeEach(async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, "users/ana"), {
+          uid: "ana", role: "dueno", estado: "activo", nombre: "Ana Pérez", displayName: "ana.p",
+        });
+        await setDoc(doc(db, "users/beto"), { uid: "beto", role: "dueno", estado: "activo" });
+        // Luna autorizó a la clínica c2.
+        await setDoc(doc(db, "pets/p6"), {
+          ownerUid: "ana", nombre: "Luna", especie: "perro", clinicasAutorizadas: ["c2"],
+        });
+      });
+    });
+
+    async function crearChat() {
+      await assertSucceeds(setDoc(doc(env.authenticatedContext("ana").firestore(), `chats/${CHAT}`),
+        chatNuevo()));
+    }
+
+    it("el dueño crea el chat con una clínica activa, con su nombre y contadores en 0", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertFails(setDoc(doc(ana, `chats/${CHAT}`), chatNuevo({ ownerNombre: "Otra persona" })));
+      await assertFails(setDoc(doc(ana, `chats/${CHAT}`), chatNuevo({ clinicNombre: "Falsa" })));
+      await assertFails(setDoc(doc(ana, `chats/${CHAT}`), chatNuevo({ clinicOwnerUid: "beto",
+        participantes: ["ana", "beto"], noLeidos: { ana: 0, beto: 0 } })));
+      await assertFails(setDoc(doc(ana, `chats/${CHAT}`), chatNuevo({ noLeidos: { ana: 0, vet2: 5 } })));
+      await assertFails(setDoc(doc(ana, `chats/${CHAT}`), chatNuevo({ lastMessageAt: new Date() })));
+      await assertFails(setDoc(doc(ana, `chats/${CHAT}`), chatNuevo({ ultimoPush: {} })));
+      // Clínica incompleta (c1) o id que no corresponde.
+      await assertFails(setDoc(doc(ana, "chats/ana_c1"), chatNuevo({
+        clinicId: "c1", clinicOwnerUid: "vet", clinicNombre: "Vet",
+        participantes: ["ana", "vet"], noLeidos: { ana: 0, vet: 0 },
+      })));
+      await assertFails(setDoc(doc(ana, "chats/beto_c2"), chatNuevo()));
+      await assertFails(setDoc(doc(env.authenticatedContext("beto").firestore(), `chats/${CHAT}`),
+        chatNuevo()));
+      // Con el nombre de Google también sirve.
+      await assertSucceeds(setDoc(doc(ana, `chats/${CHAT}`), chatNuevo({ ownerNombre: "ana.p" })));
+    });
+
+    it("la clínica crea el chat solo con un dueño que la autorizó en una mascota", async () => {
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      await assertFails(setDoc(doc(vet2, `chats/${CHAT}`), chatNuevo()));
+      await assertFails(setDoc(doc(vet2, `chats/${CHAT}`), chatNuevo({ petIds: ["p1"] })));
+      await assertFails(setDoc(doc(vet2, "chats/otro_c2"), chatNuevo({
+        ownerUid: "otro", participantes: ["otro", "vet2"], noLeidos: { otro: 0, vet2: 0 },
+        petIds: ["p2"],
+      })));
+      // Otra clínica no puede crearlo a nombre de c2.
+      await assertFails(setDoc(doc(env.authenticatedContext("vet").firestore(), `chats/${CHAT}`),
+        chatNuevo({ petIds: ["p6"] })));
+      await assertSucceeds(setDoc(doc(vet2, `chats/${CHAT}`),
+        chatNuevo({ petIds: ["p6"], ownerNombre: "Ana" })));
+    });
+
+    it("solo los participantes leen el chat; uno que no existe se puede pedir si el id es propio", async () => {
+      const ana = env.authenticatedContext("ana").firestore();
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      const vet = env.authenticatedContext("vet").firestore();
+      await assertSucceeds(getDoc(doc(ana, `chats/${CHAT}`)));
+      await assertSucceeds(getDoc(doc(vet2, `chats/${CHAT}`)));
+      await assertFails(getDoc(doc(vet, `chats/${CHAT}`)));
+      await assertFails(getDoc(doc(env.authenticatedContext("beto").firestore(), `chats/${CHAT}`)));
+
+      await crearChat();
+      await assertSucceeds(getDoc(doc(ana, `chats/${CHAT}`)));
+      await assertSucceeds(getDoc(doc(vet2, `chats/${CHAT}`)));
+      await assertFails(getDoc(doc(vet, `chats/${CHAT}`)));
+      await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), `chats/${CHAT}`)));
+      // Bandeja: sus chats, el más reciente primero.
+      await assertSucceeds(getDocs(query(collection(ana, "chats"),
+        where("participantes", "array-contains", "ana"), orderBy("lastMessageAt", "desc"))));
+      await assertFails(getDocs(collection(ana, "chats")));
+      await assertFails(getDocs(query(collection(vet, "chats"),
+        where("participantes", "array-contains", "ana"))));
+      await assertFails(deleteDoc(doc(ana, `chats/${CHAT}`)));
+    });
+
+    it("enviar: mensaje y chat en un lote, +1 al receptor", async () => {
+      await crearChat();
+      await assertSucceeds(enviar("ana", "m1"));
+      await assertSucceeds(enviar("vet2", "m2"));
+      await assertSucceeds(enviar("ana", "m3", { texto: "x".repeat(LARGO) }));
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const chat = (await getDoc(doc(ctx.firestore(), `chats/${CHAT}`))).data()!;
+        if (chat.noLeidos.vet2 !== 2 || chat.noLeidos.ana !== 1 || chat.lastMessageId !== "m3") {
+          throw new Error(`chat inesperado: ${JSON.stringify(chat.noLeidos)}`);
+        }
+      });
+      // Los participantes leen los mensajes; otros no.
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertSucceeds(getDocs(query(collection(ana, `chats/${CHAT}/messages`),
+        orderBy("timestamp", "desc"))));
+      await assertSucceeds(getDocs(query(collection(ana, `chats/${CHAT}/messages`),
+        where("leido", "==", false), where("senderUid", "==", "vet2"))));
+      await assertFails(getDocs(collection(env.authenticatedContext("vet").firestore(),
+        `chats/${CHAT}/messages`)));
+    });
+
+    it("no se puede falsificar el emisor, enviar fuera de rango ni sin actualizar el chat", async () => {
+      await crearChat();
+      // senderUid de otro (en el mensaje o en el resumen).
+      await assertFails(enviar("ana", "m1", { senderUid: "vet2" }));
+      await assertFails(enviar("ana", "m1", {}, {
+        lastMessage: { texto: "Hola", tipo: "texto", senderUid: "vet2" },
+      }));
+      // Texto vacío, solo espacios o de más de 2000 caracteres.
+      await assertFails(enviar("ana", "m1", { texto: "" }));
+      await assertFails(enviar("ana", "m1", { texto: "   " }));
+      await assertFails(enviar("ana", "m1", { texto: "x".repeat(LARGO + 1) }));
+      // Hora del teléfono, leído desde el inicio o campos extra.
+      await assertFails(enviar("ana", "m1", { timestamp: new Date() }));
+      await assertFails(enviar("ana", "m1", { leido: true }));
+      await assertFails(enviar("ana", "m1", { prioridad: "alta" }));
+      // Vista previa de más de 100 caracteres.
+      await assertFails(enviar("ana", "m1", {}, {
+        lastMessage: { texto: "x".repeat(101), tipo: "texto", senderUid: "ana" },
+      }));
+      // Mensaje suelto, sin actualizar el chat.
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertFails(setDoc(doc(ana, `chats/${CHAT}/messages/m1`), {
+        senderUid: "ana", tipo: "texto", texto: "Hola", timestamp: serverTimestamp(), leido: false,
+      }));
+      // Quien no participa.
+      await assertFails(enviar("vet", "m1"));
+      await assertFails(enviar("beto", "m1"));
+      await assertSucceeds(enviar("ana", "m1"));
+      // Repetir el id (reescribir un mensaje) no se puede.
+      await assertFails(enviar("ana", "m1", { texto: "Editado" }));
+    });
+
+    it("nadie altera el contador del otro", async () => {
+      await crearChat();
+      // +2, +1 al propio, o subir el del otro sin mensaje.
+      await assertFails(enviar("ana", "m1", {}, { "noLeidos.vet2": increment(2) }));
+      await assertFails(enviar("ana", "m1", {}, { "noLeidos.ana": increment(1), "noLeidos.vet2": increment(1) }));
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertFails(updateDoc(doc(ana, `chats/${CHAT}`), { "noLeidos.vet2": increment(1) }));
+      await assertSucceeds(enviar("ana", "m1"));
+      // vet2 tiene 1: ana no lo puede borrar; vet2 sí pone el suyo en 0.
+      await assertFails(updateDoc(doc(ana, `chats/${CHAT}`), { "noLeidos.vet2": 0 }));
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      await assertFails(updateDoc(doc(vet2, `chats/${CHAT}`), { "noLeidos.vet2": 3 }));
+      await assertSucceeds(updateDoc(doc(vet2, `chats/${CHAT}`), { "noLeidos.vet2": 0 }));
+      // Ni campos del servidor o del chat.
+      await assertFails(updateDoc(doc(vet2, `chats/${CHAT}`), { ultimoPush: { ana: serverTimestamp() } }));
+      await assertFails(updateDoc(doc(vet2, `chats/${CHAT}`), { clinicNombre: "Otra" }));
+      await assertFails(updateDoc(doc(ana, `chats/${CHAT}`), { participantes: ["ana", "vet"] }));
+    });
+
+    it("escribiendo…: cada uno solo el suyo, con la hora del servidor", async () => {
+      await crearChat();
+      const ana = env.authenticatedContext("ana").firestore();
+      await assertSucceeds(updateDoc(doc(ana, `chats/${CHAT}`), { "typing.ana": serverTimestamp() }));
+      await assertFails(updateDoc(doc(ana, `chats/${CHAT}`), { "typing.vet2": serverTimestamp() }));
+      await assertFails(updateDoc(doc(ana, `chats/${CHAT}`), { "typing.ana": new Date() }));
+      await assertSucceeds(updateDoc(doc(ana, `chats/${CHAT}`), { "typing.ana": deleteField() }));
+      await assertFails(updateDoc(doc(env.authenticatedContext("vet").firestore(), `chats/${CHAT}`),
+        { "typing.vet": serverTimestamp() }));
+    });
+
+    it("solo el receptor marca leido = true; nadie edita ni borra mensajes", async () => {
+      await crearChat();
+      await assertSucceeds(enviar("ana", "m1"));
+      const ana = env.authenticatedContext("ana").firestore();
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      const m1 = (db: typeof ana) => doc(db, `chats/${CHAT}/messages/m1`);
+      await assertFails(updateDoc(m1(ana), { leido: true }));
+      await assertFails(updateDoc(m1(vet2), { texto: "Otro" }));
+      await assertFails(updateDoc(m1(vet2), { leido: true, texto: "Otro" }));
+      await assertFails(updateDoc(m1(env.authenticatedContext("vet").firestore()), { leido: true }));
+      await assertSucceeds(updateDoc(m1(vet2), { leido: true }));
+      await assertFails(updateDoc(m1(vet2), { leido: false }));
+      await assertFails(deleteDoc(m1(ana)));
+      await assertFails(deleteDoc(m1(vet2)));
+    });
+
+    it("adjunto (RF-16): archivo de la carpeta del chat, JPG/PNG/PDF de máximo 10 MB", async () => {
+      await crearChat();
+      const adjunto = { path: `${CHAT}/abc-examen.pdf`, nombre: "examen.pdf", tipo: "pdf", tamanoBytes: 2048 };
+      const conAdjunto = (a: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+        ({ tipo: "adjunto", adjunto: a, ...extra });
+      await assertFails(enviar("ana", "m1", conAdjunto({ ...adjunto, path: "ana_c1/abc-examen.pdf" })));
+      await assertFails(enviar("ana", "m1", conAdjunto({ ...adjunto, path: `${CHAT}/sub/x.pdf` })));
+      await assertFails(enviar("ana", "m1", conAdjunto({ ...adjunto, tamanoBytes: 10 * 1024 * 1024 + 1 })));
+      await assertFails(enviar("ana", "m1", conAdjunto({ ...adjunto, tipo: "video" })));
+      await assertFails(enviar("ana", "m1", conAdjunto(adjunto), {
+        lastMessage: { texto: "examen.pdf", tipo: "texto", senderUid: "ana" },
+      }));
+      await assertSucceeds(enviar("ana", "m1", conAdjunto(adjunto, { referenciaHistorialId: "r1" }), {
+        lastMessage: { texto: "examen.pdf", tipo: "adjunto", senderUid: "ana" },
+      }));
     });
   });
 });
