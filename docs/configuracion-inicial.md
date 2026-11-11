@@ -69,6 +69,7 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    supabase db query --linked -f supabase/migrations/20261016000000_limite_vinculacion.sql
    supabase db query --linked -f supabase/migrations/20261016010000_storage_registros.sql
    supabase db query --linked -f supabase/migrations/20261023000000_tareas_programadas.sql   # ver paso 5
+   supabase db query --linked -f supabase/migrations/20261110000000_storage_chats.sql
    ```
    O pega cada archivo en **SQL Editor** del panel. Se pueden ejecutar varias veces sin problema.
 3. **Cuenta de servicio de Firebase** (la Edge Function la usa para escribir en Firestore): Firebase → Configuración del proyecto → Cuentas de servicio → **Generar nueva clave privada**. Guarda el JSON **fuera del repositorio** y cárgalo como secreto. Se pasa en **Base64** porque PowerShell rompe el JSON al enviarlo como argumento (error `Invalid secret pair`):
@@ -83,6 +84,8 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    supabase functions deploy adjuntos-historial --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy citas --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy tareas-programadas --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy notificar-mensaje --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy adjuntos-chat --project-ref tahnazumbqsupzpusrba --use-api
    ```
 5. **Tareas programadas** (no-show y solicitudes expiradas cada 30 min; recordatorios diarios, RF-13). Las ejecuta pg_cron en Supabase llamando a `tareas-programadas`, protegida con un secreto compartido:
    ```powershell

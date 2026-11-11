@@ -117,10 +117,27 @@ Modelo `Appointment` (`lib/core/domain`), repositorio `AppointmentsRepository` (
 
 Al solicitar, en **un solo commit**: crea la cita `pendiente`, la franja pasa a `reservado_temporal` y el `clinicId` se agrega a `pets/{petId}.clinicasAutorizadas` (RF-14 paso 8: la clínica puede ver el historial). Aprobar → franja `ocupado`; rechazar, cancelar o expirar → franja `disponible`.
 
-## `chats/{ownerUid_clinicId}` — RF-15
+## `chats/{ownerUid}_{clinicId}` — RF-15, RF-16
 
-`{participantes:[ownerUid, clinicOwnerUid], ownerUid, clinicId, lastMessage, updatedAt, typing:{uid:bool}, noLeidos:{uid:number}}`
-Subcolección `messages/{messageId}`: `{senderUid, tipo:'texto'|'adjunto', texto?, adjuntoURL?, adjuntoTipo?, adjuntoNombre?, referenciaHistorialId?, timestamp, leido}`
+Modelos `Chat` y `ChatMessage` (`lib/core/domain`), repositorio `ChatRepository` (`lib/core/data`). Todo se escribe directo desde la app (cola offline de Firestore); `firestore.rules` valida.
+
+`{participantes:[ownerUid, clinicOwnerUid], ownerUid, clinicId, clinicOwnerUid, ownerNombre, clinicNombre, petIds:[petId], lastMessage:{texto, tipo, senderUid}|null, lastMessageId|null, lastMessageAt:Timestamp, noLeidos:{uid:int}, typing:{uid:Timestamp}, ultimoPush?:{uid:Timestamp}, createdAt}`
+
+- Id determinístico: una conversación por dueño y clínica. `clinicOwnerUid` = `clinics/{clinicId}.ownerUid` (el usuario que maneja la clínica).
+- **Quién la crea:** el dueño, con cualquier clínica `activo` (su `ownerNombre` debe ser el `nombre` o el nombre de Google de su perfil); la clínica, solo con un dueño que la autorizó en una mascota (`petIds[0]` con `clinicId` en `clinicasAutorizadas`). Se crea con los dos contadores en 0, `typing` vacío y `lastMessageAt` = hora del servidor (para que aparezca en la bandeja). `ownerNombre` y `clinicNombre` son copias al crearla.
+- **Leen** solo los participantes activos. Un chat que aún no existe se puede pedir (`get`) si el id es propio: así "abrir u obtener" funciona.
+- **Enviar = un lote:** crear `messages/{id}` y actualizar el chat con `lastMessage` (vista previa ≤ 100 caracteres; en un adjunto, el nombre del archivo), `lastMessageId` = id del mensaje, `lastMessageAt` = hora del servidor y `noLeidos[receptor] + 1` (`increment(1)`). Las reglas exigen las dos partes: el mensaje no se crea sin actualizar el chat y el contador del receptor solo sube de a 1 con un mensaje nuevo del emisor.
+- `noLeidos[uid]`: cada participante solo pone el **suyo** en 0 (al leer). Nadie puede cambiar el del otro.
+- `typing[uid]`: hora del servidor de la última tecla (como máximo cada 3 s) o se borra al dejar de escribir o al enviar. La app muestra "escribiendo…" si tiene menos de 6 s (`Chat.typingTimeout`), por si la app se cerró sin borrarlo. Cada uno solo cambia el suyo.
+- `ultimoPush[uid]`: lo escribe solo la Edge Function `notificar-mensaje` (agrupa ráfagas: máximo un push por conversación y receptor cada 30 s).
+- No se borra.
+
+Subcolección `messages/{messageId}` (id generado en la app): `{senderUid, tipo:'texto'|'adjunto', texto?, adjunto?:{path, nombre, tipo:'imagen'|'pdf', tamanoBytes}, referenciaHistorialId?, timestamp, leido}`
+
+- Crea solo un participante, con `senderUid` = su uid, `timestamp` = hora del servidor y `leido = false`. Texto de 1 a 2000 caracteres (sin contar solo espacios); en un adjunto `texto` es un comentario opcional (≤ 2000).
+- `adjunto.path`: ruta en el bucket privado `chats` de Supabase, dentro de la carpeta del chat (`{chatId}/{uuid}-{nombre}`); JPG/PNG/PDF de máximo 10 MB. `referenciaHistorialId`: registro del historial del que viene (RF-16).
+- Nadie edita el texto ni borra; el **receptor** solo cambia `leido` a `true` (doble check).
+- Mensajes enviados sin conexión: la app los muestra con `ChatMessage.pendiente` (escritura local sin confirmar) hasta que Firestore los envía.
 
 ## `orders/{orderId}` — RF-12 · *la crea solo la Function del webhook de pago*
 
@@ -131,6 +148,7 @@ Subcolección `messages/{messageId}`: `{senderUid, tipo:'texto'|'adjunto', texto
 `{uid, tipo, titulo, cuerpo, referenciaId, leido, createdAt}`
 
 - `tipo ∈ cita_nueva, cita_aprobada, cita_rechazada, cita_cancelada, recordatorio_cita, vacuna, pedido, mensaje` (`NotificationType` en Dart, `TipoNotificacion` en TS).
+- `mensaje` (RF-15) **no crea documento** aquí (el chat tiene su contador `noLeidos` y la pestaña "Mensajes"): solo push, desde `notificar-mensaje`, con `data: {tipo: 'mensaje', referenciaId: chatId}` → `/chat/:chatId`.
 - `referenciaId`: la cita (`appointmentId`) en los tipos de citas; la **mascota** (`petId`) en `vacuna`. El push lleva lo mismo en `data: {tipo, referenciaId, notificationId}` y la app navega con eso (`/reservas/:id` o `/mascotas/perfil/:petId`; si la ruta no existe, al inicio).
 - La crea `enviarNotificacion` (`supabase/functions/_shared/notificaciones.ts`), **siempre**, antes de enviar el push: aunque el usuario niegue el permiso, la ve en el centro de notificaciones. Los recordatorios usan ids fijos (`recordatorio_{appointmentId}`, `vacuna_{vacunaProgramadaId}`) para no duplicarse.
 - Reglas: cada usuario lee las suyas y solo puede cambiar `leido` a `true`; nadie más escribe.
@@ -149,7 +167,7 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 
 | Ruta | Quién escribe/lee | Uso |
 |---|---|---|
-| `usuarios/{uidFirebase}/...` | solo ese usuario | adjuntos del chat, PDF y demás archivos de cada persona |
+| `usuarios/{uidFirebase}/...` | solo ese usuario | PDF y demás archivos de cada persona |
 
 ### Bucket `registros` (adjuntos del historial médico)
 
@@ -158,6 +176,14 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 | `{petId}/{recordId}/{archivo}` | clínica autorizada (autora del registro, 24 h) | dueño y clínicas autorizadas | JPG/PNG/PDF, máximo 10 MB |
 
 Sin políticas para la app: todo pasa por la Edge Function `adjuntos-historial`. Migración: `supabase/migrations/20261016010000_storage_registros.sql`.
+
+### Bucket `chats` (adjuntos del chat, RF-16)
+
+| Ruta | Escribe | Lee | Límites |
+|---|---|---|---|
+| `{chatId}/{uuid}-{nombre}` | participantes activos del chat | participantes activos del chat | JPG/PNG/PDF, máximo 10 MB |
+
+Sin políticas para la app: la Edge Function `adjuntos-chat` verifica en Firestore que quien pide está en `chats/{chatId}.participantes` y entrega un enlace de subida de un solo uso (`subir`, valida extensión y tamaño) o de lectura de 15 min (`leer`). El nombre del archivo se limpia en la ruta (sin carpetas ni acentos, ≤ 80); el original va en `adjunto.nombre`. Migración: `supabase/migrations/20261110000000_storage_chats.sql`.
 
 ### Bucket `mascotas` (fotos de mascotas)
 
@@ -175,6 +201,7 @@ Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
 
 - `appointments`: `clinicId ASC, estado ASC, inicio ASC` (bandeja) · `ownerUid ASC, inicio DESC` (mis citas) · `clinicId ASC, inicio ASC` (agenda) · `estado ASC, inicio ASC` (tarea programada)
 - `slots` (collection group): `fecha ASC, estado ASC`
+- `chats`: `participantes CONTAINS, lastMessageAt DESC` (bandeja de `ChatRepository.watchUserChats`). Los mensajes se ordenan por `timestamp` (índice simple) y los no leídos (`leido ==` y `senderUid ==`) no necesitan índice compuesto
 - `notifications`: `uid ASC, createdAt DESC` (el contador de no leídas, `uid ==` y `leido ==`, no necesita índice compuesto)
 - `clinics`: `estado ASC, geo.geohash ASC` (búsqueda geográfica de `ClinicsGeoRepository`, `lib/core/data`)
 - `vacunasProgramadas`: `ownerUid ASC, fechaProximaDosis ASC` · `notificado ASC, fechaProximaDosis ASC`

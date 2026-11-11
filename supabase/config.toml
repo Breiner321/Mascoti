@@ -433,3 +433,9 @@ verify_jwt = false
 
 [functions.veterinarias-cercanas]
 verify_jwt = false
+
+[functions.notificar-mensaje]
+verify_jwt = false
+
+[functions.adjuntos-chat]
+verify_jwt = false
