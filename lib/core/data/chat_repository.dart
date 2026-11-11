@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/chat.dart';
 import '../domain/chat_message.dart';
@@ -15,6 +18,17 @@ class ChatFailure implements Exception {
   final bool canRetry;
 
   static const network = ChatFailure('No se pudo conectar. Verifica tu conexión', canRetry: true);
+  static const notConfigured =
+      ChatFailure('Los archivos del chat no están disponibles en esta versión de la app');
+
+  /// RF-16, flujo alterno: archivo de más de 10 MB.
+  static const tooLarge = ChatFailure(
+    'El archivo supera los 10 MB. Comprime la imagen o selecciona un archivo más liviano.',
+  );
+  static const invalidType = ChatFailure('Solo se permiten imágenes JPG o PNG y archivos PDF.');
+
+  /// RF-16, flujo alterno: falla en la subida (con reintento).
+  static const uploadFailed = ChatFailure('Error al enviar archivo', canRetry: true);
 
   @override
   String toString() => 'ChatFailure($message)';
@@ -32,11 +46,32 @@ typedef SentMessage = ({ChatMessage message, Future<void> delivered});
 /// `firestore.rules` valida participantes, emisor, largo y contadores. Enviar
 /// es un solo lote: el mensaje y el resumen del chat con +1 en `noLeidos`
 /// del receptor.
+///
+/// Servidor (Edge Functions de Supabase):
+/// - `notificar-mensaje`: push al receptor. Se llama sola cuando el servidor
+///   confirma un mensaje; si falla, el mensaje igual quedó enviado.
+/// - `adjuntos-chat`: enlaces firmados para subir y ver archivos (bucket
+///   privado `chats`).
 class ChatRepository {
-  ChatRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  ChatRepository({
+    FirebaseFirestore? firestore,
+    FunctionsClient? functions,
+    SupabaseStorageClient? storage,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _functions = functions,
+        _storage = storage;
 
   final FirebaseFirestore _firestore;
+
+  /// null = Supabase no está configurado (falta env/dev.json): el chat de
+  /// texto funciona, sin push ni archivos.
+  final FunctionsClient? _functions;
+  final SupabaseStorageClient? _storage;
+
+  static const attachmentsBucket = 'chats';
+  static const notifyFunction = 'notificar-mensaje';
+  static const attachmentsFunction = 'adjuntos-chat';
+  static const _timeout = Duration(seconds: 30);
 
   CollectionReference<Map<String, dynamic>> get _chats => _firestore.collection('chats');
 
@@ -187,7 +222,140 @@ class ChatRepository {
         // Al enviar deja de "escribir".
         'typing.${message.senderUid}': FieldValue.delete(),
       });
-    return (message: message.copyWith(pendiente: true), delivered: batch.commit());
+    final delivered = batch.commit();
+    // Push al receptor cuando el servidor confirma (sin conexión, al volver).
+    unawaited(delivered.then(
+      (_) => notifyMessage(chatId: chat.id, messageId: message.id),
+      onError: (Object _) {},
+    ));
+    return (message: message.copyWith(pendiente: true), delivered: delivered);
+  }
+
+  /// Pide a `notificar-mensaje` el push del mensaje [messageId]. Nunca
+  /// lanza: el push es opcional (el servidor además lo omite si el receptor
+  /// ya lo leyó o si hubo otro push de la conversación hace menos de 30 s).
+  Future<void> notifyMessage({required String chatId, required String messageId}) async {
+    final functions = _functions;
+    if (functions == null) return;
+    try {
+      await functions
+          .invoke(notifyFunction, body: {'chatId': chatId, 'messageId': messageId})
+          .timeout(_timeout);
+    } catch (e) {
+      debugPrint('notificar-mensaje falló para $chatId/$messageId: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Adjuntos (RF-16, Edge Function `adjuntos-chat`)
+  // ---------------------------------------------------------------------------
+
+  /// Valida el archivo en la app (RF-16 paso 4): JPG, PNG o PDF de máximo
+  /// 10 MB. Lanza [ChatFailure.invalidType] o [ChatFailure.tooLarge].
+  static ChatAttachmentType validateFile(String fileName, int sizeBytes) {
+    final type = ChatAttachmentType.fromFileName(fileName);
+    if (type == null) throw ChatFailure.invalidType;
+    if (sizeBytes > ChatLimits.maxAttachmentBytes) throw ChatFailure.tooLarge;
+    return type;
+  }
+
+  /// Sube [bytes] al bucket `chats` con un enlace de un solo uso y devuelve
+  /// el adjunto para [sendAttachment]. Si falla la subida lanza
+  /// [ChatFailure.uploadFailed] (reintentar no bloquea los mensajes de texto).
+  Future<ChatAttachment> uploadAttachment({
+    required String chatId,
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    validateFile(fileName, bytes.length);
+    final data = await _invoke(attachmentsFunction, {
+      'accion': 'subir',
+      'chatId': chatId,
+      'nombreArchivo': fileName,
+      'tamanoBytes': bytes.length,
+    });
+    final storage = _storage;
+    if (storage == null) throw ChatFailure.notConfigured;
+    final path = data['path'] as String;
+    try {
+      await storage.from(attachmentsBucket).uploadBinaryToSignedUrl(
+            path,
+            data['token'] as String,
+            bytes,
+            FileOptions(contentType: _contentType(fileName)),
+          );
+    } on StorageException {
+      throw ChatFailure.uploadFailed;
+    } on SocketException {
+      throw ChatFailure.uploadFailed;
+    } on http.ClientException {
+      throw ChatFailure.uploadFailed;
+    }
+    return ChatAttachment(
+      path: path,
+      nombre: data['nombre'] as String? ?? fileName,
+      tipo: ChatAttachmentType.fromValue(data['tipo']) ?? ChatAttachmentType.pdf,
+      tamanoBytes: bytes.length,
+    );
+  }
+
+  /// Sube el archivo y envía el mensaje (RF-16 pasos 4–6).
+  Future<SentMessage> sendFile({
+    required Chat chat,
+    required String senderUid,
+    required String fileName,
+    required Uint8List bytes,
+    String texto = '',
+    String? referenciaHistorialId,
+  }) async {
+    final adjunto = await uploadAttachment(chatId: chat.id, fileName: fileName, bytes: bytes);
+    return sendAttachment(
+      chat: chat,
+      senderUid: senderUid,
+      adjunto: adjunto,
+      texto: texto,
+      referenciaHistorialId: referenciaHistorialId,
+    );
+  }
+
+  /// Enlace temporal (15 min) para ver o descargar un adjunto (RF-16 paso 8).
+  Future<String> attachmentUrl({required String chatId, required String path}) async {
+    final data = await _invoke(
+      attachmentsFunction,
+      {'accion': 'leer', 'chatId': chatId, 'path': path},
+    );
+    return data['url'] as String;
+  }
+
+  Future<Map<String, dynamic>> _invoke(String function, Map<String, dynamic> body) async {
+    final functions = _functions;
+    if (functions == null) throw ChatFailure.notConfigured;
+    try {
+      final response = await functions.invoke(function, body: body).timeout(_timeout);
+      return Map<String, dynamic>.from(response.data as Map);
+    } on TimeoutException {
+      throw ChatFailure.network;
+    } on SocketException {
+      throw ChatFailure.network;
+    } on http.ClientException {
+      throw ChatFailure.network;
+    } on FunctionException catch (e) {
+      final error = e.details is Map ? (e.details as Map)['error'] : null;
+      final message = error is Map ? error['message'] as String? : null;
+      throw ChatFailure(
+        message ?? 'No se pudo procesar el archivo. Intenta de nuevo.',
+        canRetry: e.status >= 500,
+      );
+    }
+  }
+
+  static String _contentType(String fileName) {
+    final ext = fileName.split('.').last.toLowerCase();
+    return switch (ext) {
+      'pdf' => 'application/pdf',
+      'png' => 'image/png',
+      _ => 'image/jpeg',
+    };
   }
 
   /// Marca como leídos los mensajes que [uid] recibió y pone su contador en

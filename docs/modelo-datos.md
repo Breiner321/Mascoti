@@ -130,6 +130,7 @@ Subcolección `messages/{messageId}` (id generado en la app): `{senderUid, tipo:
 `{uid, tipo, titulo, cuerpo, referenciaId, leido, createdAt}`
 
 - `tipo ∈ cita_nueva, cita_aprobada, cita_rechazada, cita_cancelada, recordatorio_cita, vacuna, pedido, mensaje` (`NotificationType` en Dart, `TipoNotificacion` en TS).
+- `mensaje` (RF-15) **no crea documento** aquí (el chat tiene su contador `noLeidos` y la pestaña "Mensajes"): solo push, desde `notificar-mensaje`, con `data: {tipo: 'mensaje', referenciaId: chatId}` → `/chat/:chatId`.
 - `referenciaId`: la cita (`appointmentId`) en los tipos de citas; la **mascota** (`petId`) en `vacuna`. El push lleva lo mismo en `data: {tipo, referenciaId, notificationId}` y la app navega con eso (`/reservas/:id` o `/mascotas/perfil/:petId`; si la ruta no existe, al inicio).
 - La crea `enviarNotificacion` (`supabase/functions/_shared/notificaciones.ts`), **siempre**, antes de enviar el push: aunque el usuario niegue el permiso, la ve en el centro de notificaciones. Los recordatorios usan ids fijos (`recordatorio_{appointmentId}`, `vacuna_{vacunaProgramadaId}`) para no duplicarse.
 - Reglas: cada usuario lee las suyas y solo puede cambiar `leido` a `true`; nadie más escribe.
@@ -148,7 +149,7 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 
 | Ruta | Quién escribe/lee | Uso |
 |---|---|---|
-| `usuarios/{uidFirebase}/...` | solo ese usuario | adjuntos del chat, PDF y demás archivos de cada persona |
+| `usuarios/{uidFirebase}/...` | solo ese usuario | PDF y demás archivos de cada persona |
 
 ### Bucket `registros` (adjuntos del historial médico)
 
@@ -157,6 +158,14 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 | `{petId}/{recordId}/{archivo}` | clínica autorizada (autora del registro, 24 h) | dueño y clínicas autorizadas | JPG/PNG/PDF, máximo 10 MB |
 
 Sin políticas para la app: todo pasa por la Edge Function `adjuntos-historial`. Migración: `supabase/migrations/20261016010000_storage_registros.sql`.
+
+### Bucket `chats` (adjuntos del chat, RF-16)
+
+| Ruta | Escribe | Lee | Límites |
+|---|---|---|---|
+| `{chatId}/{uuid}-{nombre}` | participantes activos del chat | participantes activos del chat | JPG/PNG/PDF, máximo 10 MB |
+
+Sin políticas para la app: la Edge Function `adjuntos-chat` verifica en Firestore que quien pide está en `chats/{chatId}.participantes` y entrega un enlace de subida de un solo uso (`subir`, valida extensión y tamaño) o de lectura de 15 min (`leer`). El nombre del archivo se limpia en la ruta (sin carpetas ni acentos, ≤ 80); el original va en `adjunto.nombre`. Migración: `supabase/migrations/20261110000000_storage_chats.sql`.
 
 ### Bucket `mascotas` (fotos de mascotas)
 

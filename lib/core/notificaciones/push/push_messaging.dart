@@ -36,12 +36,19 @@ abstract class PushMessaging {
 /// - App abierta: FCM no muestra nada, así que se muestra una notificación
 ///   local con el mismo `data` como payload.
 class FirebasePushMessaging implements PushMessaging {
-  FirebasePushMessaging({FirebaseMessaging? messaging, FlutterLocalNotificationsPlugin? local})
-      : _messaging = messaging ?? FirebaseMessaging.instance,
+  FirebasePushMessaging({
+    FirebaseMessaging? messaging,
+    FlutterLocalNotificationsPlugin? local,
+    this.hideInForeground,
+  })  : _messaging = messaging ?? FirebaseMessaging.instance,
         _local = local ?? FlutterLocalNotificationsPlugin();
 
   final FirebaseMessaging _messaging;
   final FlutterLocalNotificationsPlugin _local;
+
+  /// Con la app abierta, true = no mostrar la notificación de este `data`
+  /// (p. ej. un mensaje de la conversación que está en pantalla).
+  final bool Function(Map<String, String> data)? hideInForeground;
   final _taps = StreamController<Map<String, String>>.broadcast();
 
   /// Canales de Android; iguales a CANAL_GENERAL / CANAL_URGENTE del servidor.
@@ -80,6 +87,8 @@ class FirebasePushMessaging implements PushMessaging {
   Future<void> _showInForeground(RemoteMessage message) async {
     final notification = message.notification;
     if (notification == null) return;
+    final data = stringData(message.data);
+    if (hideInForeground?.call(data) ?? false) return;
     final channel =
         message.notification?.android?.channelId == urgent.id ? urgent : general;
     await _local.show(
@@ -95,7 +104,7 @@ class FirebasePushMessaging implements PushMessaging {
           priority: channel == urgent ? Priority.max : Priority.high,
         ),
       ),
-      payload: jsonEncode(stringData(message.data)),
+      payload: jsonEncode(data),
     );
   }
 

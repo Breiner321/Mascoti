@@ -3,9 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/auth_providers.dart';
 import '../domain/chat.dart';
 import '../domain/chat_message.dart';
+import '../supabase/supabase_providers.dart';
 import 'chat_repository.dart';
 
-final chatRepositoryProvider = Provider<ChatRepository>((ref) => ChatRepository());
+final chatRepositoryProvider = Provider<ChatRepository>((ref) {
+  final supabase = ref.watch(supabaseClientProvider);
+  return ChatRepository(functions: supabase?.functions, storage: supabase?.storage);
+});
 
 /// Bandeja de [uid] (sus conversaciones, la más reciente primero).
 final userChatsProvider = StreamProvider.autoDispose.family<List<Chat>, String>(

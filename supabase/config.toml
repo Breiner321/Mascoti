@@ -430,3 +430,9 @@ verify_jwt = false
 
 [functions.tareas-programadas]
 verify_jwt = false
+
+[functions.notificar-mensaje]
+verify_jwt = false
+
+[functions.adjuntos-chat]
+verify_jwt = false

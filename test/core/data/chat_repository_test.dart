@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
@@ -5,6 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/data/chat_repository.dart';
 import 'package:mascoti/core/domain/chat.dart';
 import 'package:mascoti/core/domain/chat_message.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class _MockFunctions extends Mock implements FunctionsClient {}
 
 void main() {
   late FakeFirebaseFirestore firestore;
@@ -50,7 +56,8 @@ void main() {
       expect(sent.message.pendiente, isTrue);
       await sent.delivered;
 
-      final message = (await firestore.doc('chats/ana_c1/messages/${sent.message.id}').get()).data()!;
+      final message =
+          (await firestore.doc('chats/ana_c1/messages/${sent.message.id}').get()).data()!;
       expect(message['senderUid'], 'ana');
       expect(message['texto'], 'Hola doctor');
       expect(message['leido'], isFalse);
@@ -87,7 +94,8 @@ void main() {
       final sent = repository.sendAttachment(
           chat: chat, senderUid: 'ana', adjunto: adjunto, referenciaHistorialId: 'r1');
       await sent.delivered;
-      final message = (await firestore.doc('chats/ana_c1/messages/${sent.message.id}').get()).data()!;
+      final message =
+          (await firestore.doc('chats/ana_c1/messages/${sent.message.id}').get()).data()!;
       expect(message['tipo'], 'adjunto');
       expect(message['adjunto'], adjunto.toMap());
       expect(message['referenciaHistorialId'], 'r1');
@@ -132,7 +140,8 @@ void main() {
       expect(latest.last.texto, 'Mensaje 34');
 
       final older = await repository.fetchOlderMessages('ana_c1', before: latest.first);
-      expect(older.map((m) => m.texto), ['Mensaje 0', 'Mensaje 1', 'Mensaje 2', 'Mensaje 3', 'Mensaje 4']);
+      expect(older.map((m) => m.texto),
+          ['Mensaje 0', 'Mensaje 1', 'Mensaje 2', 'Mensaje 3', 'Mensaje 4']);
       expect(await repository.fetchOlderMessages('ana_c1', before: older.first), isEmpty);
     });
 
@@ -214,6 +223,93 @@ void main() {
         async.elapse(const Duration(seconds: 5));
         expect(controller.isTyping, isFalse);
       });
+    });
+  });
+
+  group('servidor (Edge Functions)', () {
+    late _MockFunctions functions;
+
+    setUp(() {
+      functions = _MockFunctions();
+      repository = ChatRepository(firestore: firestore, functions: functions);
+    });
+
+    test('al confirmar el envío pide el push a notificar-mensaje', () async {
+      when(() => functions.invoke('notificar-mensaje', body: any(named: 'body')))
+          .thenAnswer((_) async => const FunctionResponse(status: 200, data: {'enviado': true}));
+      final chat = await open();
+      final sent = repository.sendText(chat: chat, senderUid: 'ana', text: 'Hola');
+      await sent.delivered;
+      await pumpEventQueue();
+      final body =
+          verify(() => functions.invoke('notificar-mensaje', body: captureAny(named: 'body')))
+              .captured
+              .single;
+      expect(body, {'chatId': 'ana_c1', 'messageId': sent.message.id});
+    });
+
+    test('si el push falla, el mensaje igual queda enviado', () async {
+      when(() => functions.invoke('notificar-mensaje', body: any(named: 'body')))
+          .thenThrow(const FunctionException(status: 500));
+      await expectLater(repository.notifyMessage(chatId: 'ana_c1', messageId: 'm1'), completes);
+      final chat = await open();
+      await repository.sendText(chat: chat, senderUid: 'ana', text: 'Hola').delivered;
+      await pumpEventQueue();
+      expect((await firestore.collection('chats/ana_c1/messages').get()).docs, hasLength(1));
+    });
+
+    test('sin Supabase: el chat de texto funciona, sin push ni archivos', () async {
+      repository = ChatRepository(firestore: firestore);
+      await repository.notifyMessage(chatId: 'ana_c1', messageId: 'm1');
+      expect(
+        () => repository.attachmentUrl(chatId: 'ana_c1', path: 'ana_c1/x.png'),
+        throwsA(same(ChatFailure.notConfigured)),
+      );
+    });
+
+    test('archivo: solo JPG/PNG/PDF de máximo 10 MB, antes de llamar al servidor', () async {
+      expect(ChatRepository.validateFile('rx.png', 100), ChatAttachmentType.imagen);
+      expect(ChatRepository.validateFile('examen.PDF', ChatLimits.maxAttachmentBytes),
+          ChatAttachmentType.pdf);
+      expect(() => ChatRepository.validateFile('video.mp4', 100),
+          throwsA(same(ChatFailure.invalidType)));
+      expect(() => ChatRepository.validateFile('rx.jpg', ChatLimits.maxAttachmentBytes + 1),
+          throwsA(same(ChatFailure.tooLarge)));
+      expect(
+        () => repository.uploadAttachment(
+            chatId: 'ana_c1',
+            fileName: 'rx.jpg',
+            bytes: Uint8List(ChatLimits.maxAttachmentBytes + 1)),
+        throwsA(same(ChatFailure.tooLarge)),
+      );
+      verifyNever(() => functions.invoke(any(), body: any(named: 'body')));
+    });
+
+    test('enlace de lectura y el mensaje de error del servidor', () async {
+      when(() => functions.invoke('adjuntos-chat', body: any(named: 'body'))).thenAnswer(
+          (_) async => const FunctionResponse(status: 200, data: {'url': 'https://firmado'}));
+      expect(await repository.attachmentUrl(chatId: 'ana_c1', path: 'ana_c1/x.png'),
+          'https://firmado');
+      expect(
+        verify(() => functions.invoke('adjuntos-chat', body: captureAny(named: 'body')))
+            .captured
+            .single,
+        {'accion': 'leer', 'chatId': 'ana_c1', 'path': 'ana_c1/x.png'},
+      );
+
+      when(() => functions.invoke('adjuntos-chat', body: any(named: 'body'))).thenThrow(
+        const FunctionException(status: 403, details: {
+          'error': {
+            'code': 'permission-denied',
+            'message': 'No tienes permiso para ver los archivos de este chat.'
+          },
+        }),
+      );
+      expect(
+        () => repository.attachmentUrl(chatId: 'ana_c1', path: 'ana_c1/x.png'),
+        throwsA(isA<ChatFailure>().having(
+            (e) => e.message, 'message', 'No tienes permiso para ver los archivos de este chat.')),
+      );
     });
   });
 }
