@@ -82,7 +82,7 @@ class RoleCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (selected) const Icon(Icons.check_circle, color: AppColors.primary),
+                if (selected) Icon(Icons.check_circle, color: AppColors.primary),
               ],
             ),
           ),

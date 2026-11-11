@@ -52,7 +52,7 @@ class NextAppointmentCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.calendar_today_outlined,
+                  Icon(Icons.calendar_today_outlined,
                       color: AppColors.onPrimary),
                   const Spacer(),
                   if (a == null && onSchedule == null)

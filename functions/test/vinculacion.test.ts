@@ -47,7 +47,7 @@ describe("vincularMascota (Edge Function vincular-mascota)", () => {
         fotoPath: "ana/p1/foto.jpg",
         clinicasAutorizadas: [],
       },
-      "users/ana": { role: "dueno", estado: "activo", displayName: "Ana Pérez" },
+      "users/ana": { role: "dueno", estado: "activo", nombre: "Ana Pérez", displayName: "ana.g" },
     };
     intentos = [];
     permitido = true;

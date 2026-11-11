@@ -151,7 +151,7 @@ class _AddressAutocompleteFieldState
               hintText: 'Busca y escoge tu dirección',
               prefixIcon: const Icon(Icons.location_on_outlined),
               suffixIcon: field.value != null
-                  ? const Icon(Icons.check_circle, color: AppColors.success)
+                  ? Icon(Icons.check_circle, color: AppColors.success)
                   : null,
               errorText: field.errorText,
             ),
@@ -203,13 +203,13 @@ class _AddressAutocompleteFieldState
             clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: AppColors.border),
+              side: BorderSide(color: AppColors.border),
             ),
             child: Column(
               children: [
                 for (final s in _suggestions)
                   ListTile(
-                    leading: const Icon(Icons.place_outlined,
+                    leading: Icon(Icons.place_outlined,
                         color: AppColors.primary),
                     title: Text(s.primaryText),
                     subtitle:

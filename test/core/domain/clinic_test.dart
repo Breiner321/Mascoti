@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mascoti/core/domain/weekly_schedule.dart';
 import 'package:mascoti/core/domain/animal_type.dart';
 import 'package:mascoti/core/domain/clinic.dart';
 import 'package:mascoti/core/domain/opening_hours.dart';
@@ -132,6 +133,41 @@ void main() {
       expect(hours, OpeningHours.standard);
       expect(hours.copyWith(cierre: '12:00').cierre, '12:00');
       expect(OpeningHours.fromMap(const {}), OpeningHours.standard);
+    });
+  });
+
+  group('Cambio 2: horario semanal', () {
+    Clinic fromMap(Map<String, dynamic> extra) =>
+        Clinic.fromMap('c1', {'ownerUid': 'vet', 'nombre': 'Vet', ...extra});
+
+    test('sin migrar: horarioBase todos los días y su duración', () {
+      final c = fromMap({
+        'horarioBase': {'apertura': '07:00', 'cierre': '19:00', 'duracionSlotMin': 30},
+      });
+      expect(c.schedule![Weekday.dom], const DayHours(abierto: true, apertura: '07:00', cierre: '19:00'));
+      expect(c.bookingSettings, const BookingSettings());
+    });
+
+    test('migrada: horarioSemanal y reservas propias; sin ninguno, sin horario', () {
+      final c = fromMap({
+        'horarioSemanal': WeeklySchedule.standard.toMap(),
+        'reservas': {'duracionSlotMin': 60, 'anticipacionMaxDias': 7, 'anticipacionMinMin': 0},
+      });
+      expect(c.schedule, WeeklySchedule.standard);
+      expect(c.bookingSettings.duracionSlotMin, 60);
+      expect(c.toProfileUpdate()['horarioSemanal'], WeeklySchedule.standard.toMap());
+      expect(fromMap({}).schedule, isNull);
+    });
+
+    test('un día con horas mal formadas se lee como cerrado', () {
+      final c = fromMap({
+        'horarioSemanal': {
+          ...WeeklySchedule.standard.toMap(),
+          'lun': {'abierto': true, 'apertura': '8:00', 'cierre': '12:00'},
+        },
+      });
+      expect(c.schedule![Weekday.lun].abierto, isFalse);
+      expect(c.schedule![Weekday.mar].abierto, isTrue);
     });
   });
 }

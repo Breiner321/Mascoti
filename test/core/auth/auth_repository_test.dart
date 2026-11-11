@@ -53,7 +53,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(GoogleAuthProvider.credential(idToken: 'x'));
-    registerFallbackValue(const RegistrationRequest.owner());
+    registerFallbackValue(const RegistrationRequest.owner(OwnerRegistration(nombre: 'Ana Pérez', telefono: '3001234567')));
   });
 
   setUp(() {
@@ -311,7 +311,7 @@ void main() {
     when(() => user.getIdToken(true)).thenAnswer((_) async => 'nuevo-token');
     when(() => registrationApi.complete(any())).thenAnswer((_) async {});
 
-    await repository.completeRegistration(const RegistrationRequest.owner());
+    await repository.completeRegistration(const RegistrationRequest.owner(OwnerRegistration(nombre: 'Ana Pérez', telefono: '3001234567')));
 
     verify(() => registrationApi.complete(any())).called(1);
     verify(() => user.getIdToken(true)).called(1);
@@ -326,9 +326,39 @@ void main() {
     );
 
     await expectLater(
-      repository.completeRegistration(const RegistrationRequest.owner()),
+      repository.completeRegistration(const RegistrationRequest.owner(OwnerRegistration(nombre: 'Ana Pérez', telefono: '3001234567'))),
       throwsA(isA<RegistrationFailure>()),
     );
     verifyNever(() => user.getIdToken(any()));
+  });
+
+  group('Cambio 1: perfil del dueño', () {
+    test('updateOwnerProfile guarda nombre normalizado y teléfono', () async {
+      final user = _MockUser();
+      when(() => user.uid).thenReturn('ana');
+      when(() => auth.currentUser).thenReturn(user);
+      await firestore.doc('users/ana').set({'role': 'dueno', 'displayName': 'ana.g'});
+
+      await repository.updateOwnerProfile(nombre: '  Ana   Pérez ', telefono: ' 3001234567 ');
+
+      final data = (await firestore.doc('users/ana').get()).data()!;
+      expect(data['nombre'], 'Ana Pérez');
+      expect(data['telefono'], '3001234567');
+      expect(data['displayName'], 'ana.g');
+    });
+
+    test('sin sesión lanza ProfileUpdateFailure', () async {
+      when(() => auth.currentUser).thenReturn(null);
+      await expectLater(
+        repository.updateOwnerProfile(nombre: 'Ana Pérez', telefono: '3001234567'),
+        throwsA(isA<ProfileUpdateFailure>()),
+      );
+    });
+
+    test('watchClinicName emite el nombre comercial', () async {
+      await firestore.doc('clinics/c1').set({'nombre': 'Vet Norte'});
+      expect(await repository.watchClinicName('c1').first, 'Vet Norte');
+      expect(await repository.watchClinicName('nada').first, isNull);
+    });
   });
 }

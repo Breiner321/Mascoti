@@ -61,7 +61,7 @@ class _TagChipsFieldState extends State<TagChipsField> {
             counterText: '',
             suffixIcon: IconButton(
               tooltip: 'Agregar',
-              icon: const Icon(Icons.add_circle, color: AppColors.primary),
+              icon: Icon(Icons.add_circle, color: AppColors.primary),
               onPressed: widget.enabled ? _add : null,
             ),
           ),

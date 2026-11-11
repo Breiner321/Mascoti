@@ -41,7 +41,7 @@ class _NoClinicsViewState extends State<NoClinicsView> {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        const Icon(Icons.travel_explore, size: 48, color: AppColors.textMuted),
+        Icon(Icons.travel_explore, size: 48, color: AppColors.textMuted),
         const SizedBox(height: 12),
         Text(NoClinicsView.message,
             textAlign: TextAlign.center, style: textTheme.bodyLarge),

@@ -40,6 +40,27 @@ void main() {
         'lng': -74.0721,
       },
     });
-    expect(const RegistrationRequest.owner().toMap(), {'role': 'dueno'});
+    expect(
+      const RegistrationRequest.owner(
+        OwnerRegistration(nombre: '  Ana   Pérez ', telefono: ' 3001234567 '),
+      ).toMap(),
+      {
+        'role': 'dueno',
+        'dueno': {'nombre': 'Ana Pérez', 'telefono': '3001234567'},
+      },
+    );
+  });
+
+  test('Cambio 1: nombre completo del dueño (3-60, espacios normalizados)', () {
+    expect(RegistrationValidators.ownerName(''), 'El nombre completo es obligatorio');
+    expect(RegistrationValidators.ownerName('   '), 'El nombre completo es obligatorio');
+    expect(RegistrationValidators.ownerName('Al'), 'Mínimo 3 caracteres');
+    expect(RegistrationValidators.ownerName('  Al  '), 'Mínimo 3 caracteres');
+    // Los espacios internos se normalizan y cuentan como uno.
+    expect(RegistrationValidators.ownerName(' A  l '), isNull);
+    expect(RegistrationValidators.ownerName('Ana'), isNull);
+    expect(RegistrationValidators.ownerName('x' * 60), isNull);
+    expect(RegistrationValidators.ownerName('x' * 61), 'Máximo 60 caracteres');
+    expect(RegistrationValidators.normalizeName('  María   José  Ruiz '), 'María José Ruiz');
   });
 }

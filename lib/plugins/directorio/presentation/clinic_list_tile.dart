@@ -4,9 +4,11 @@ import '../../../core/data/clinics_geo_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/clinic_schedule.dart';
 import '../domain/directory_filters.dart';
+import 'ally_badge.dart';
 
 /// Clínica en la lista bajo el mapa (mockup VISTA CLIENTE – Mapa):
-/// nombre, "Veterinaria · Abierto", distancia y botón "Agendar".
+/// nombre, "Veterinaria · Abierto", distancia, "Aliado Mascoti" (Cambio 4)
+/// y botón "Agendar".
 class ClinicListTile extends StatelessWidget {
   const ClinicListTile({
     super.key,
@@ -25,7 +27,7 @@ class ClinicListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final clinic = nearby.clinic;
     final textTheme = Theme.of(context).textTheme;
-    final open = openLabel(clinic.horarioBase, DateTime.now());
+    final open = openLabel(clinic.schedule, DateTime.now());
     final subtitle = [
       clinic.atencionEmergencias ? 'Urgencias' : 'Veterinaria',
       if (open != null) open,
@@ -58,14 +60,23 @@ class ClinicListTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
-          subtitle: Text(subtitle,
-              style: textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+          subtitle: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(subtitle,
+                  style:
+                      textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+              const SizedBox(height: 4),
+              const AllyBadge(),
+            ],
+          ),
           trailing: FilledButton(
             onPressed: onSchedule,
             // El tema usa botones de ancho completo; en la fila va compacto.
             style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 36),
-              visualDensity: VisualDensity.compact,
+              // 48 dp: área táctil mínima (Cambio 3).
+              minimumSize: const Size(48, 48),
               padding: const EdgeInsets.symmetric(horizontal: 14),
             ),
             child: const Text('Agendar'),

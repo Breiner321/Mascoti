@@ -47,7 +47,7 @@ class _ClinicAppointmentDetailPageState extends ConsumerState<ClinicAppointmentD
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         backgroundColor: success ? AppColors.success : null,
-        content: Text(text, style: success ? const TextStyle(color: AppColors.onPrimary) : null),
+        content: Text(text, style: success ? TextStyle(color: AppColors.onPrimary) : null),
       ));
   }
 
@@ -226,7 +226,7 @@ class _ClinicAppointmentDetailPageState extends ConsumerState<ClinicAppointmentD
               onPressed: () => _reject(a),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.sos,
-                side: const BorderSide(color: AppColors.sos),
+                side: BorderSide(color: AppColors.sos),
               ),
               icon: const Icon(Icons.close),
               label: const Text('Rechazar'),
@@ -250,7 +250,7 @@ class _ClinicAppointmentDetailPageState extends ConsumerState<ClinicAppointmentD
               onPressed: () => _cancel(a),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.sos,
-                side: const BorderSide(color: AppColors.sos),
+                side: BorderSide(color: AppColors.sos),
               ),
               icon: const Icon(Icons.event_busy),
               label: const Text('Cancelar cita'),
@@ -279,7 +279,7 @@ class _PetHeader extends StatelessWidget {
     final p = pet;
     return Row(
       children: [
-        AppointmentPetAvatar(photoPath: p?.fotoPath, size: 64),
+        AppointmentPetAvatar(name: p?.nombre, photoPath: p?.fotoPath, size: 64),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -316,10 +316,10 @@ class _Allergies extends StatelessWidget {
         children: [
           for (final item in items)
             Chip(
-              avatar: const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.sos),
-              label: Text(item, style: const TextStyle(color: AppColors.sos)),
+              avatar: Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.sos),
+              label: Text(item, style: TextStyle(color: AppColors.sos)),
               backgroundColor: AppColors.sosContainer,
-              side: const BorderSide(color: AppColors.sosBorder),
+              side: BorderSide(color: AppColors.sosBorder),
               visualDensity: VisualDensity.compact,
             ),
         ],
@@ -382,7 +382,7 @@ class _Banner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.info_outline, color: AppColors.slotBlocked),
+            Icon(Icons.info_outline, color: AppColors.slotBlocked),
             const SizedBox(width: 8),
             Expanded(child: Text(text)),
           ],

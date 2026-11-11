@@ -62,10 +62,10 @@ class ClinicPickerView extends ConsumerWidget {
                       color: AppColors.surface,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
-                        side: const BorderSide(color: AppColors.border),
+                        side: BorderSide(color: AppColors.border),
                       ),
                       child: ListTile(
-                        leading: const Icon(Icons.local_hospital_outlined,
+                        leading: Icon(Icons.local_hospital_outlined,
                             color: AppColors.primary),
                         title: Text(clinic.nombre.isEmpty ? 'Clínica' : clinic.nombre),
                         trailing: const Icon(Icons.chevron_right),

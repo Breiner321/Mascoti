@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:go_router/go_router.dart';
@@ -82,11 +83,23 @@ class _ShellHeader extends StatelessWidget implements PreferredSizeWidget {
   final bool showCart;
   final bool showSos;
 
+  /// Altura para botones de 48 dp (Cambio 3).
   @override
-  Size get preferredSize => const Size.fromHeight(72);
+  Size get preferredSize => const Size.fromHeight(76);
+
+  /// El encabezado crece poco con el texto grande: es una barra de íconos y
+  /// el logo; el resto de la app sí llega a 200 % (Cambio 3).
+  static const _maxHeaderTextScale = 1.3;
 
   @override
   Widget build(BuildContext context) {
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: _maxHeaderTextScale,
+      child: _build(context),
+    );
+  }
+
+  Widget _build(BuildContext context) {
     return Material(
       color: AppColors.primary,
       shape: const RoundedRectangleBorder(
@@ -98,24 +111,39 @@ class _ShellHeader extends StatelessWidget implements PreferredSizeWidget {
           height: preferredSize.height,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                const BrandLogo.wordmark(),
-                const Spacer(),
-                if (showCart)
-                  _HeaderButton(
-                    tooltip: 'Carrito',
-                    icon: Icons.shopping_cart_outlined,
-                    onPressed: () => context.push('/tienda/carrito'),
+            // Cambio 3: con lector de pantalla el SOS es lo primero que se
+            // anuncia del encabezado (un solo gesto para llegar a él).
+            child: Semantics(
+              explicitChildNodes: true,
+              child: Row(
+                children: [
+                  Semantics(
+                    sortKey: const OrdinalSortKey(1),
+                    child: const BrandLogo.wordmark(),
                   ),
-                if (showSos) const SosButton(),
-                const NotificationBell(),
-                _HeaderButton(
-                  tooltip: 'Perfil',
-                  icon: Icons.account_circle_outlined,
-                  onPressed: () => context.go(CoreRoutes.profile),
-                ),
-              ],
+                  const Spacer(),
+                  if (showCart)
+                    Semantics(
+                      sortKey: const OrdinalSortKey(2),
+                      child: _HeaderButton(
+                        tooltip: 'Carrito',
+                        icon: Icons.shopping_cart_outlined,
+                        onPressed: () => context.push('/tienda/carrito'),
+                      ),
+                    ),
+                  if (showSos)
+                    Semantics(sortKey: const OrdinalSortKey(0), child: const SosButton()),
+                  Semantics(sortKey: const OrdinalSortKey(3), child: const NotificationBell()),
+                  Semantics(
+                    sortKey: const OrdinalSortKey(4),
+                    child: _HeaderButton(
+                      tooltip: 'Perfil',
+                      icon: Icons.account_circle_outlined,
+                      onPressed: () => context.go(CoreRoutes.profile),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -147,7 +175,8 @@ class _HeaderButton extends StatelessWidget {
         style: IconButton.styleFrom(
           backgroundColor: AppColors.onPrimaryTranslucent,
           foregroundColor: AppColors.onPrimary,
-          fixedSize: const Size(40, 40),
+          // Cambio 3: área táctil mínima de 48×48 dp.
+          fixedSize: const Size(48, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),

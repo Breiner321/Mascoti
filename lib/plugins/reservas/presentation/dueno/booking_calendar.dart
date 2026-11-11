@@ -3,6 +3,7 @@ import 'package:table_calendar/table_calendar.dart';
 
 import '../../../../core/domain/slot.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/calendar_month_header.dart';
 import 'booking_format.dart';
 
 /// Calendario mensual de "Agendar cita" (mockup VISTA CLIENTE): empieza en
@@ -38,7 +39,7 @@ class BookingCalendar extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     BoxDecoration cell(Color color) =>
         BoxDecoration(color: color, borderRadius: BorderRadius.circular(10));
-    const dayText = TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700);
+    final dayText = TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
@@ -47,7 +48,7 @@ class BookingCalendar extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),
-      child: TableCalendar<void>(
+      child: TableCalendar<int>(
         locale: 'es',
         firstDay: firstDay,
         lastDay: lastDay,
@@ -57,21 +58,33 @@ class BookingCalendar extends StatelessWidget {
         availableGestures: AvailableGestures.horizontalSwipe,
         selectedDayPredicate: (day) => Slot.dateKey(day) == selectedFecha,
         enabledDayPredicate: (day) => availableDays.contains(Slot.dateKey(day)),
+        // Cambio 3: los días con horas llevan un punto, no solo otro color.
+        eventLoader: (day) => availableDays.contains(Slot.dateKey(day)) ? const [1] : const [],
         onDaySelected: (selected, _) => onDaySelected(Slot.dateKey(selected)),
         onPageChanged: onPageChanged,
-        rowHeight: 44,
+        rowHeight: 48, // Cambio 3: área táctil mínima de 48 dp.
         daysOfWeekHeight: 24,
-        headerStyle: HeaderStyle(
+        // Cambio 3: flechas propias, con nombre para el lector de pantalla.
+        headerStyle: const HeaderStyle(
           formatButtonVisible: false,
-          titleTextFormatter: (date, _) {
-            final name = monthName(date.month);
-            return '${name[0].toUpperCase()}${name.substring(1)} ${date.year}';
+          leftChevronVisible: false,
+          rightChevronVisible: false,
+          headerPadding: EdgeInsets.only(bottom: 4),
+        ),
+        calendarBuilders: CalendarBuilders(
+          outsideBuilder: (context, day, focused) => const SizedBox.shrink(),
+          disabledBuilder: (context, day, focused) =>
+              day.month != focused.month ? const SizedBox.shrink() : null,
+          headerTitleBuilder: (context, day) {
+            final name = monthName(day.month);
+            return CalendarMonthHeader(
+              month: day,
+              title: '${name[0].toUpperCase()}${name.substring(1)} ${day.year}',
+              firstMonth: firstDay,
+              lastMonth: lastDay,
+              onChangeMonth: onPageChanged,
+            );
           },
-          titleTextStyle: textTheme.titleMedium!.copyWith(
-            color: AppColors.primary,
-            fontWeight: FontWeight.w800,
-          ),
-          headerPadding: const EdgeInsets.only(bottom: 4),
         ),
         daysOfWeekStyle: DaysOfWeekStyle(
           dowTextFormatter: (date, _) => _weekdayInitials[date.weekday - 1],
@@ -79,7 +92,10 @@ class BookingCalendar extends StatelessWidget {
           weekendStyle: textTheme.labelSmall!.copyWith(color: AppColors.textMuted),
         ),
         calendarStyle: CalendarStyle(
-          outsideDaysVisible: false,
+          // Cambio 3: los días de otros meses existen (con nombre para el lector)
+          // pero se dibujan vacíos; ocultos, table_calendar deja huecos
+          // tocables sin etiqueta.
+          outsideDaysVisible: true,
           cellMargin: const EdgeInsets.all(3),
           // Días con horas: cuadro morado claro; sin horas: texto gris.
           defaultDecoration: cell(AppColors.primaryContainer),
@@ -89,10 +105,12 @@ class BookingCalendar extends StatelessWidget {
           todayDecoration: cell(AppColors.primaryContainer),
           todayTextStyle: dayText.copyWith(color: AppColors.primary),
           disabledDecoration: cell(AppColors.surface),
-          disabledTextStyle: const TextStyle(color: AppColors.textMuted),
+          disabledTextStyle: TextStyle(color: AppColors.textMuted),
           selectedDecoration: cell(AppColors.primary),
-          selectedTextStyle:
-              const TextStyle(color: AppColors.onPrimary, fontWeight: FontWeight.w700),
+          selectedTextStyle: TextStyle(color: AppColors.onPrimary, fontWeight: FontWeight.w700),
+          markerDecoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+          markerSize: 5,
+          markersMaxCount: 1,
         ),
       ),
     );

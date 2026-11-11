@@ -22,6 +22,9 @@ const clinica = {
   lng: -74.0721,
 };
 
+/** Cambio 1: el dueño envía su nombre completo y teléfono. */
+const DUENO = { role: "dueno", dueno: { nombre: " Ana   Pérez ", telefono: "3001234567" } };
+
 describe("completarRegistro (Edge Function, RF-01)", () => {
   let escrituras: EscrituraFirestore[][];
   let habilitados: string[];
@@ -57,9 +60,9 @@ describe("completarRegistro (Edge Function, RF-01)", () => {
   }
 
   it("sin token o con token inválido → unauthenticated", async () => {
-    await esperarError(completarRegistro(deps, null, { role: "dueno" }), "unauthenticated");
+    await esperarError(completarRegistro(deps, null, DUENO), "unauthenticated");
     await esperarError(
-      completarRegistro(deps, "Bearer token-falso", { role: "dueno" }),
+      completarRegistro(deps, "Bearer token-falso", DUENO),
       "unauthenticated",
     );
     expect(escrituras).toHaveLength(0);
@@ -77,8 +80,8 @@ describe("completarRegistro (Edge Function, RF-01)", () => {
     expect(escrituras).toHaveLength(0);
   });
 
-  it("dueño: crea solo users/{uid} con los datos de Google", async () => {
-    const resultado = await completarRegistro(deps, "Bearer token-valido", { role: "dueno" });
+  it("dueño: crea solo users/{uid} con su nombre, teléfono y los datos de Google", async () => {
+    const resultado = await completarRegistro(deps, "Bearer token-valido", DUENO);
 
     expect(resultado).toEqual({ role: "dueno", clinicId: null });
     expect(escrituras).toHaveLength(1);
@@ -93,6 +96,10 @@ describe("completarRegistro (Edge Function, RF-01)", () => {
       estado: { stringValue: "activo" },
       clinicId: { nullValue: null },
       onboardingVisto: { booleanValue: false },
+      // Cambio 1: nombre normalizado y teléfono; el de Google se conserva aparte.
+      nombre: { stringValue: "Ana Pérez" },
+      telefono: { stringValue: "3001234567" },
+      displayName: { stringValue: "Ana" },
     });
     expect(usuario.updateTransforms?.map((t) => t.fieldPath)).toEqual([
       "createdAt",
@@ -131,7 +138,7 @@ describe("completarRegistro (Edge Function, RF-01)", () => {
   it("cuenta ya registrada → already-exists con el mensaje del RF", async () => {
     resultadoCommit = "ya-existe";
     await esperarError(
-      completarRegistro(deps, "Bearer token-valido", { role: "dueno" }),
+      completarRegistro(deps, "Bearer token-valido", DUENO),
       "already-exists",
       "Esta cuenta ya está registrada. Iniciando sesión...",
     );
@@ -146,9 +153,28 @@ describe("completarRegistro (Edge Function, RF-01)", () => {
     deps.log = (m) => avisos.push(m);
 
     await expect(
-      completarRegistro(deps, "Bearer token-valido", { role: "dueno" }),
+      completarRegistro(deps, "Bearer token-valido", DUENO),
     ).resolves.toEqual({ role: "dueno", clinicId: null });
     expect(avisos).toHaveLength(1);
+  });
+  it("Cambio 1: un dueño sin nombre (app vieja) o con datos inválidos no se registra", async () => {
+    await esperarError(
+      completarRegistro(deps, "Bearer token-valido", { role: "dueno" }),
+      "invalid-argument",
+      "Actualiza la app para completar tu registro",
+    );
+    await esperarError(
+      completarRegistro(deps, "Bearer token-valido", { role: "dueno", dueno: { nombre: "Al", telefono: "3001234567" } }),
+      "invalid-argument",
+      "El nombre completo debe tener entre 3 y 60 caracteres",
+    );
+    expect(escrituras).toHaveLength(0);
+  });
+
+  it("Cambio 1: la clínica no guarda nombre de persona en users", async () => {
+    await completarRegistro(deps, "Bearer token-valido", { role: "clinica", clinica });
+    const usuario = escrituras[0].find((e) => e.update.name.endsWith("/users/u1"))!;
+    expect(usuario.update.fields.nombre).toBeUndefined();
   });
 });
 
@@ -179,4 +205,5 @@ describe("utilidades de Firestore REST", () => {
     const id = nuevoIdFirestore((n) => Uint8Array.from({ length: n }, (_, i) => i * 13));
     expect(id).toMatch(/^[A-Za-z0-9]{20}$/);
   });
+
 });

@@ -93,7 +93,7 @@ class _PetDetails extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
       children: [
-        Center(child: PetAvatar(photoPath: pet.fotoPath, size: 112)),
+        Center(child: PetAvatar(name: pet.nombre, photoPath: pet.fotoPath, size: 112)),
         const SizedBox(height: 12),
         Text(
           pet.nombre,

@@ -1,0 +1,462 @@
+{
+  "descripcion": "Casos de disponibilidad (Cambio 2). Los usan test/core/domain/availability_test.dart y functions/test/disponibilidad.test.ts: las dos implementaciones deben dar lo mismo. Cada caso toma los valores de 'base' y los reemplaza con los suyos. El 2026-11-01 es domingo y el 2026-11-02 lunes; 'ahora' es un instante UTC (Colombia = UTC-5).",
+  "base": {
+    "fecha": "2026-11-02",
+    "duracionMin": 30,
+    "ahora": "2026-10-30T12:00:00Z",
+    "reservas": {
+      "duracionSlotMin": 30,
+      "anticipacionMaxDias": 30,
+      "anticipacionMinMin": 120
+    },
+    "horario": {
+      "lun": {
+        "abierto": true,
+        "apertura": "08:00",
+        "cierre": "12:00",
+        "descansoInicio": "10:00",
+        "descansoFin": "10:30"
+      },
+      "mar": {
+        "abierto": true,
+        "apertura": "08:00",
+        "cierre": "12:00",
+        "descansoInicio": "10:00",
+        "descansoFin": "10:30"
+      },
+      "mie": {
+        "abierto": true,
+        "apertura": "08:00",
+        "cierre": "12:00",
+        "descansoInicio": "10:00",
+        "descansoFin": "10:30"
+      },
+      "jue": {
+        "abierto": true,
+        "apertura": "08:00",
+        "cierre": "12:00",
+        "descansoInicio": "10:00",
+        "descansoFin": "10:30"
+      },
+      "vie": {
+        "abierto": true,
+        "apertura": "08:00",
+        "cierre": "12:00",
+        "descansoInicio": "10:00",
+        "descansoFin": "10:30"
+      },
+      "sab": {
+        "abierto": true,
+        "apertura": "08:00",
+        "cierre": "12:00",
+        "descansoInicio": "10:00",
+        "descansoFin": "10:30"
+      },
+      "dom": {
+        "abierto": false
+      }
+    },
+    "excepciones": [],
+    "franjas": {}
+  },
+  "casos": [
+    {
+      "nombre": "día normal: todo el horario menos el descanso",
+      "esperado": [
+        "08:00",
+        "08:30",
+        "09:00",
+        "09:30",
+        "10:30",
+        "11:00",
+        "11:30"
+      ]
+    },
+    {
+      "nombre": "servicio de 60 min: no cruza el descanso ni pasa del cierre",
+      "duracionMin": 60,
+      "esperado": [
+        "08:00",
+        "08:30",
+        "09:00",
+        "10:30",
+        "11:00"
+      ]
+    },
+    {
+      "nombre": "servicio de 45 min ocupa 2 franjas de 30",
+      "duracionMin": 45,
+      "esperado": [
+        "08:00",
+        "08:30",
+        "09:00",
+        "10:30",
+        "11:00"
+      ]
+    },
+    {
+      "nombre": "servicio más largo que cualquier tramo: no cabe",
+      "duracionMin": 150,
+      "esperado": []
+    },
+    {
+      "nombre": "día cerrado (domingo)",
+      "fecha": "2026-11-01",
+      "esperado": []
+    },
+    {
+      "nombre": "cita existente: un servicio de 60 min no puede usar la franja ocupada",
+      "duracionMin": 60,
+      "franjas": {
+        "09:00": "ocupado"
+      },
+      "esperado": [
+        "08:00",
+        "10:30",
+        "11:00"
+      ]
+    },
+    {
+      "nombre": "reservado_temporal ocupa; 'disponible' (franja antigua o liberada) es libre",
+      "franjas": {
+        "08:00": "disponible",
+        "08:30": "reservado_temporal"
+      },
+      "esperado": [
+        "08:00",
+        "09:00",
+        "09:30",
+        "10:30",
+        "11:00",
+        "11:30"
+      ]
+    },
+    {
+      "nombre": "franja antigua 'no_disponible' cuenta como bloqueada",
+      "franjas": {
+        "11:30": "no_disponible"
+      },
+      "esperado": [
+        "08:00",
+        "08:30",
+        "09:00",
+        "09:30",
+        "10:30",
+        "11:00"
+      ]
+    },
+    {
+      "nombre": "bloqueo de un rango de horas",
+      "excepciones": [
+        {
+          "tipo": "bloqueo",
+          "fechaInicio": "2026-11-02",
+          "fechaFin": "2026-11-02",
+          "desde": "08:00",
+          "hasta": "09:00"
+        }
+      ],
+      "esperado": [
+        "09:00",
+        "09:30",
+        "10:30",
+        "11:00",
+        "11:30"
+      ]
+    },
+    {
+      "nombre": "bloqueo de una sola franja",
+      "excepciones": [
+        {
+          "tipo": "bloqueo",
+          "fechaInicio": "2026-11-02",
+          "fechaFin": "2026-11-02",
+          "desde": "09:30",
+          "hasta": "10:00"
+        }
+      ],
+      "duracionMin": 60,
+      "esperado": [
+        "08:00",
+        "08:30",
+        "10:30",
+        "11:00"
+      ]
+    },
+    {
+      "nombre": "bloqueo de días completos (vacaciones) que incluye la fecha",
+      "excepciones": [
+        {
+          "tipo": "bloqueo",
+          "fechaInicio": "2026-11-01",
+          "fechaFin": "2026-11-03"
+        }
+      ],
+      "esperado": []
+    },
+    {
+      "nombre": "un bloqueo de otra fecha no aplica",
+      "excepciones": [
+        {
+          "tipo": "bloqueo",
+          "fechaInicio": "2026-11-03",
+          "fechaFin": "2026-11-05"
+        }
+      ],
+      "esperado": [
+        "08:00",
+        "08:30",
+        "09:00",
+        "09:30",
+        "10:30",
+        "11:00",
+        "11:30"
+      ]
+    },
+    {
+      "nombre": "apertura extra en un día cerrado",
+      "fecha": "2026-11-01",
+      "excepciones": [
+        {
+          "tipo": "apertura",
+          "fechaInicio": "2026-11-01",
+          "fechaFin": "2026-11-01",
+          "desde": "09:00",
+          "hasta": "10:00"
+        }
+      ],
+      "esperado": [
+        "09:00",
+        "09:30"
+      ]
+    },
+    {
+      "nombre": "apertura extra que alarga el día se une al horario normal",
+      "duracionMin": 60,
+      "excepciones": [
+        {
+          "tipo": "apertura",
+          "fechaInicio": "2026-11-02",
+          "fechaFin": "2026-11-02",
+          "desde": "12:00",
+          "hasta": "13:00"
+        }
+      ],
+      "esperado": [
+        "08:00",
+        "08:30",
+        "09:00",
+        "10:30",
+        "11:00",
+        "11:30",
+        "12:00"
+      ]
+    },
+    {
+      "nombre": "apertura extra en el descanso",
+      "excepciones": [
+        {
+          "tipo": "apertura",
+          "fechaInicio": "2026-11-02",
+          "fechaFin": "2026-11-02",
+          "desde": "10:00",
+          "hasta": "10:30"
+        }
+      ],
+      "esperado": [
+        "08:00",
+        "08:30",
+        "09:00",
+        "09:30",
+        "10:00",
+        "10:30",
+        "11:00",
+        "11:30"
+      ]
+    },
+    {
+      "nombre": "un bloqueo gana sobre una apertura extra",
+      "fecha": "2026-11-01",
+      "excepciones": [
+        {
+          "tipo": "apertura",
+          "fechaInicio": "2026-11-01",
+          "fechaFin": "2026-11-01",
+          "desde": "09:00",
+          "hasta": "11:00"
+        },
+        {
+          "tipo": "bloqueo",
+          "fechaInicio": "2026-11-01",
+          "fechaFin": "2026-11-01",
+          "desde": "09:30",
+          "hasta": "10:00"
+        }
+      ],
+      "esperado": [
+        "09:00",
+        "10:00",
+        "10:30"
+      ]
+    },
+    {
+      "nombre": "anticipación mínima de 2 horas (8:10 a. m. → desde las 10:10)",
+      "ahora": "2026-11-02T13:10:00Z",
+      "esperado": [
+        "10:30",
+        "11:00",
+        "11:30"
+      ]
+    },
+    {
+      "nombre": "sin anticipación mínima: la franja que empieza ahora ya no se ofrece",
+      "ahora": "2026-11-02T14:00:00Z",
+      "reservas": {
+        "duracionSlotMin": 30,
+        "anticipacionMaxDias": 30,
+        "anticipacionMinMin": 0
+      },
+      "esperado": [
+        "09:30",
+        "10:30",
+        "11:00",
+        "11:30"
+      ]
+    },
+    {
+      "nombre": "anticipación máxima: el último día permitido sí se ofrece",
+      "reservas": {
+        "duracionSlotMin": 30,
+        "anticipacionMaxDias": 3,
+        "anticipacionMinMin": 120
+      },
+      "esperado": [
+        "08:00",
+        "08:30",
+        "09:00",
+        "09:30",
+        "10:30",
+        "11:00",
+        "11:30"
+      ]
+    },
+    {
+      "nombre": "anticipación máxima: un día después ya no",
+      "fecha": "2026-11-03",
+      "reservas": {
+        "duracionSlotMin": 30,
+        "anticipacionMaxDias": 3,
+        "anticipacionMinMin": 120
+      },
+      "esperado": []
+    },
+    {
+      "nombre": "día pasado",
+      "fecha": "2026-10-29",
+      "esperado": []
+    },
+    {
+      "nombre": "medianoche: a las 11:30 p. m. del domingo (ya lunes en UTC), con 2 h de anticipación",
+      "ahora": "2026-11-02T04:30:00Z",
+      "reservas": {
+        "duracionSlotMin": 30,
+        "anticipacionMaxDias": 1,
+        "anticipacionMinMin": 120
+      },
+      "horario": {
+        "lun": {
+          "abierto": true,
+          "apertura": "00:00",
+          "cierre": "03:00"
+        }
+      },
+      "esperado": [
+        "01:30",
+        "02:00",
+        "02:30"
+      ]
+    },
+    {
+      "nombre": "medianoche: 'hoy' es domingo en Colombia, así que el martes ya pasa del máximo de 1 día",
+      "fecha": "2026-11-03",
+      "ahora": "2026-11-02T04:30:00Z",
+      "reservas": {
+        "duracionSlotMin": 30,
+        "anticipacionMaxDias": 1,
+        "anticipacionMinMin": 120
+      },
+      "horario": {
+        "mar": {
+          "abierto": true,
+          "apertura": "00:00",
+          "cierre": "03:00"
+        }
+      },
+      "esperado": []
+    },
+    {
+      "nombre": "cierre 23:59 con franjas de 60 min: la de las 11 p. m. ya no alcanza",
+      "fecha": "2026-11-03",
+      "horario": {
+        "mar": {
+          "abierto": true,
+          "apertura": "22:00",
+          "cierre": "23:59"
+        }
+      },
+      "reservas": {
+        "duracionSlotMin": 60,
+        "anticipacionMaxDias": 30,
+        "anticipacionMinMin": 0
+      },
+      "esperado": [
+        "22:00"
+      ]
+    },
+    {
+      "nombre": "franjas de 15 min con servicio de 30",
+      "reservas": {
+        "duracionSlotMin": 15,
+        "anticipacionMaxDias": 30,
+        "anticipacionMinMin": 120
+      },
+      "horario": {
+        "lun": {
+          "abierto": true,
+          "apertura": "08:00",
+          "cierre": "09:00"
+        }
+      },
+      "franjas": {
+        "08:15": "ocupado"
+      },
+      "esperado": [
+        "08:30"
+      ]
+    },
+    {
+      "nombre": "horas mal formadas: el día se trata como cerrado",
+      "horario": {
+        "lun": {
+          "abierto": true,
+          "apertura": "8:00",
+          "cierre": "12:00"
+        }
+      },
+      "esperado": []
+    },
+    {
+      "nombre": "descanso fuera del horario: el día se trata como cerrado",
+      "horario": {
+        "lun": {
+          "abierto": true,
+          "apertura": "08:00",
+          "cierre": "12:00",
+          "descansoInicio": "07:00",
+          "descansoFin": "08:30"
+        }
+      },
+      "esperado": []
+    }
+  ]
+}

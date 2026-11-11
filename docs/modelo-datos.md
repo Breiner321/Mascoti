@@ -15,11 +15,13 @@ Convenciones: nombres de campos en español como en los RF; fechas como `Timesta
 | Campo | Tipo | Notas |
 |---|---|---|
 | uid | string | = id de Firebase Auth |
-| email, displayName, photoURL | string | de Google |
+| email, displayName, photoURL | string | de Google. **No se muestran como nombre de la persona**: usa `AppUser.nombreVisible` (Cambio 1) |
+| nombre | string? | nombre completo del **dueño** (Cambio 1): obligatorio al registrarse, 3–60 caracteres sin espacios en los extremos. Lo valida `completar-registro` y las reglas; el dueño lo edita en Perfil. Falta en dueños registrados antes del cambio (la app los lleva a "Completa tu perfil"). La clínica no lo usa: su nombre visible es `clinics.nombre` |
 | role | `'dueno' \| 'clinica'` | inmutable (las reglas lo leen con `hasRole()`) |
 | estado | `'activo' \| 'suspendido'` | solo lo cambia un administrador (Admin SDK). Se cambia con el script `npm run suspender -- <uid> [--reactivar]` (`functions/admin/`), que además deshabilita la cuenta en Firebase Auth y revoca sus sesiones (o la habilita al reactivar). Una cuenta suspendida solo puede leer su propio perfil |
 | clinicId | string? | solo si role = clinica |
-| telefono, ciudad, direccion | string? | perfil del dueño (RF-10, RF-12) |
+| telefono | string? | 10 dígitos. Obligatorio para el dueño desde el Cambio 1 (registro y "Completa tu perfil") |
+| ciudad, direccion | string? | perfil del dueño (RF-10, RF-12) |
 | onboardingVisto | bool | RF-01 paso 14. `false` al registrarse; el dueño lo pone en `true` al terminar o saltar el onboarding (las reglas solo aceptan un `bool`). Si falta, la app lo trata como `false` |
 | createdAt, lastLoginAt | Timestamp | |
 | estadoActualizadoEn | Timestamp? | lo pone el script de suspensión |
@@ -37,14 +39,18 @@ Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}`
 | tiposAnimales | string[] | `perros, gatos, aves, roedores, reptiles, granja, exoticos` |
 | categoriasServicio | string[] | categorías de sus servicios **activos** (RF-05), para filtrar el directorio (RF-09). La actualiza `ServicesRepository.syncCategories` al guardar o desactivar un servicio |
 | atencionEmergencias | bool | RF-10 |
-| horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | RF-06. Horas `HH:mm` (24 h); duración entera 5–480 (la app ofrece 15, 30 o 60 min en RF-04). `OpeningHours.slotTimes()` genera las franjas del día |
+| horarioBase | map `{apertura:'08:00', cierre:'18:00', duracionSlotMin:30}` | **Obsoleto (Cambio 2).** Horario único de antes; se lee solo si la clínica no tiene `horarioSemanal` (todos los días abiertos con ese horario). Lo convierte `npm run migrar-horario` |
+| horarioSemanal | map `{lun…dom: {abierto, apertura, cierre, descansoInicio?, descansoFin?}}` | Cambio 2 (`WeeklySchedule`). Horas `HH:mm` en múltiplos de la franja; el descanso va dentro del horario. Las reglas validan la estructura (7 días, campos permitidos, `abierto` booleano); las horas las validan la app y el servidor |
+| reservas | map `{duracionSlotMin: 15\|30\|60, anticipacionMaxDias: 1–365, anticipacionMinMin: 0–10080}` | Cambio 2 (`BookingSettings`). Por defecto 30 min, 30 días y 120 min |
+| osmId | string? | Cambio 4: lugar de OpenStreetMap que corresponde a la clínica (`node/123`, `way/45`), para no mostrarla dos veces en el mapa. Lo escribe solo `npm run vincular-osm` (las reglas no dejan cambiarlo desde la app) |
 | calificacion | number? | promedio (futuro) |
 | estado | `'incompleto' \| 'activo'` | pasa a activo en RF-04. Mientras sea `incompleto`, la app obliga a la clínica a ir a `/clinica/perfil-atencion` |
 | createdAt | Timestamp | |
 
 Subcolecciones:
 - `services/{serviceId}` — RF-05: `{nombre, categoria, descripcion, precio, duracionMin, activo, createdAt, updatedAt}`; `precio` en COP: la app solo envía enteros (decisión del equipo; el RF permitía 2 decimales) y las reglas aceptan cualquier número > 0; `categoria ∈ vacunacion, peluqueria, bano, cirugia, consulta_general, otro`.
-- `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — RF-06: `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `inicio` = `fecha` + `hora` en hora de Bogotá (`Slot.at`); el servidor no confía en él y lo recalcula al agendar; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados. Una franja `disponible` ocupa de `hora` a `hora + duracionMin` del servicio: las franjas que quedan dentro de ese rango no tienen documento (la app las muestra como "cubiertas") y la app no permite guardar si el rango pisa otra franja o pasa del cierre (`DaySchedule.conflicts`). Una franja sin documento no se ofrece a los dueños.
+- `excepciones/{id}` — Cambio 2 (`ScheduleException`): `{tipo:'bloqueo'|'apertura', fechaInicio, fechaFin, desde?, hasta?, motivo?, createdAt}`. Cubre las fechas `[fechaInicio, fechaFin]` y, en cada una, `[desde, hasta)`; sin horas es el día completo (solo bloqueos). La crea y la borra la clínica dueña (no se edita); la leen los usuarios con sesión. Consulta: `where('fechaFin', '>=', hoy)` (índice automático).
+- `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — **desde el Cambio 2 los escribe solo la Edge Function `citas`**: son el candado de cada reserva, `{fecha, hora, inicio, estado, appointmentId?}`, uno por cada franja que ocupa la cita. Una franja sin documento (o en `disponible`) está libre si el horario la cubre. Las franjas `no_disponible` de la agenda anterior siguen contando como bloqueadas. Formato anterior (RF-06): `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `inicio` = `fecha` + `hora` en hora de Bogotá (`Slot.at`); el servidor no confía en él y lo recalcula al agendar; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados. Una franja `disponible` ocupa de `hora` a `hora + duracionMin` del servicio: las franjas que quedan dentro de ese rango no tienen documento (la app las muestra como "cubiertas") y la app no permite guardar si el rango pisa otra franja o pasa del cierre (`DaySchedule.conflicts`). Una franja sin documento no se ofrece a los dueños.
 - `pacientes/{petId}` — registros médicos (semana 3): `{duenoNombre, vinculadoAt}`. Nombre del dueño de cada mascota vinculada, para la lista "Pacientes" de la clínica (la clínica no puede leer `users/{ownerUid}`). La app lo guarda con lo que devuelve la Edge Function `vincular-mascota`; las reglas solo dejan escribir a la clínica dueña y si la mascota ya la tiene en `clinicasAutorizadas`. La lista de pacientes sale de `pets where clinicasAutorizadas array-contains clinicId` (índice automático de un campo); este documento solo aporta el nombre.
 - `products/{productId}` — RF-07: `{nombre, categoria, descripcion, precio, stock, fotoUrl, estado:'activo'|'agotado'|'inactivo', createdAt}`.
 
@@ -77,6 +83,14 @@ Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**;
 
 `{petId, ownerUid, createdAt}`. El id del documento (`MSC-XXXX`) hace único el código: las reglas solo permiten **crearlo** (junto con la mascota que lo usa), así que si ya existe el lote completo falla y la app prueba otro código. Lo lee la Edge Function `vincular-mascota` con la cuenta de servicio.
 
+### Veterinarias de OpenStreetMap (Postgres de Supabase) — Cambio 4
+
+Las usa solo la Edge Function `veterinarias-cercanas` con la service_role key (RLS activado y sin políticas). Migración: `supabase/migrations/20261028000000_veterinarias_osm.sql`.
+- `public.cache_veterinarias_osm (cuadro, datos jsonb, actualizado, pendiente)`: resultado de Overpass por cuadro de 0,05° (~5 km). `datos` = lista de `{osmId, nombre, lat, lng, direccion?, telefono?, horario?, sitioWeb?}` (datos públicos de OSM, no de usuarios). El mapa la sirve aunque sea vieja; la precarga (cada 2 h) renueva lo de más de 20 h. Lo que viene del respaldo Photon se guarda con `actualizado` vencido para que la precarga lo reemplace con Overpass. `pendiente = true`: Overpass falló al pedirlo, no tiene datos y la precarga lo llena primero (migración `20261029000000_precarga_veterinarias_osm.sql`, que también programa la tarea en pg_cron).
+- `public.consultas_mapa (uid, consultado_en)` y función `registrar_consulta_mapa`: máximo **60 consultas por usuario por hora**.
+
+En Firestore no se guardan las veterinarias de OSM.
+
 ### Límite de intentos de vinculación (Postgres de Supabase)
 
 Tabla `public.intentos_vinculacion (clinic_id, intentado_en)` y función `registrar_intento_vinculacion`: máximo **10 búsquedas de código por clínica por hora**. Solo la usa la Edge Function (RLS sin políticas). No guarda datos de la app. Migración: `supabase/migrations/20261016000000_limite_vinculacion.sql`.
@@ -84,6 +98,10 @@ Tabla `public.intentos_vinculacion (clinic_id, intentado_en)` y función `regist
 ## `appointments/{appointmentId}` — RF-14 · *solo la escribe el servidor*
 
 Modelo `Appointment` (`lib/core/domain`), repositorio `AppointmentsRepository` (`lib/core/data`). La crea y la cambia **solo** la Edge Function `citas` (y la tarea programada); las reglas niegan toda escritura desde la app. La leen el dueño de la cita y la clínica (activos).
+
+`slotIds` (Cambio 2): ids `{fecha}_{hora}` de todas las franjas que aparta la cita (`slotId` es la primera); las citas anteriores solo tienen `slotId`.
+
+`ownerNombre` = `nombreVisible` del dueño al solicitar (Cambio 1; copia histórica, no cambia si el dueño edita su nombre).
 
 `{clinicId, clinicNombre, clinicOwnerUid, ownerUid, ownerNombre, petId, petNombre, serviceId, serviceNombre, precioAcordado, duracionMin?, slotId, fecha, hora, inicio:Timestamp, comentario, estado, motivoRechazo?, motivoCancelacion?, canceladoPor?, createdAt, updatedAt}`
 
@@ -99,10 +117,27 @@ Modelo `Appointment` (`lib/core/domain`), repositorio `AppointmentsRepository` (
 
 Al solicitar, en **un solo commit**: crea la cita `pendiente`, la franja pasa a `reservado_temporal` y el `clinicId` se agrega a `pets/{petId}.clinicasAutorizadas` (RF-14 paso 8: la clínica puede ver el historial). Aprobar → franja `ocupado`; rechazar, cancelar o expirar → franja `disponible`.
 
-## `chats/{ownerUid_clinicId}` — RF-15
+## `chats/{ownerUid}_{clinicId}` — RF-15, RF-16
 
-`{participantes:[ownerUid, clinicOwnerUid], ownerUid, clinicId, lastMessage, updatedAt, typing:{uid:bool}, noLeidos:{uid:number}}`
-Subcolección `messages/{messageId}`: `{senderUid, tipo:'texto'|'adjunto', texto?, adjuntoURL?, adjuntoTipo?, adjuntoNombre?, referenciaHistorialId?, timestamp, leido}`
+Modelos `Chat` y `ChatMessage` (`lib/core/domain`), repositorio `ChatRepository` (`lib/core/data`). Todo se escribe directo desde la app (cola offline de Firestore); `firestore.rules` valida.
+
+`{participantes:[ownerUid, clinicOwnerUid], ownerUid, clinicId, clinicOwnerUid, ownerNombre, clinicNombre, petIds:[petId], lastMessage:{texto, tipo, senderUid}|null, lastMessageId|null, lastMessageAt:Timestamp, noLeidos:{uid:int}, typing:{uid:Timestamp}, ultimoPush?:{uid:Timestamp}, createdAt}`
+
+- Id determinístico: una conversación por dueño y clínica. `clinicOwnerUid` = `clinics/{clinicId}.ownerUid` (el usuario que maneja la clínica).
+- **Quién la crea:** el dueño, con cualquier clínica `activo` (su `ownerNombre` debe ser el `nombre` o el nombre de Google de su perfil); la clínica, solo con un dueño que la autorizó en una mascota (`petIds[0]` con `clinicId` en `clinicasAutorizadas`). Se crea con los dos contadores en 0, `typing` vacío y `lastMessageAt` = hora del servidor (para que aparezca en la bandeja). `ownerNombre` y `clinicNombre` son copias al crearla.
+- **Leen** solo los participantes activos. Un chat que aún no existe se puede pedir (`get`) si el id es propio: así "abrir u obtener" funciona.
+- **Enviar = un lote:** crear `messages/{id}` y actualizar el chat con `lastMessage` (vista previa ≤ 100 caracteres; en un adjunto, el nombre del archivo), `lastMessageId` = id del mensaje, `lastMessageAt` = hora del servidor y `noLeidos[receptor] + 1` (`increment(1)`). Las reglas exigen las dos partes: el mensaje no se crea sin actualizar el chat y el contador del receptor solo sube de a 1 con un mensaje nuevo del emisor.
+- `noLeidos[uid]`: cada participante solo pone el **suyo** en 0 (al leer). Nadie puede cambiar el del otro.
+- `typing[uid]`: hora del servidor de la última tecla (como máximo cada 3 s) o se borra al dejar de escribir o al enviar. La app muestra "escribiendo…" si tiene menos de 6 s (`Chat.typingTimeout`), por si la app se cerró sin borrarlo. Cada uno solo cambia el suyo.
+- `ultimoPush[uid]`: lo escribe solo la Edge Function `notificar-mensaje` (agrupa ráfagas: máximo un push por conversación y receptor cada 30 s).
+- No se borra.
+
+Subcolección `messages/{messageId}` (id generado en la app): `{senderUid, tipo:'texto'|'adjunto', texto?, adjunto?:{path, nombre, tipo:'imagen'|'pdf', tamanoBytes}, referenciaHistorialId?, timestamp, leido}`
+
+- Crea solo un participante, con `senderUid` = su uid, `timestamp` = hora del servidor y `leido = false`. Texto de 1 a 2000 caracteres (sin contar solo espacios); en un adjunto `texto` es un comentario opcional (≤ 2000).
+- `adjunto.path`: ruta en el bucket privado `chats` de Supabase, dentro de la carpeta del chat (`{chatId}/{uuid}-{nombre}`); JPG/PNG/PDF de máximo 10 MB. `referenciaHistorialId`: registro del historial del que viene (RF-16).
+- Nadie edita el texto ni borra; el **receptor** solo cambia `leido` a `true` (doble check).
+- Mensajes enviados sin conexión: la app los muestra con `ChatMessage.pendiente` (escritura local sin confirmar) hasta que Firestore los envía.
 
 ## `orders/{orderId}` — RF-12 · *la crea solo la Function del webhook de pago*
 
@@ -113,6 +148,7 @@ Subcolección `messages/{messageId}`: `{senderUid, tipo:'texto'|'adjunto', texto
 `{uid, tipo, titulo, cuerpo, referenciaId, leido, createdAt}`
 
 - `tipo ∈ cita_nueva, cita_aprobada, cita_rechazada, cita_cancelada, recordatorio_cita, vacuna, pedido, mensaje` (`NotificationType` en Dart, `TipoNotificacion` en TS).
+- `mensaje` (RF-15) **no crea documento** aquí (el chat tiene su contador `noLeidos` y la pestaña "Mensajes"): solo push, desde `notificar-mensaje`, con `data: {tipo: 'mensaje', referenciaId: chatId}` → `/chat/:chatId`.
 - `referenciaId`: la cita (`appointmentId`) en los tipos de citas; la **mascota** (`petId`) en `vacuna`. El push lleva lo mismo en `data: {tipo, referenciaId, notificationId}` y la app navega con eso (`/reservas/:id` o `/mascotas/perfil/:petId`; si la ruta no existe, al inicio).
 - La crea `enviarNotificacion` (`supabase/functions/_shared/notificaciones.ts`), **siempre**, antes de enviar el push: aunque el usuario niegue el permiso, la ve en el centro de notificaciones. Los recordatorios usan ids fijos (`recordatorio_{appointmentId}`, `vacuna_{vacunaProgramadaId}`) para no duplicarse.
 - Reglas: cada usuario lee las suyas y solo puede cambiar `leido` a `true`; nadie más escribe.
@@ -131,7 +167,7 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 
 | Ruta | Quién escribe/lee | Uso |
 |---|---|---|
-| `usuarios/{uidFirebase}/...` | solo ese usuario | adjuntos del chat, PDF y demás archivos de cada persona |
+| `usuarios/{uidFirebase}/...` | solo ese usuario | PDF y demás archivos de cada persona |
 
 ### Bucket `registros` (adjuntos del historial médico)
 
@@ -140,6 +176,14 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 | `{petId}/{recordId}/{archivo}` | clínica autorizada (autora del registro, 24 h) | dueño y clínicas autorizadas | JPG/PNG/PDF, máximo 10 MB |
 
 Sin políticas para la app: todo pasa por la Edge Function `adjuntos-historial`. Migración: `supabase/migrations/20261016010000_storage_registros.sql`.
+
+### Bucket `chats` (adjuntos del chat, RF-16)
+
+| Ruta | Escribe | Lee | Límites |
+|---|---|---|---|
+| `{chatId}/{uuid}-{nombre}` | participantes activos del chat | participantes activos del chat | JPG/PNG/PDF, máximo 10 MB |
+
+Sin políticas para la app: la Edge Function `adjuntos-chat` verifica en Firestore que quien pide está en `chats/{chatId}.participantes` y entrega un enlace de subida de un solo uso (`subir`, valida extensión y tamaño) o de lectura de 15 min (`leer`). El nombre del archivo se limpia en la ruta (sin carpetas ni acentos, ≤ 80); el original va en `adjunto.nombre`. Migración: `supabase/migrations/20261110000000_storage_chats.sql`.
 
 ### Bucket `mascotas` (fotos de mascotas)
 
@@ -157,6 +201,7 @@ Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
 
 - `appointments`: `clinicId ASC, estado ASC, inicio ASC` (bandeja) · `ownerUid ASC, inicio DESC` (mis citas) · `clinicId ASC, inicio ASC` (agenda) · `estado ASC, inicio ASC` (tarea programada)
 - `slots` (collection group): `fecha ASC, estado ASC`
+- `chats`: `participantes CONTAINS, lastMessageAt DESC` (bandeja de `ChatRepository.watchUserChats`). Los mensajes se ordenan por `timestamp` (índice simple) y los no leídos (`leido ==` y `senderUid ==`) no necesitan índice compuesto
 - `notifications`: `uid ASC, createdAt DESC` (el contador de no leídas, `uid ==` y `leido ==`, no necesita índice compuesto)
 - `clinics`: `estado ASC, geo.geohash ASC` (búsqueda geográfica de `ClinicsGeoRepository`, `lib/core/data`)
 - `vacunasProgramadas`: `ownerUid ASC, fechaProximaDosis ASC` · `notificado ASC, fechaProximaDosis ASC`

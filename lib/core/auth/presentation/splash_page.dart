@@ -68,12 +68,12 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                 text: 'Estamos tardando en conectar. Verifica tu conexión.',
                 onRetry: _retry,
               ),
-            _ => const Column(
+            _ => Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.pets, size: 56, color: AppColors.primary),
-                  SizedBox(height: 16),
-                  CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const CircularProgressIndicator(),
                 ],
               ),
           },
@@ -96,7 +96,7 @@ class _Problem extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.cloud_off, size: 48, color: AppColors.textMuted),
+        Icon(Icons.cloud_off, size: 48, color: AppColors.textMuted),
         const SizedBox(height: 12),
         Text(text, textAlign: TextAlign.center),
         if (detail != null) ...[
@@ -104,7 +104,7 @@ class _Problem extends ConsumerWidget {
           Text(
             detail,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
         ],
         const SizedBox(height: 16),

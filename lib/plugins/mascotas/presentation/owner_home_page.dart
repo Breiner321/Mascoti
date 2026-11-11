@@ -23,6 +23,7 @@ class OwnerHomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final registry = ref.watch(pluginRegistryProvider);
     final pets = ref.watch(myPetsProvider);
     final next = ref.watch(nextAppointmentProvider);
@@ -72,7 +73,8 @@ class OwnerHomePage extends ConsumerWidget {
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 1.45,
+            // Cambio 3: las tarjetas crecen con el tamaño del texto.
+            childAspectRatio: 1.45 / textScale,
             children: [
               for (final shortcut in HomeShortcuts.access)
                 ShortcutTile(
@@ -85,7 +87,7 @@ class OwnerHomePage extends ConsumerWidget {
           ),
           const SectionTitle('Servicios'),
           SizedBox(
-            height: 88,
+            height: 48 + 40 * textScale,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: HomeShortcuts.services.length,

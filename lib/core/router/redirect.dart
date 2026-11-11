@@ -26,6 +26,10 @@ String? resolveRedirect({
     case Suspended():
       return goTo(CoreRoutes.suspended);
     case SignedIn(:final user):
+      // Cambio 1: el dueño sin nombre propio completa su perfil antes de
+      // cualquier otra pantalla (desde ahí también puede cerrar sesión).
+      if (user.needsProfileCompletion) return goTo(CoreRoutes.completeProfile);
+
       // Mientras un plugin decide si hay un paso obligatorio, se espera en el
       // splash para no mostrar un instante pantallas que luego se bloquean.
       if (pendingStep.isLoading && !pendingStep.hasValue) {

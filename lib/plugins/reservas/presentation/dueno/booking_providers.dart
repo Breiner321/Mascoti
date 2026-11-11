@@ -5,6 +5,7 @@ import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/domain/clinic.dart';
 import '../../../../core/domain/clinic_service.dart';
 import '../../../../core/domain/pet.dart';
+import '../../../../core/domain/schedule_exception.dart';
 import '../../../../core/domain/slot.dart';
 import '../../data/dueno/booking_repository.dart';
 
@@ -35,6 +36,14 @@ final monthSlotsProvider = StreamProvider.autoDispose
     .family<List<Slot>, ({String clinicId, int year, int month})>(
   (ref, q) =>
       ref.watch(bookingRepositoryProvider).watchMonthSlots(q.clinicId, q.year, q.month),
+  retry: (_, __) => null,
+);
+
+/// Bloqueos y aperturas extra de la clínica desde el día [desde], en tiempo
+/// real (Cambio 2).
+final clinicExceptionsProvider = StreamProvider.autoDispose
+    .family<List<ScheduleException>, ({String clinicId, String desde})>(
+  (ref, q) => ref.watch(bookingRepositoryProvider).watchExceptions(q.clinicId, q.desde),
   retry: (_, __) => null,
 );
 

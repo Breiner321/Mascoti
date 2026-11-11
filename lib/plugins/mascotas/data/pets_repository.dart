@@ -193,7 +193,9 @@ class PetsRepository {
         }
       }
       return true;
-    } catch (_) {
+    } catch (e) {
+      // El usuario ve "Error al subir la foto"; la causa queda en el log.
+      debugPrint('No se pudo subir la foto de ${pet.id}: $e');
       return false;
     }
   }

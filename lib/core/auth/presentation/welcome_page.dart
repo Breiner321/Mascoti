@@ -38,9 +38,7 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        action: retry
-            ? SnackBarAction(label: 'Reintentar', onPressed: _continueWithGoogle)
-            : null,
+        action: retry ? SnackBarAction(label: 'Reintentar', onPressed: _continueWithGoogle) : null,
       ),
     );
   }
@@ -50,69 +48,83 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const Spacer(),
-              const BrandLogo.mark(),
-              const SizedBox(height: 28),
-              Text(
-                'Te damos la bienvenida',
-                style: textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Cuidado, citas y tienda para tu mascota en un solo lugar.',
-                style: textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(56),
-                  backgroundColor: AppColors.surface,
-                  foregroundColor: AppColors.textPrimary,
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: _loading ? null : _continueWithGoogle,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        color: AppColors.primaryContainer,
-                        shape: BoxShape.circle,
+        // Cambio 3: con texto grande el contenido se desplaza en vez de
+        // desbordarse; si cabe, se ve igual que el mockup.
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      const Spacer(),
+                      const BrandLogo.mark(),
+                      const SizedBox(height: 28),
+                      Text(
+                        'Te damos la bienvenida',
+                        style: textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      child: _loading
-                          ? const Padding(
-                              padding: EdgeInsets.all(6),
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.login, size: 16, color: AppColors.primary),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Continuar con Google',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        'Cuidado, citas y tienda para tu mascota en un solo lugar.',
+                        style: textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(56),
+                          backgroundColor: AppColors.surface,
+                          foregroundColor: AppColors.textPrimary,
+                          side: BorderSide(color: AppColors.outline),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        onPressed: _loading ? null : _continueWithGoogle,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryContainer,
+                                shape: BoxShape.circle,
+                              ),
+                              child: _loading
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(6),
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : Icon(Icons.login, size: 16, color: AppColors.primary),
+                            ),
+                            const SizedBox(width: 12),
+                            const Flexible(
+                              child: Text(
+                                'Continuar con Google',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(flex: 2),
+                      Text(
+                        'Al continuar aceptas los Términos y la Política de privacidad.',
+                        style: textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const Spacer(flex: 2),
-              Text(
-                'Al continuar aceptas los Términos y la Política de privacidad.',
-                style: textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
         ),
       ),

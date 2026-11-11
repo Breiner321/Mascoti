@@ -17,7 +17,8 @@ export type TipoNotificacion =
   | "cita_rechazada"
   | "cita_cancelada"
   | "recordatorio_cita"
-  | "vacuna";
+  | "vacuna"
+  | "mensaje";
 
 export interface Aviso {
   uid: string;
@@ -40,6 +41,11 @@ export interface MensajePush {
   cuerpo: string;
   datos: Record<string, string>;
   prioridadAlta: boolean;
+  /**
+   * Etiqueta de Android: un push nuevo con la misma etiqueta reemplaza al
+   * anterior en la bandeja (chat: una notificación por conversación).
+   */
+  etiqueta?: string;
 }
 
 export type ResultadoPush = "ok" | "token-invalido";
@@ -206,17 +212,30 @@ export async function enviarNotificacion(
     return { notificationId, creada: false, enviados: 0, invalidos: 0 };
   }
 
-  const dispositivos = await deps.db.consultar({
-    padre: `users/${aviso.uid}`,
-    coleccion: "devices",
-    filtros: [],
-  });
-  const mensaje: MensajePush = {
+  const { enviados, invalidos } = await enviarPushAUsuario(deps, aviso.uid, {
     titulo: aviso.titulo,
     cuerpo: aviso.cuerpo,
     datos: { tipo: aviso.tipo, referenciaId: aviso.referenciaId, notificationId },
     prioridadAlta: aviso.prioridadAlta ?? false,
-  };
+  });
+  return { notificationId, creada: true, enviados, invalidos };
+}
+
+/**
+ * Envía [mensaje] a cada dispositivo válido de [uid], sin crear documento en
+ * `notifications` (lo usa también el chat, que tiene su propio contador).
+ * Un token que FCM rechaza como inválido se marca `valido: false`.
+ */
+export async function enviarPushAUsuario(
+  deps: Pick<DependenciasNotificaciones, "db" | "enviarPush" | "log">,
+  uid: string,
+  mensaje: MensajePush,
+): Promise<{ enviados: number; invalidos: number }> {
+  const dispositivos = await deps.db.consultar({
+    padre: `users/${uid}`,
+    coleccion: "devices",
+    filtros: [],
+  });
 
   let enviados = 0;
   let invalidos = 0;
@@ -237,7 +256,7 @@ export async function enviarNotificacion(
       deps.log?.(`Push a ${dispositivo.ruta} falló: ${e}`);
     }
   }
-  return { notificationId, creada: true, enviados, invalidos };
+  return { enviados, invalidos };
 }
 
 /** Envía todos los avisos de un cambio de cita; los errores solo se registran. */
@@ -282,6 +301,7 @@ export function mensajeFcm(token: string, mensaje: MensajePush): Record<string, 
         priority: mensaje.prioridadAlta ? "HIGH" : "NORMAL",
         notification: {
           channel_id: mensaje.prioridadAlta ? CANAL_URGENTE : CANAL_GENERAL,
+          ...(mensaje.etiqueta ? { tag: mensaje.etiqueta } : {}),
           ...(mensaje.prioridadAlta ? { notification_priority: "PRIORITY_MAX" } : {}),
         },
       },
