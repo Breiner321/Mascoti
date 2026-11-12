@@ -2,10 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/attachments/attachment_status.dart';
 import '../../../core/domain/medical_record.dart';
 import '../../../core/theme/app_theme.dart';
-
-enum AttachmentStatus { uploading, done, failed }
 
 /// Adjunto del formulario de consulta: uno ya guardado o uno que se está
 /// subiendo (con su estado y el error si falló).

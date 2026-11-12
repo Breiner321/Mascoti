@@ -7,8 +7,8 @@ import '../../../../core/data/chat_providers.dart';
 import '../../chat_routes.dart';
 
 /// PROVISIONAL (semana 5, Dev A): lista mínima de conversaciones del usuario
-/// para probar el núcleo del chat. La reemplazan las bandejas del dueño
-/// (Dev C) y de la clínica (Dev B).
+/// para probar el núcleo del chat. La usa solo la bandeja del dueño hasta
+/// que el Dev C la reemplace (la de la clínica ya es `ClinicInboxPage`).
 class ChatListView extends ConsumerWidget {
   const ChatListView({super.key, required this.emptyMessage});
 

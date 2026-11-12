@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 /// Imagen adjunta a pantalla completa, con zoom (pellizcar o doble toque).
 class AttachmentViewerPage extends StatefulWidget {

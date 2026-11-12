@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/domain/medical_record.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../attachment_viewer_page.dart';
+import '../../../../core/attachments/attachment_viewer_page.dart';
 import '../pets_providers.dart';
 
 /// Adjunto de una consulta. Pide su enlace temporal por separado: si falla
