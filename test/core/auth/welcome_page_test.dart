@@ -8,6 +8,8 @@ import 'package:mascoti/core/auth/presentation/welcome_page.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../a11y.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
@@ -64,5 +66,20 @@ void main() {
     expect(find.text('Tu cuenta ha sido suspendida. Contacta a soporte'),
         findsOneWidget);
     expect(find.text('Reintentar'), findsNothing);
+  });
+
+  group('accesibilidad (Cambio 3)', () {
+    testWidgets('áreas táctiles, etiquetas y contraste', (tester) async {
+      await pumpPage(tester);
+      await tester.pumpAndSettle();
+      await expectAccessible(tester);
+    });
+
+    testWidgets('texto al 200 % sin desbordes', (tester) async {
+      useLargeText(tester);
+      await pumpPage(tester);
+      await tester.pumpAndSettle();
+      expectNoOverflow(tester);
+    });
   });
 }

@@ -77,7 +77,7 @@ class _Profile extends ConsumerWidget {
       children: [
         Row(
           children: [
-            PatientAvatar(photoPath: pet.fotoPath, size: 80),
+            PatientAvatar(name: pet.nombre, photoPath: pet.fotoPath, size: 80),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -185,7 +185,7 @@ class _AlertList extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.warning_amber_rounded, color: AppColors.sos, size: 20),
+              Icon(Icons.warning_amber_rounded, color: AppColors.sos, size: 20),
               const SizedBox(width: 6),
               Text(
                 title,
@@ -204,7 +204,7 @@ class _AlertList extends StatelessWidget {
               for (final item in items)
                 Chip(
                   label: Text(item),
-                  labelStyle: const TextStyle(color: AppColors.onPrimary),
+                  labelStyle: TextStyle(color: AppColors.onPrimary),
                   backgroundColor: AppColors.sos,
                   side: BorderSide.none,
                   visualDensity: VisualDensity.compact,

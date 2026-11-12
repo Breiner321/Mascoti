@@ -1,4 +1,7 @@
 import '../../../../core/domain/appointment.dart';
+import '../../../../core/domain/availability.dart';
+import '../../../../core/domain/clinic.dart';
+import '../../../../core/domain/schedule_exception.dart';
 import '../../../../core/domain/slot.dart';
 
 /// Reglas del lado dueño de RF-14, sin widgets para poder probarlas.
@@ -7,41 +10,59 @@ abstract final class BookingLogic {
   static const cancelTooLate =
       'Solo puedes cancelar hasta 2 horas antes de la cita. Comunícate con la clínica.';
 
-  /// Franjas que el dueño puede pedir para [serviceId]: disponibles, de ese
-  /// servicio y que todavía no empiezan; por hora de inicio.
-  static List<Slot> bookableSlots(
-    Iterable<Slot> slots, {
-    required String serviceId,
-    required DateTime now,
-  }) =>
-      [
-        for (final s in slots)
-          if (s.estado == SlotStatus.disponible &&
-              s.serviceId == serviceId &&
-              s.inicio.isAfter(now))
-            s,
-      ]..sort((a, b) => a.inicio.compareTo(b.inicio));
-
-  /// Días ('YYYY-MM-DD', hora de Bogotá) con al menos una franja que se
-  /// puede pedir para [serviceId]: los que se resaltan en el calendario.
-  static Set<String> availableDays(
-    Iterable<Slot> slots, {
-    required String serviceId,
-    required DateTime now,
-  }) =>
-      {for (final s in bookableSlots(slots, serviceId: serviceId, now: now)) s.fecha};
-
-  /// Horas que se pueden pedir el día [fecha], por hora.
-  static List<Slot> hoursOf(
-    Iterable<Slot> slots, {
-    required String serviceId,
+  /// Horas ('HH:mm') en las que se puede pedir un servicio de [durationMin]
+  /// el día [fecha] (Cambio 2): las calcula la función del core
+  /// [Availability.startTimes] con el horario de la clínica, sus excepciones
+  /// y las franjas ya apartadas ([slots]). La misma lógica valida el servidor.
+  static List<String> hoursOf({
+    required Clinic clinic,
+    required int durationMin,
     required String fecha,
+    required Iterable<Slot> slots,
     required DateTime now,
-  }) =>
-      [
-        for (final s in bookableSlots(slots, serviceId: serviceId, now: now))
-          if (s.fecha == fecha) s,
-      ];
+    Iterable<ScheduleException> exceptions = const [],
+  }) {
+    final schedule = clinic.schedule;
+    if (schedule == null) return const [];
+    return Availability.startTimes(
+      fecha: fecha,
+      durationMin: durationMin,
+      schedule: schedule,
+      settings: clinic.bookingSettings,
+      now: now,
+      exceptions: exceptions,
+      slotStates: {
+        for (final s in slots)
+          if (s.fecha == fecha) s.hora: s.estado.value,
+      },
+    );
+  }
+
+  /// Días ('YYYY-MM-DD', hora de Bogotá) del mes [year]-[month] con al menos
+  /// una hora libre: los que se resaltan en el calendario.
+  static Set<String> availableDays({
+    required Clinic clinic,
+    required int durationMin,
+    required int year,
+    required int month,
+    required Iterable<Slot> slots,
+    required DateTime now,
+    Iterable<ScheduleException> exceptions = const [],
+  }) {
+    final days = DateTime.utc(year, month + 1, 0).day;
+    return {
+      for (var d = 1; d <= days; d++)
+        if (hoursOf(
+          clinic: clinic,
+          durationMin: durationMin,
+          fecha: Slot.dateKey(DateTime(year, month, d)),
+          slots: slots,
+          now: now,
+          exceptions: exceptions,
+        ).isNotEmpty)
+          Slot.dateKey(DateTime(year, month, d)),
+    };
+  }
 
   /// Una cita va en "Próximas" mientras esté pendiente o confirmada y no haya
   /// pasado la tolerancia de no-show (después la cierra la tarea programada).

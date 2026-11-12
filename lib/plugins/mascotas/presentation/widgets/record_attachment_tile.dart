@@ -127,7 +127,7 @@ class _UnavailableIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return SizedBox(
       width: 48,
       height: 48,
       child: Tooltip(

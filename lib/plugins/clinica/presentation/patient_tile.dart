@@ -21,7 +21,7 @@ class PatientTile extends StatelessWidget {
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -30,7 +30,7 @@ class PatientTile extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              PatientAvatar(photoPath: pet.fotoPath),
+              PatientAvatar(name: pet.nombre, photoPath: pet.fotoPath),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -51,14 +51,14 @@ class PatientTile extends StatelessWidget {
                 ),
               ),
               if (pet.alergias.isNotEmpty || pet.condiciones.isNotEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(right: 4),
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
                   child: Tooltip(
                     message: 'Tiene alergias o condiciones',
                     child: Icon(Icons.warning_amber_rounded, color: AppColors.sos),
                   ),
                 ),
-              const Icon(Icons.chevron_right, color: AppColors.textMuted),
+              Icon(Icons.chevron_right, color: AppColors.textMuted),
             ],
           ),
         ),

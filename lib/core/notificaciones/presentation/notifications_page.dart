@@ -113,7 +113,7 @@ class _NotificationTile extends ConsumerWidget {
       color: unread ? AppColors.primaryContainer : AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -154,7 +154,7 @@ class _NotificationTile extends ConsumerWidget {
                     width: 10,
                     height: 10,
                     margin: const EdgeInsets.only(left: 8, top: 4),
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.primary,
                       shape: BoxShape.circle,
                     ),
@@ -179,7 +179,7 @@ class _Empty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.notifications_none, size: 56, color: AppColors.textMuted),
+            Icon(Icons.notifications_none, size: 56, color: AppColors.textMuted),
             const SizedBox(height: 12),
             Text('No tienes notificaciones', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),

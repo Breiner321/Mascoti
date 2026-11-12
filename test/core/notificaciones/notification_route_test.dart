@@ -22,6 +22,21 @@ void main() {
       expect(notificationRoute('vacuna', 'p1'), '/mascotas/perfil/p1');
     });
 
+    test('la de mensaje abre la conversación (RF-15)', () {
+      expect(notificationRoute('mensaje', 'ana_c1'), '/chat/ana_c1');
+    });
+
+    test('con la app abierta no se avisa el mensaje de la conversación en pantalla', () {
+      const data = {'tipo': 'mensaje', 'referenciaId': 'ana_c1'};
+      expect(isNotificationScreenOpen(data, '/chat/ana_c1'), isTrue);
+      expect(isNotificationScreenOpen(data, '/chat/ana_c2'), isFalse);
+      expect(isNotificationScreenOpen(data, '/chat'), isFalse);
+      expect(
+        isNotificationScreenOpen(const {'tipo': 'cita_aprobada', 'referenciaId': 'a1'}, '/reservas/a1'),
+        isFalse,
+      );
+    });
+
     test('sin pantalla específica o datos raros → null', () {
       expect(notificationRoute('pedido', 'o1'), isNull);
       expect(notificationRoute('desconocido', 'x'), isNull);

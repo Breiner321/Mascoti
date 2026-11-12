@@ -187,7 +187,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
           SnackBar(
             backgroundColor: AppColors.success,
             content: Text(isNew ? 'Mascota registrada' : 'Cambios guardados',
-                style: const TextStyle(color: AppColors.onPrimary)),
+                style: TextStyle(color: AppColors.onPrimary)),
           ),
         );
       }

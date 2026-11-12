@@ -3,8 +3,23 @@ import { describe, expect, it } from "vitest";
 import { validarRegistro } from "../../supabase/functions/_shared/validacion.ts";
 
 describe("validarRegistro (RF-01)", () => {
-  it("acepta un dueño", () => {
-    expect(validarRegistro({ role: "dueno" })).toEqual({ role: "dueno" });
+  it("acepta un dueño con nombre completo y teléfono (Cambio 1)", () => {
+    expect(validarRegistro({ role: "dueno", dueno: { nombre: "  Ana   Pérez ", telefono: " 3001234567 " } }))
+      .toEqual({ role: "dueno", dueno: { nombre: "Ana Pérez", telefono: "3001234567" } });
+  });
+
+  it("valida el nombre (3-60) y el teléfono del dueño", () => {
+    const ok = { nombre: "Ana", telefono: "3001234567" };
+    expect(validarRegistro({ role: "dueno", dueno: ok }).dueno?.nombre).toBe("Ana");
+    expect(validarRegistro({ role: "dueno", dueno: { ...ok, nombre: "x".repeat(60) } }).dueno?.nombre)
+      .toHaveLength(60);
+    for (const malo of [
+      {}, { ...ok, nombre: "Al" }, { ...ok, nombre: "   " }, { ...ok, nombre: "x".repeat(61) },
+      { ...ok, nombre: 5 }, { ...ok, telefono: "300123" }, { ...ok, telefono: "30012345ab" },
+    ]) {
+      expect(() => validarRegistro({ role: "dueno", dueno: malo }), JSON.stringify(malo)).toThrow();
+    }
+    expect(() => validarRegistro({ role: "dueno" })).toThrow("Actualiza la app para completar tu registro");
   });
 
   it("rechaza un rol desconocido", () => {

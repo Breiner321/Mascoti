@@ -90,6 +90,8 @@ export async function completarRegistro(
       estado: "activo",
       clinicId,
       onboardingVisto: false,
+      // Cambio 1: nombre real y teléfono del dueño (la clínica usa el de clinics).
+      ...(datos.dueno ? { nombre: datos.dueno.nombre, telefono: datos.dueno.telefono } : {}),
       createdAt: HORA_SERVIDOR,
       lastLoginAt: HORA_SERVIDOR,
     }),

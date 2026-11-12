@@ -3,7 +3,8 @@ import 'package:mascoti/core/data/clinics_geo_repository.dart';
 import 'package:mascoti/core/domain/animal_type.dart';
 import 'package:mascoti/core/domain/clinic.dart';
 import 'package:mascoti/core/domain/clinic_service.dart';
-import 'package:mascoti/core/domain/opening_hours.dart';
+import 'package:mascoti/core/domain/weekly_schedule.dart';
+import 'package:mascoti/core/format/bogota_time.dart';
 import 'package:mascoti/plugins/directorio/domain/clinic_schedule.dart';
 import 'package:mascoti/plugins/directorio/domain/directory_filters.dart';
 import 'package:mascoti/plugins/directorio/presentation/clinic_public_profile_page.dart';
@@ -110,11 +111,44 @@ void main() {
     expect(ClinicPublicProfilePage.callUri(clinic.telefono).toString(), 'tel:6041234567');
   });
 
-  test('abierto o cerrado según el horario base', () {
-    const hours = OpeningHours(apertura: '08:00', cierre: '18:00', duracionSlotMin: 30);
-    expect(openLabel(hours, DateTime(2026, 10, 19, 9)), 'Abierto');
-    expect(openLabel(hours, DateTime(2026, 10, 19, 18)), 'Cerrado');
-    expect(openLabel(hours, DateTime(2026, 10, 19, 7, 59)), 'Cerrado');
-    expect(openLabel(null, DateTime(2026, 10, 19, 9)), isNull);
+  group('abierto o cerrado según el horario semanal (hora de Colombia)', () {
+    // Lunes a sábado 8–18 con almuerzo 12–14; domingo cerrado.
+    final schedule = WeeklySchedule.standard;
+
+    test('abierto, almuerzo y cierre', () {
+      // 19 de octubre de 2026 es lunes.
+      expect(openLabel(schedule, BogotaTime.at(2026, 10, 19, 9)), 'Abierto');
+      expect(openLabel(schedule, BogotaTime.at(2026, 10, 19, 12, 30)), 'Cerrado');
+      expect(openLabel(schedule, BogotaTime.at(2026, 10, 19, 14)), 'Abierto');
+      expect(openLabel(schedule, BogotaTime.at(2026, 10, 19, 18)), 'Cerrado');
+      expect(openLabel(schedule, BogotaTime.at(2026, 10, 19, 7, 59)), 'Cerrado');
+      expect(openLabel(schedule, BogotaTime.at(2026, 10, 25, 10)), 'Cerrado');
+      expect(openLabel(null, BogotaTime.at(2026, 10, 19, 9)), isNull);
+    });
+
+    test('usa la hora de Colombia aunque el teléfono esté en otra zona', () {
+      // 13:30 UTC = 8:30 a. m. en Bogotá.
+      expect(openLabel(schedule, DateTime.utc(2026, 10, 19, 13, 30)), 'Abierto');
+      expect(openLabel(schedule, DateTime.utc(2026, 10, 19, 12, 30)), 'Cerrado');
+    });
+
+    test('horario de hoy', () {
+      expect(todayHoursLabel(schedule, BogotaTime.at(2026, 10, 19, 9)), contains(' · '));
+      expect(todayHoursLabel(schedule, BogotaTime.at(2026, 10, 25, 9)), 'Hoy no atiende');
+      expect(todayHoursLabel(null, BogotaTime.at(2026, 10, 19, 9)), isNull);
+    });
+  });
+
+  test('"Solo aliados" (Cambio 4)', () {
+    const f = DirectoryFilters();
+    final only = f.toggleOnlyAllies();
+    expect(only.onlyAllies, isTrue);
+    expect(only.activeCount, 1);
+    expect(only.hasAllyOnlyFilters, isFalse);
+    expect(only.cleared().onlyAllies, isFalse);
+    expect(only.toggleEmergencies().hasAllyOnlyFilters, isTrue);
+    expect(only.toggleService(ServiceCategory.values.first).onlyAllies, isTrue);
+    expect(only.withRadius(20).onlyAllies, isTrue);
+    expect(only, isNot(f));
   });
 }

@@ -4,9 +4,12 @@ import 'package:intl/intl.dart';
 
 import '../../../core/domain/clinic.dart';
 import '../../../core/domain/clinic_service.dart';
+import '../../../core/maps/external_links.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/clinic_schedule.dart';
+import 'ally_badge.dart';
 import 'directory_providers.dart';
+import 'open_external.dart';
 import 'schedule_action.dart';
 
 final _thousands = NumberFormat('#,##0', 'es_CO');
@@ -25,29 +28,12 @@ class ClinicPublicProfilePage extends ConsumerWidget {
   /// en la clínica. Sin app de mapas, la ruta en OpenStreetMap
   /// ([osmDirectionsUri]).
   static Uri directionsUri(Clinic clinic) =>
-      Uri.parse('geo:${clinic.lat},${clinic.lng}?q=${clinic.lat},${clinic.lng}'
-          '(${Uri.encodeComponent(clinic.nombre)})');
+      ExternalLinks.directions(clinic.lat, clinic.lng, clinic.nombre).first;
 
-  static Uri osmDirectionsUri(Clinic clinic) => Uri.https(
-      'www.openstreetmap.org',
-      '/directions',
-      {'route': ';${clinic.lat},${clinic.lng}'});
+  static Uri osmDirectionsUri(Clinic clinic) =>
+      ExternalLinks.directions(clinic.lat, clinic.lng, clinic.nombre).last;
 
-  static Uri callUri(String phone) =>
-      Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
-
-  /// Abre el primer enlace que el teléfono pueda abrir; si ninguno, [error].
-  Future<void> _open(
-      BuildContext context, WidgetRef ref, List<Uri> uris, String error) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final opener = ref.read(directoryUrlOpenerProvider);
-    for (final uri in uris) {
-      try {
-        if (await opener(uri)) return;
-      } catch (_) {}
-    }
-    messenger.showSnackBar(SnackBar(content: Text(error)));
-  }
+  static Uri callUri(String phone) => ExternalLinks.call(phone);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,12 +43,12 @@ class ClinicPublicProfilePage extends ConsumerWidget {
       body: switch (clinic) {
         AsyncValue(value: final Clinic c) => _Profile(
             clinic: c,
-            onCall: () => _open(context, ref, [callUri(c.telefono)],
+            onCall: () => openExternal(context, ref, [callUri(c.telefono)],
                 'No se pudo abrir el teléfono'),
-            onDirections: () => _open(
+            onDirections: () => openExternal(
                 context,
                 ref,
-                [directionsUri(c), osmDirectionsUri(c)],
+                ExternalLinks.directions(c.lat, c.lng, c.nombre),
                 'No se pudo abrir el mapa'),
             onSchedule: () => openSchedule(context, ref, c.id),
           ),
@@ -106,8 +92,9 @@ class _Profile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
     final muted = textTheme.bodySmall?.copyWith(color: AppColors.textMuted);
-    final hours = clinic.horarioBase;
-    final open = openLabel(hours, DateTime.now());
+    final now = DateTime.now();
+    final open = openLabel(clinic.schedule, now);
+    final today = todayHoursLabel(clinic.schedule, now);
     final services = ref.watch(clinicActiveServicesProvider(clinic.id));
 
     return ListView(
@@ -116,15 +103,16 @@ class _Profile extends ConsumerWidget {
         Text(clinic.nombre,
             style:
                 textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        const Align(alignment: Alignment.centerLeft, child: AllyBadge()),
         const SizedBox(height: 8),
         _Line(icon: Icons.place_outlined, text: clinic.direccion),
         if (clinic.telefono.isNotEmpty)
           _Line(icon: Icons.phone_outlined, text: clinic.telefono),
-        if (hours != null)
+        if (today != null)
           _Line(
             icon: Icons.schedule,
-            text:
-                '${open == null ? '' : '$open · '}${hours.apertura}–${hours.cierre}',
+            text: '${open == null ? '' : '$open · '}$today',
           ),
         if (clinic.atencionEmergencias)
           const _Line(

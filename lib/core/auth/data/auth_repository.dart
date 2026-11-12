@@ -9,6 +9,16 @@ import '../domain/auth_failure.dart';
 import '../domain/registration.dart';
 import 'registration_api.dart';
 
+/// Error al guardar el perfil del dueño, con el mensaje para mostrar.
+class ProfileUpdateFailure implements Exception {
+  const ProfileUpdateFailure(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'ProfileUpdateFailure($message)';
+}
+
 /// Única clase que habla con Firebase Auth / Google Sign-In (RF-01..03).
 class AuthRepository {
   AuthRepository({
@@ -52,6 +62,14 @@ class AuthRepository {
         final data = snap.data();
         return data == null ? null : AppUser.fromMap(snap.id, data);
       });
+
+  /// Nombre comercial de una clínica (`clinics/{id}.nombre`), el único que se
+  /// muestra para una cuenta de clínica (Cambio 1).
+  Stream<String?> watchClinicName(String clinicId) => _firestore
+      .collection('clinics')
+      .doc(clinicId)
+      .snapshots()
+      .map((snap) => snap.data()?['nombre'] as String?);
 
   /// Abre el selector de cuentas de Google e inicia sesión en Firebase.
   /// Devuelve false si el usuario cerró el selector (RF-01, flujo alterno).
@@ -136,6 +154,25 @@ class AuthRepository {
           .update({'onboardingVisto': true})
           .catchError((Object _) {}),
     );
+  }
+
+  /// Cambio 1: nombre completo y teléfono del dueño ("Completa tu perfil" y
+  /// "Editar perfil"). Sin red, el cambio queda en la caché local (la app ya
+  /// lo muestra) y Firestore lo envía al reconectar. Lanza
+  /// [ProfileUpdateFailure] si el servidor lo rechaza.
+  Future<void> updateOwnerProfile({required String nombre, required String telefono}) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw const ProfileUpdateFailure('Tu sesión terminó. Inicia sesión de nuevo');
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'nombre': RegistrationValidators.normalizeName(nombre),
+        'telefono': telefono.trim(),
+      }).timeout(_timeout);
+    } on TimeoutException {
+      // Guardado en el teléfono; se sincroniza solo.
+    } on FirebaseException {
+      throw const ProfileUpdateFailure('No se pudieron guardar tus datos. Intenta de nuevo');
+    }
   }
 
   /// No se espera la confirmación del servidor: con red inestable el login no

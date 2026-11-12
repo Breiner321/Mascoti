@@ -153,7 +153,7 @@ class _LinkPatientSheetState extends ConsumerState<LinkPatientSheet> {
       children: [
         Row(
           children: [
-            const Icon(Icons.check_circle, color: AppColors.success),
+            Icon(Icons.check_circle, color: AppColors.success),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -172,7 +172,7 @@ class _LinkPatientSheetState extends ConsumerState<LinkPatientSheet> {
           ),
           child: Row(
             children: [
-              PatientAvatar(photoPath: pet.fotoPath, size: 64),
+              PatientAvatar(name: pet.nombre, photoPath: pet.fotoPath, size: 64),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(

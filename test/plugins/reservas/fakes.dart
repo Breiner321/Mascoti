@@ -4,6 +4,7 @@ import 'package:mascoti/core/domain/clinic.dart';
 import 'package:mascoti/core/domain/clinic_service.dart';
 import 'package:mascoti/core/domain/pet.dart';
 import 'package:mascoti/core/domain/slot.dart';
+import 'package:mascoti/core/domain/weekly_schedule.dart';
 import 'package:mascoti/core/format/bogota_time.dart';
 
 const owner = AppUser(
@@ -13,7 +14,8 @@ const owner = AppUser(
   role: UserRole.dueno,
 );
 
-const clinic = Clinic(
+/// Cambio 2: solo atiende los viernes de 9:00 a 11:00, en franjas de 30 min.
+final clinic = Clinic(
   id: 'c1',
   ownerUid: 'vet',
   nombre: 'Clínica Norte',
@@ -22,6 +24,13 @@ const clinic = Clinic(
   lat: 6.2,
   lng: -75.5,
   estado: ClinicStatus.activo,
+  horarioSemanal: WeeklySchedule({
+    for (final d in Weekday.values)
+      d: d == Weekday.vie
+          ? const DayHours(abierto: true, apertura: '09:00', cierre: '11:00')
+          : const DayHours.closed(),
+  }),
+  reservas: const BookingSettings(),
 );
 
 const consulta = ClinicService(

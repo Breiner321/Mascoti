@@ -140,7 +140,7 @@ class _AuthorizedClinicTile extends ConsumerWidget {
     final name = clinic.value?.nombre ?? 'Clínica';
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.local_hospital_outlined, color: AppColors.primary),
+      leading: Icon(Icons.local_hospital_outlined, color: AppColors.primary),
       title: Text(clinic.isLoading ? 'Cargando…' : name),
       subtitle: clinic.value == null ? null : Text(clinic.value!.direccion),
       trailing: TextButton(

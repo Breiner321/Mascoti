@@ -185,10 +185,15 @@ describe.skipIf(!host)("notificaciones (emulador)", () => {
   });
 
   it("de punta a punta: solicitar y responder una cita avisa a la clínica y al dueño", async () => {
-    await poner("users/ana", { role: "dueno", estado: "activo", displayName: "Ana" });
+    await poner("users/ana", {
+      role: "dueno", estado: "activo", nombre: "Ana Pérez", displayName: "ana.g", email: "ana@gmail.com",
+    });
     await poner("users/vet", { role: "clinica", estado: "activo", clinicId: "c1" });
     await poner("users/vet/devices/dv", { fcmToken: "tok-vet", valido: true });
-    await poner("clinics/c1", { ownerUid: "vet", nombre: "Vet Norte", estado: "activo" });
+    await poner("clinics/c1", {
+      ownerUid: "vet", nombre: "Vet Norte", estado: "activo",
+      horarioBase: { apertura: "08:00", cierre: "18:00", duracionSlotMin: 30 },
+    });
     await poner("clinics/c1/services/s1", { nombre: "Consulta", precio: 1000, activo: true });
     await poner("clinics/c1/slots/2026-11-05_09:30", { fecha: "2026-11-05", hora: "09:30", estado: "disponible" });
     await poner("pets/p1", { ownerUid: "ana", nombre: "Luna" });
@@ -203,7 +208,12 @@ describe.skipIf(!host)("notificaciones (emulador)", () => {
     await ejecutarAccionCita(citas, "Bearer ana", {
       accion: "solicitar", clinicId: "c1", serviceId: "s1", petId: "p1", slotId: "2026-11-05_09:30",
     });
-    expect((await notificaciones("vet")).map((n) => n.datos.tipo)).toEqual(["cita_nueva"]);
+    const [nueva] = await notificaciones("vet");
+    expect(nueva.datos.tipo).toBe("cita_nueva");
+    // Cambio 1: la clínica ve el nombre real del dueño, no su correo ni su cuenta de Google.
+    expect(nueva.datos.cuerpo).toMatch(/^Ana Pérez pidió Consulta para Luna/);
+    expect(nueva.datos.cuerpo).not.toContain("ana@gmail.com");
+    expect(nueva.datos.cuerpo).not.toContain("ana.g");
     expect(pushes.map((p) => p.token)).toEqual(["tok-vet"]);
 
     await ejecutarAccionCita(citas, "Bearer vet", {

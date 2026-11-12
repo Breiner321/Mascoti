@@ -7,12 +7,19 @@ import '../../auth/domain/app_user.dart';
 import '../../kernel/plugin_registry.dart';
 import '../../router/app_router.dart';
 import '../data/device_registry.dart';
+import '../notification_route.dart';
 import '../notifications_providers.dart';
 import 'notification_navigator.dart';
 import 'push_messaging.dart';
 import 'push_notifications_controller.dart';
 
-final pushMessagingProvider = Provider<PushMessaging>((ref) => FirebasePushMessaging());
+final pushMessagingProvider = Provider<PushMessaging>(
+  (ref) => FirebasePushMessaging(
+    // RF-15: sin aviso si el mensaje es de la conversación abierta.
+    hideInForeground: (data) =>
+        isNotificationScreenOpen(data, ref.read(routerProvider).state.uri.path),
+  ),
+);
 
 final deviceRegistryProvider = Provider<DeviceRegistry>((ref) => DeviceRegistry());
 

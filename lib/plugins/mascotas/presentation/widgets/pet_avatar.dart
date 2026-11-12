@@ -9,12 +9,18 @@ import '../pets_providers.dart';
 /// Foto circular de la mascota. Muestra [bytes] (foto recién elegida) o la
 /// foto guardada en [photoPath]; mientras carga o si falla, una huella.
 class PetAvatar extends ConsumerWidget {
-  const PetAvatar({super.key, this.photoPath, this.bytes, this.size = 64});
+  const PetAvatar({super.key, this.photoPath, this.bytes, this.size = 64, this.name});
 
   /// Ruta en Storage; se convierte en un enlace temporal para mostrarla.
   final String? photoPath;
   final Uint8List? bytes;
   final double size;
+
+  /// Nombre de la mascota para el lector de pantalla ("Foto de Luna").
+  final String? name;
+
+  String get _semanticLabel =>
+      name == null || name!.isEmpty ? 'Foto de la mascota' : 'Foto de $name';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,18 +33,21 @@ class PetAvatar extends ConsumerWidget {
         },
       _ => null,
     };
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppColors.primaryContainer,
-        border: Border.all(color: AppColors.primary, width: 2),
-        image: image == null ? null : DecorationImage(image: image, fit: BoxFit.cover),
+    return Semantics(
+      image: true,
+      label: _semanticLabel,
+      excludeSemantics: true,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.primaryContainer,
+          border: Border.all(color: AppColors.primary, width: 2),
+          image: image == null ? null : DecorationImage(image: image, fit: BoxFit.cover),
+        ),
+        child: image == null ? Icon(Icons.pets, color: AppColors.primary, size: size * 0.47) : null,
       ),
-      child: image == null
-          ? Icon(Icons.pets, color: AppColors.primary, size: size * 0.47)
-          : null,
     );
   }
 }

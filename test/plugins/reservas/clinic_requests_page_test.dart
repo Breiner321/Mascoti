@@ -11,6 +11,8 @@ import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mascoti/plugins/reservas/presentation/clinica/clinic_requests_page.dart';
 import 'package:mascoti/plugins/reservas/presentation/clinica/clinic_requests_providers.dart';
 
+import '../../a11y.dart';
+
 const _vet = AppUser(
   uid: 'vet',
   email: 'vet@example.com',
@@ -102,5 +104,22 @@ void main() {
     await pump(tester, Stream.error(Exception('sin conexión')));
     expect(find.text('No pudimos cargar las solicitudes'), findsOneWidget);
     expect(find.text('Reintentar'), findsOneWidget);
+  });
+
+  group('accesibilidad (Cambio 3)', () {
+    testWidgets('áreas táctiles, etiquetas y contraste', (tester) async {
+      await pump(tester, Stream.value([
+        _pending('a1', 'Luna', DateTime.utc(2026, 11, 3, 14), comentario: 'Vómito desde ayer'),
+      ]));
+      await expectAccessible(tester);
+    });
+
+    testWidgets('texto al 200 % sin desbordes', (tester) async {
+      useLargeText(tester);
+      await pump(tester, Stream.value([
+        _pending('a1', 'Luna', DateTime.utc(2026, 11, 3, 14), comentario: 'Vómito desde ayer'),
+      ]));
+      expectNoOverflow(tester);
+    });
   });
 }

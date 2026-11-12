@@ -4,6 +4,7 @@ import '../../../core/data/clinics_geo_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/clinic_schedule.dart';
 import '../domain/directory_filters.dart';
+import 'ally_badge.dart';
 
 /// Tarjeta al tocar un marcador (RF-09 paso 7): nombre, distancia, especies
 /// atendidas, teléfono, "Ver perfil" y "Agendar".
@@ -25,7 +26,9 @@ class ClinicMarkerCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final muted = textTheme.bodySmall?.copyWith(color: AppColors.textMuted);
     final rating = clinic.calificacion;
-    final open = openLabel(clinic.horarioBase, DateTime.now());
+    final now = DateTime.now();
+    final open = openLabel(clinic.schedule, now);
+    final today = todayHoursLabel(clinic.schedule, now);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: Column(
@@ -36,6 +39,8 @@ class ClinicMarkerCard extends StatelessWidget {
               style:
                   textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
+          const AllyBadge(),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 12,
             runSpacing: 4,
@@ -46,12 +51,8 @@ class ClinicMarkerCard extends StatelessWidget {
               if (rating != null)
                 _Info(
                     icon: Icons.star_rounded, text: rating.toStringAsFixed(1)),
-              if (open != null)
-                _Info(
-                  icon: Icons.schedule,
-                  text:
-                      '$open · ${clinic.horarioBase!.apertura}–${clinic.horarioBase!.cierre}',
-                ),
+              if (open != null && today != null)
+                _Info(icon: Icons.schedule, text: '$open · $today'),
               if (clinic.atencionEmergencias)
                 const _Info(
                     icon: Icons.emergency_outlined, text: 'Emergencias'),
@@ -110,7 +111,7 @@ class _Info extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: AppColors.primary),
         const SizedBox(width: 4),
-        Text(text),
+        Flexible(child: Text(text)),
       ],
     );
   }

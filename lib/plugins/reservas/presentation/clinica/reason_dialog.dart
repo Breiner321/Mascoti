@@ -52,7 +52,7 @@ class _ReasonDialogState extends State<_ReasonDialog> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.notifications_active_outlined, size: 18, color: AppColors.primary),
+                Icon(Icons.notifications_active_outlined, size: 18, color: AppColors.primary),
                 const SizedBox(width: 8),
                 Expanded(child: Text(warning)),
               ],

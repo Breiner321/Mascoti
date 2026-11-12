@@ -26,7 +26,7 @@ class ModulePlaceholder extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.construction, size: 48, color: AppColors.primary),
+            Icon(Icons.construction, size: 48, color: AppColors.primary),
             const SizedBox(height: 16),
             Text(title, style: textTheme.titleLarge, textAlign: TextAlign.center),
             const SizedBox(height: 8),

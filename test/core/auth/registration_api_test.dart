@@ -26,7 +26,7 @@ void main() {
 
   Future<RegistrationFailure> failure() async {
     try {
-      await api.complete(const RegistrationRequest.owner());
+      await api.complete(const RegistrationRequest.owner(OwnerRegistration(nombre: 'Ana Pérez', telefono: '3001234567')));
     } on RegistrationFailure catch (e) {
       return e;
     }
@@ -36,10 +36,12 @@ void main() {
   test('envía el payload a completar-registro', () async {
     edgeFunctionAnswers(() async => const FunctionResponse(status: 200, data: {}));
 
-    await api.complete(const RegistrationRequest.owner());
+    await api.complete(const RegistrationRequest.owner(OwnerRegistration(nombre: 'Ana Pérez', telefono: '3001234567')));
 
-    verify(() => functions.invoke('completar-registro', body: {'role': 'dueno'}))
-        .called(1);
+    verify(() => functions.invoke('completar-registro', body: {
+          'role': 'dueno',
+          'dueno': {'nombre': 'Ana Pérez', 'telefono': '3001234567'},
+        })).called(1);
   });
 
   test('409 → cuenta ya registrada (mensaje del RF)', () async {
@@ -74,7 +76,7 @@ void main() {
     fakeAsync((async) {
       edgeFunctionAnswers(() => Completer<FunctionResponse>().future);
       RegistrationFailure? error;
-      api.complete(const RegistrationRequest.owner()).catchError((Object e) {
+      api.complete(const RegistrationRequest.owner(OwnerRegistration(nombre: 'Ana Pérez', telefono: '3001234567'))).catchError((Object e) {
         error = e as RegistrationFailure;
       });
       async.elapse(const Duration(seconds: 11));

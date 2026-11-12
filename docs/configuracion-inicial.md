@@ -69,6 +69,7 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    supabase db query --linked -f supabase/migrations/20261016000000_limite_vinculacion.sql
    supabase db query --linked -f supabase/migrations/20261016010000_storage_registros.sql
    supabase db query --linked -f supabase/migrations/20261023000000_tareas_programadas.sql   # ver paso 5
+   supabase db query --linked -f supabase/migrations/20261110000000_storage_chats.sql
    ```
    O pega cada archivo en **SQL Editor** del panel. Se pueden ejecutar varias veces sin problema.
 3. **Cuenta de servicio de Firebase** (la Edge Function la usa para escribir en Firestore): Firebase → Configuración del proyecto → Cuentas de servicio → **Generar nueva clave privada**. Guarda el JSON **fuera del repositorio** y cárgalo como secreto. Se pasa en **Base64** porque PowerShell rompe el JSON al enviarlo como argumento (error `Invalid secret pair`):
@@ -83,6 +84,8 @@ Firebase (plan gratuito) se usa para login, base de datos y push. **Supabase** a
    supabase functions deploy adjuntos-historial --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy citas --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy tareas-programadas --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy notificar-mensaje --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy adjuntos-chat --project-ref tahnazumbqsupzpusrba --use-api
    ```
 5. **Tareas programadas** (no-show y solicitudes expiradas cada 30 min; recordatorios diarios, RF-13). Las ejecuta pg_cron en Supabase llamando a `tareas-programadas`, protegida con un secreto compartido:
    ```powershell
@@ -113,6 +116,40 @@ El directorio de clínicas usa **OpenStreetMap** con `flutter_map`: **no necesit
 - **"Cómo llegar":** abre la app de mapas del teléfono (`geo:`); si no hay ninguna, la ruta en openstreetmap.org.
 - **Ubicación en el emulador:** ⋮ → **Location**, escribe una dirección (p. ej. Medellín) y pulsa **Set location**; luego vuelve a abrir la pestaña "Mapa".
 - **Una clínica no aparece:** debe tener `estado: activo` (haber terminado su perfil de atención, RF-04) y el campo `geo`. Revísalo con `npm run verificar-geo` en `functions/`.
+
+## C3b. Migrar el horario de las clínicas (Cambio 2)
+
+Después de publicar las reglas y desplegar `citas`, convierte el `horarioBase` de las clínicas existentes en `horarioSemanal` (todos los días abiertos con el mismo horario):
+```powershell
+cd functions
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\<tu-usuario>\secretos\cuenta-servicio.json"
+npm run migrar-horario               # solo muestra qué haría
+npm run migrar-horario -- --aplicar  # escribe los cambios
+```
+Se puede ejecutar varias veces. Sin migrar, la app y el servidor siguen leyendo `horarioBase` igual.
+
+## C3c. Otras veterinarias en el mapa (Cambio 4)
+
+Las veterinarias que aún no usan Mascoti salen de OpenStreetMap (API Overpass): gratis y **sin API key**; no hay que activar ninguna API de Google.
+1. Aplica, en orden, `supabase/migrations/20261028000000_veterinarias_osm.sql` (tablas de caché y límite) y `20261029000000_precarga_veterinarias_osm.sql` (columna `pendiente` y la precarga cada 2 h en pg_cron; necesita la migración de tareas programadas). Si `supabase db push` no conecta, pega cada archivo en Supabase → **SQL Editor** → Run. Se pueden ejecutar varias veces.
+2. Despliega la función. No necesita secretos nuevos (`SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` los pone Supabase; el proyecto de Firebase es `mascoti-b27cf` salvo que definas `FIREBASE_PROJECT_ID`):
+   ```powershell
+   supabase functions deploy veterinarias-cercanas --project-ref tahnazumbqsupzpusrba --use-api
+   ```
+   `verify_jwt = false` en `supabase/config.toml`: la función verifica el token de Firebase por su cuenta. Despliega también `tareas-programadas` (hace la precarga).
+   Para llenar la caché sin esperar al cron (tarda hasta ~2 min; repítelo hasta que `quedan` sea 0):
+   ```powershell
+   curl.exe -X POST https://tahnazumbqsupzpusrba.supabase.co/functions/v1/tareas-programadas -H "x-cron-secret: <CRON_SECRET>" -H "Content-Type: application/json" -d '{\"tarea\":\"veterinarias-osm\",\"esperar\":true}'
+   ```
+3. (Opcional) Vincula las clínicas aliadas con su lugar de OSM para que nunca salgan dos veces:
+   ```powershell
+   cd functions
+   $env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\<tu-usuario>\secretos\cuenta-servicio.json"
+   npm run vincular-osm               # solo muestra qué haría
+   npm run vincular-osm -- --aplicar  # escribe clinics.osmId
+   ```
+
+Sin la función desplegada, el mapa muestra los aliados y el aviso "No se pudieron cargar otras veterinarias." con "Reintentar". Sin `env/dev.json` (Supabase no configurado) solo muestra los aliados, sin aviso.
 
 ## C4. Notificaciones push (RF-13)
 

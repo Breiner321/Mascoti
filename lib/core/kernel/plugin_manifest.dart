@@ -1,6 +1,7 @@
 // ÚNICO archivo del core que conoce los plugins.
 // Para activar/desactivar un módulo completo, agrégalo o coméntalo aquí.
 
+import '../../plugins/chat/chat_plugin.dart';
 import '../../plugins/clinica/clinica_plugin.dart';
 import '../../plugins/directorio/directorio_plugin.dart';
 import '../../plugins/mascotas/mascotas_plugin.dart';
@@ -12,7 +13,7 @@ final List<MascotiPlugin> enabledPlugins = [
   const ClinicaPlugin(), // Clínica: perfil, servicios, agenda (RF-04..06)
   const ReservasPlugin(), // Ambos: citas (RF-14)
   const DirectorioPlugin(), // Dueño: directorio de clínicas con mapa (RF-09)
-  // const ChatPlugin(),       // semana 5 — RF-15, RF-16
+  const ChatPlugin(), // Ambos: mensajes (RF-15, RF-16)
   // const TiendaPlugin(),     // semana 6 — RF-07, RF-12
   // const SosPlugin(),        // semana 7 — RF-10
   // const UtilidadesPlugin(), // semana 7 — RF-17, RF-18

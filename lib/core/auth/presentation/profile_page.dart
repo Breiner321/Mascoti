@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../kernel/plugin_registry.dart';
+import '../../router/core_routes.dart';
 import '../../theme/app_theme.dart';
 import '../auth_providers.dart';
+import '../domain/app_user.dart';
 
 /// Perfil del usuario y cierre de sesión (RF-03).
 class ProfilePage extends ConsumerWidget {
@@ -38,31 +40,43 @@ class ProfilePage extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     if (user == null) return const SizedBox.shrink();
     final photo = user.photoUrl;
+    final isOwner = user.role == UserRole.dueno;
     final links = ref.watch(pluginRegistryProvider).profileLinksFor(user);
 
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         Center(
-          child: CircleAvatar(
-            radius: 40,
-            backgroundColor: AppColors.primaryContainer,
-            backgroundImage: photo != null ? NetworkImage(photo) : null,
-            child: photo == null
-                ? const Icon(Icons.person, size: 40, color: AppColors.primary)
-                : null,
+          child: Semantics(
+            image: true,
+            label: 'Foto de perfil',
+            excludeSemantics: true,
+            child: CircleAvatar(
+              radius: 40,
+              backgroundColor: AppColors.primaryContainer,
+              backgroundImage: photo != null ? NetworkImage(photo) : null,
+              child: photo == null ? Icon(Icons.person, size: 40, color: AppColors.primary) : null,
+            ),
           ),
         ),
         const SizedBox(height: 16),
+        // Cambio 1: nombre del dueño o nombre comercial de la clínica.
         Text(
-          user.displayName,
+          ref.watch(displayNameProvider),
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleLarge,
         ),
+        if (isOwner && user.telefono != null)
+          Text(
+            user.telefono!,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+        // El correo solo identifica la cuenta de Google con la que entró.
         Text(
           user.email,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.textMuted),
+          style: TextStyle(color: AppColors.textMuted),
         ),
         const SizedBox(height: 8),
         Center(
@@ -73,6 +87,25 @@ class ProfilePage extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 24),
+        if (isOwner)
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.edit_outlined, color: AppColors.primary),
+              title: const Text('Editar perfil'),
+              subtitle: const Text('Nombre y teléfono'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(CoreRoutes.editProfile),
+            ),
+          ),
+        Card(
+          child: ListTile(
+            leading: Icon(Icons.accessibility_new, color: AppColors.primary),
+            title: const Text('Accesibilidad'),
+            subtitle: const Text('Modo oscuro, contraste y tamaño de texto'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(CoreRoutes.accessibility),
+          ),
+        ),
         for (final link in links)
           Card(
             child: ListTile(

@@ -17,7 +17,7 @@ class SuspendedPage extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.block, size: 56, color: AppColors.sos),
+              Icon(Icons.block, size: 56, color: AppColors.sos),
               const SizedBox(height: 16),
               const Text(
                 'Tu cuenta ha sido suspendida. Contacta a soporte',
