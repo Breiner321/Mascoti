@@ -6,12 +6,21 @@ import '../../../../core/data/chat_providers.dart';
 import '../../../../core/data/chat_repository.dart';
 import '../../../../core/domain/chat.dart';
 import '../../../../core/domain/chat_message.dart';
+import 'adjuntos/attach_button.dart';
+import 'adjuntos/attachment_message_view.dart';
+import 'adjuntos/chat_uploads_controller.dart';
+import 'adjuntos/pending_uploads_view.dart';
 
 /// Conversación a pantalla completa (`/chat/:chatId`, RF-15).
 ///
 /// PROVISIONAL (semana 5, Dev A): versión mínima para probar el núcleo
 /// (mensajes en tiempo real, enviar, leídos y "escribiendo…"). La reemplaza
-/// el Dev C (burbujas, "Enviando…", doble check, adjuntos con el Dev B).
+/// el Dev C (burbujas, "Enviando…", doble check).
+///
+/// Adjuntos (RF-16, Dev B), listos para la pantalla final:
+/// - [AttachButton] junto al campo de texto (clip);
+/// - [PendingUploadsView] al final de la lista (subidas en curso);
+/// - [AttachmentMessageView] para cada mensaje tipo adjunto.
 class ConversationPage extends ConsumerStatefulWidget {
   const ConversationPage({super.key, required this.chatId});
 
@@ -103,27 +112,46 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                   child: const Text('Reintentar'),
                 ),
               ),
-              data: (items) => items.isEmpty
+              data: (items) => items.isEmpty &&
+                      ref.watch(chatUploadsProvider(widget.chatId)).isEmpty
                   ? const Center(child: Text('Escribe el primer mensaje.'))
                   : ListView(
                       reverse: true,
                       padding: const EdgeInsets.all(16),
                       children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: PendingUploadsView(chatId: widget.chatId),
+                        ),
                         for (final m in items.reversed)
                           Align(
+                            key: ValueKey(m.id),
                             alignment:
                                 m.isMine(uid) ? Alignment.centerRight : Alignment.centerLeft,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Text(
-                                [
-                                  m.tipo == ChatMessageType.adjunto
-                                      ? '📎 ${m.adjunto?.nombre ?? ''}'
-                                      : m.texto,
-                                  if (m.pendiente) '(Enviando…)',
-                                  if (m.isMine(uid) && m.leido) '(Leído)',
-                                ].join(' '),
-                              ),
+                              child: m.tipo == ChatMessageType.adjunto && m.adjunto != null
+                                  ? Column(
+                                      crossAxisAlignment: m.isMine(uid)
+                                          ? CrossAxisAlignment.end
+                                          : CrossAxisAlignment.start,
+                                      children: [
+                                        AttachmentMessageView(
+                                          chatId: widget.chatId,
+                                          message: m,
+                                          mine: m.isMine(uid),
+                                        ),
+                                        if (m.pendiente || (m.isMine(uid) && m.leido))
+                                          Text(m.pendiente ? '(Enviando…)' : '(Leído)'),
+                                      ],
+                                    )
+                                  : Text(
+                                      [
+                                        m.texto,
+                                        if (m.pendiente) '(Enviando…)',
+                                        if (m.isMine(uid) && m.leido) '(Leído)',
+                                      ].join(' '),
+                                    ),
                             ),
                           ),
                       ],
@@ -132,9 +160,10 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+              padding: const EdgeInsets.fromLTRB(4, 0, 8, 8),
               child: Row(
                 children: [
+                  AttachButton(chat: chat, uid: uid),
                   Expanded(
                     child: TextField(
                       controller: _text,

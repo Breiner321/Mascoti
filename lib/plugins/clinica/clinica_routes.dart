@@ -19,4 +19,16 @@ abstract final class ClinicaRoutes {
           ? '$patients/$petId/consulta'
           : '$patients/$petId/consulta?appointmentId=$appointmentId';
   static String record(String petId, String recordId) => '$patients/$petId/consulta/$recordId';
+
+  /// Conversación con el dueño (plugin chat, por texto): la abre o la crea.
+  static String chatWithOwner({
+    required String ownerUid,
+    required String ownerNombre,
+    required String petId,
+  }) =>
+      Uri(path: '/chat/abrir', queryParameters: {
+        'ownerUid': ownerUid,
+        'ownerNombre': ownerNombre,
+        'petId': petId,
+      }).toString();
 }

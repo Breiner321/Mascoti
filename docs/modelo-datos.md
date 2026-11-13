@@ -135,7 +135,7 @@ Modelos `Chat` y `ChatMessage` (`lib/core/domain`), repositorio `ChatRepository`
 Subcolección `messages/{messageId}` (id generado en la app): `{senderUid, tipo:'texto'|'adjunto', texto?, adjunto?:{path, nombre, tipo:'imagen'|'pdf', tamanoBytes}, referenciaHistorialId?, timestamp, leido}`
 
 - Crea solo un participante, con `senderUid` = su uid, `timestamp` = hora del servidor y `leido = false`. Texto de 1 a 2000 caracteres (sin contar solo espacios); en un adjunto `texto` es un comentario opcional (≤ 2000).
-- `adjunto.path`: ruta en el bucket privado `chats` de Supabase, dentro de la carpeta del chat (`{chatId}/{uuid}-{nombre}`); JPG/PNG/PDF de máximo 10 MB. `referenciaHistorialId`: registro del historial del que viene (RF-16).
+- `adjunto.path`: ruta en el bucket privado `chats` de Supabase, dentro de la carpeta del chat (`{chatId}/{uuid}-{nombre}`); JPG/PNG/PDF de máximo 10 MB. `referenciaHistorialId`: registro del historial del que viene (RF-16), con el formato `"{petId}/{recordId}"` (así cada lado muestra "Del historial médico de <mascota>" leyendo `pets/{petId}`). La app baja el archivo del bucket `registros` (`adjuntos-historial`) y lo vuelve a subir al bucket `chats` (`adjuntos-chat`), así que el adjunto es una copia y se abre como cualquier otro del chat.
 - Nadie edita el texto ni borra; el **receptor** solo cambia `leido` a `true` (doble check).
 - Mensajes enviados sin conexión: la app los muestra con `ChatMessage.pendiente` (escritura local sin confirmar) hasta que Firestore los envía.
 

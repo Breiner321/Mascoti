@@ -10,6 +10,7 @@ import '../../core/router/navigator_keys.dart';
 import 'chat_routes.dart';
 import 'presentation/clinica/clinic_inbox_page.dart';
 import 'presentation/comun/conversation_page.dart';
+import 'presentation/comun/open_chat_page.dart';
 import 'presentation/dueno/owner_inbox_page.dart';
 
 /// Plugin compartido por ambos roles: chat entre dueño y clínica (RF-15) e
@@ -32,6 +33,20 @@ class ChatPlugin extends MascotiPlugin {
                 ? const ClinicInboxPage()
                 : const OwnerInboxPage(),
           ),
+        ),
+        // Antes de /chat/:chatId para que "abrir" no se tome como un id.
+        GoRoute(
+          path: ChatRoutes.open,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) {
+            final q = state.uri.queryParameters;
+            return OpenChatPage(
+              ownerUid: q['ownerUid'],
+              ownerNombre: q['ownerNombre'],
+              petId: q['petId'],
+              clinicId: q['clinicId'],
+            );
+          },
         ),
         // La conversación se abre a pantalla completa, sin barra inferior.
         GoRoute(

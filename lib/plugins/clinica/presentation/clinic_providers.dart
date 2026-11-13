@@ -9,7 +9,7 @@ import '../../../core/storage/storage_providers.dart';
 import '../../../core/storage/storage_repository.dart';
 import '../../../core/supabase/supabase_providers.dart';
 import '../clinica_routes.dart';
-import '../data/attachment_picker.dart';
+import '../../../core/attachments/attachment_picker.dart';
 import '../data/clinic_repository.dart';
 import '../data/exceptions_repository.dart';
 import '../data/patients_repository.dart';

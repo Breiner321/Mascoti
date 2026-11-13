@@ -49,7 +49,8 @@ void main() {
 
     test('la conversación se abre a pantalla completa', () {
       final routes = plugin.routes().cast<GoRoute>();
-      expect(routes.map((r) => r.path), ['/chat', '/chat/:chatId']);
+      expect(routes.map((r) => r.path), ['/chat', '/chat/abrir', '/chat/:chatId']);
+      expect(routes[1].parentNavigatorKey, same(rootNavigatorKey));
       expect(routes.last.parentNavigatorKey, same(rootNavigatorKey));
     });
 

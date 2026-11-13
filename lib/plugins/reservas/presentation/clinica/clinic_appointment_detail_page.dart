@@ -148,8 +148,14 @@ class _ClinicAppointmentDetailPageState extends ConsumerState<ClinicAppointmentD
     final now = ref.read(appointmentClockProvider)();
     final textTheme = Theme.of(context).textTheme;
     final pet = ref.watch(clinicPetProvider(a.petId)).value;
-    final canSeeHistory =
-        ref.read(pluginRegistryProvider).hasRoute(ClinicAppointmentRoutes.patient(a.petId));
+    final registry = ref.read(pluginRegistryProvider);
+    final canSeeHistory = registry.hasRoute(ClinicAppointmentRoutes.patient(a.petId));
+    final chatRoute = ClinicAppointmentRoutes.chatWithOwner(
+      ownerUid: a.ownerUid,
+      ownerNombre: a.ownerNombre,
+      petId: a.petId,
+    );
+    final canMessage = a.ownerUid.isNotEmpty && registry.hasRoute(chatRoute);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -168,6 +174,15 @@ class _ClinicAppointmentDetailPageState extends ConsumerState<ClinicAppointmentD
               onPressed: () => context.push(ClinicAppointmentRoutes.patient(a.petId)),
               icon: const Icon(Icons.medical_information_outlined),
               label: const Text('Ver historial médico'),
+            ),
+          ),
+        if (canMessage)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => context.push(chatRoute),
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Enviar mensaje'),
             ),
           ),
         const Divider(height: 24),
