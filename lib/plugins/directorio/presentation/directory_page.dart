@@ -301,7 +301,8 @@ class _ResultsState extends ConsumerState<_Results> {
               text: DirectoryPage.allyOnlyFiltersNote),
         if (osmFailure != null)
           _InfoStrip(
-            icon: osmFailure.tooLarge ? Icons.zoom_in : Icons.cloud_off_outlined,
+            icon:
+                osmFailure.tooLarge ? Icons.zoom_in : Icons.cloud_off_outlined,
             text: osmFailure.message,
             action: osmFailure.tooLarge
                 ? null

@@ -29,7 +29,8 @@ class VetPlaceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final place = vet.place;
     final textTheme = Theme.of(context).textTheme;
-    final hours = place.horario == null ? null : OsmHours.toSpanish(place.horario!);
+    final hours =
+        place.horario == null ? null : OsmHours.toSpanish(place.horario!);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: Column(
@@ -37,9 +38,12 @@ class VetPlaceCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(place.nombre,
-              style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+              style:
+                  textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          _Info(icon: Icons.near_me_outlined, text: distanceLabel(vet.distanceKm)),
+          _Info(
+              icon: Icons.near_me_outlined,
+              text: distanceLabel(vet.distanceKm)),
           if (place.direccion case final address?)
             _Info(icon: Icons.place_outlined, text: address),
           if (hours != null) _Info(icon: Icons.schedule, text: hours),
@@ -57,7 +61,8 @@ class VetPlaceCard extends StatelessWidget {
               children: [
                 Icon(Icons.info_outline, size: 18, color: AppColors.textMuted),
                 const SizedBox(width: 8),
-                Expanded(child: Text(notAllyMessage, style: textTheme.bodySmall)),
+                Expanded(
+                    child: Text(notAllyMessage, style: textTheme.bodySmall)),
               ],
             ),
           ),

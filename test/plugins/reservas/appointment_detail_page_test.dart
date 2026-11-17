@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/data/appointments_providers.dart';
 import 'package:mascoti/core/data/appointments_repository.dart';
 import 'package:mascoti/core/domain/appointment.dart';
 import 'package:mascoti/core/format/bogota_time.dart';
+import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mascoti/plugins/reservas/presentation/dueno/appointment_detail_page.dart';
 import 'package:mascoti/plugins/reservas/presentation/dueno/booking_logic.dart';
 import 'package:mascoti/plugins/reservas/presentation/dueno/booking_providers.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../core/fake_plugins.dart';
 import 'fakes.dart';
 
 class _MockAppointments extends Mock implements AppointmentsRepository {}
@@ -37,6 +40,10 @@ void main() {
           appointmentProvider.overrideWith((ref, id) => Stream.value(a)),
           bookingClinicProvider.overrideWith((ref, id) => Stream.value(clinic)),
           bookingClockProvider.overrideWithValue(() => now),
+          // El chat (RF-15) se abre por ruta; aquí basta con que exista.
+          pluginRegistryProvider.overrideWithValue(PluginRegistry([
+            FakePlugin('chat', roles: {UserRole.dueno}, paths: ['/chat', '/chat/abrir']),
+          ])),
           bookingUrlOpenerProvider.overrideWithValue((uri) async {
             opened.add(uri);
             return true;
@@ -53,6 +60,15 @@ void main() {
 
   ButtonStyleButton cancelButton(WidgetTester tester) =>
       tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Cancelar cita'));
+
+  testWidgets('RF-15: "Escribir a la clínica" aparece con el chat activo', (tester) async {
+    await pumpDetail(
+      tester,
+      appointment('a1', inicio: inicio, estado: AppointmentStatus.confirmada),
+      now: inicio.subtract(const Duration(days: 1)),
+    );
+    expect(find.text('Escribir a la clínica'), findsOneWidget);
+  });
 
   testWidgets('faltando más de 2 horas se puede cancelar', (tester) async {
     when(() => repo.cancel('a1')).thenAnswer((_) async {});

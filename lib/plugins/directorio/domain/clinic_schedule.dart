@@ -30,6 +30,7 @@ String? todayHoursLabel(WeeklySchedule? schedule, DateTime now) {
   if (!day.abierto) return 'Hoy no atiende';
   return [
     for (final (a, b) in day.intervals)
-      TimeFormat.range(OpeningHours.formatMinutes(a), OpeningHours.formatMinutes(b)),
+      TimeFormat.range(
+          OpeningHours.formatMinutes(a), OpeningHours.formatMinutes(b)),
   ].join(' · ');
 }
