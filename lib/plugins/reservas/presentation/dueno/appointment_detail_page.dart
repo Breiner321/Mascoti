@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/data/appointments_providers.dart';
 import '../../../../core/data/appointments_repository.dart';
 import '../../../../core/domain/appointment.dart';
 import '../../../../core/domain/clinic.dart';
 import '../../../../core/format/time_format.dart';
+import '../../../../core/kernel/plugin_registry.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'appointment_status_chip.dart';
 import 'booking_format.dart';
 import 'booking_logic.dart';
 import 'booking_providers.dart';
+import 'owner_routes.dart';
 
 /// Detalle de una cita del dueño (`/reservas/:id`, también desde las
 /// notificaciones): datos, estado, motivo, "Cómo llegar", "Llamar a la
@@ -22,14 +25,18 @@ class AppointmentDetailPage extends ConsumerStatefulWidget {
 
   /// "Cómo llegar": app de mapas del teléfono; si no hay, OpenStreetMap.
   static List<Uri> directionsUris(Clinic c) => [
-        Uri.parse('geo:${c.lat},${c.lng}?q=${c.lat},${c.lng}(${Uri.encodeComponent(c.nombre)})'),
-        Uri.https('www.openstreetmap.org', '/directions', {'route': ';${c.lat},${c.lng}'}),
+        Uri.parse(
+            'geo:${c.lat},${c.lng}?q=${c.lat},${c.lng}(${Uri.encodeComponent(c.nombre)})'),
+        Uri.https('www.openstreetmap.org', '/directions',
+            {'route': ';${c.lat},${c.lng}'}),
       ];
 
-  static Uri callUri(String phone) => Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
+  static Uri callUri(String phone) =>
+      Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
 
   @override
-  ConsumerState<AppointmentDetailPage> createState() => _AppointmentDetailPageState();
+  ConsumerState<AppointmentDetailPage> createState() =>
+      _AppointmentDetailPageState();
 }
 
 class _AppointmentDetailPageState extends ConsumerState<AppointmentDetailPage> {
@@ -94,7 +101,8 @@ class _AppointmentDetailPageState extends ConsumerState<AppointmentDetailPage> {
                 const Text('No pudimos cargar la cita. Verifica tu conexión.'),
                 const SizedBox(height: 12),
                 FilledButton(
-                  onPressed: () => ref.invalidate(appointmentProvider(widget.appointmentId)),
+                  onPressed: () =>
+                      ref.invalidate(appointmentProvider(widget.appointmentId)),
                   child: const Text('Reintentar'),
                 ),
               ],
@@ -126,7 +134,8 @@ class _AppointmentDetailPageState extends ConsumerState<AppointmentDetailPage> {
             Expanded(
               child: Text(
                 a.serviceNombre,
-                style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                style:
+                    textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             AppointmentStatusChip(status: a.estado),
@@ -140,10 +149,14 @@ class _AppointmentDetailPageState extends ConsumerState<AppointmentDetailPage> {
         _Line(icon: Icons.event_outlined, text: formatAppointmentDay(a.inicio)),
         _Line(icon: Icons.schedule, text: TimeFormat.hour(a.hora)),
         _Line(icon: Icons.payments_outlined, text: formatCop(a.precioAcordado)),
-        if (a.comentario.isNotEmpty) _Line(icon: Icons.notes_outlined, text: a.comentario),
+        if (a.comentario.isNotEmpty)
+          _Line(icon: Icons.notes_outlined, text: a.comentario),
         if (a.cancelledByClinic)
-          const _Notice(text: 'La clínica canceló esta cita. Puedes agendar otro horario.'),
-        if (reason != null && reason.isNotEmpty) _Notice(text: 'Motivo: $reason'),
+          const _Notice(
+              text:
+                  'La clínica canceló esta cita. Puedes agendar otro horario.'),
+        if (reason != null && reason.isNotEmpty)
+          _Notice(text: 'Motivo: $reason'),
         if (a.estado == AppointmentStatus.pendiente)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -179,6 +192,18 @@ class _AppointmentDetailPageState extends ConsumerState<AppointmentDetailPage> {
             ),
           ],
         ),
+        // RF-15: chat con la clínica de la cita (plugin chat, por ruta).
+        if (ref
+            .watch(pluginRegistryProvider)
+            .hasRoute(OwnerBookingRoutes.chatWithClinic(a.clinicId))) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () =>
+                context.push(OwnerBookingRoutes.chatWithClinic(a.clinicId)),
+            icon: const Icon(Icons.chat_bubble_outline),
+            label: const Text('Escribir a la clínica'),
+          ),
+        ],
         if (canCancelState) ...[
           const SizedBox(height: 16),
           OutlinedButton(
@@ -189,7 +214,8 @@ class _AppointmentDetailPageState extends ConsumerState<AppointmentDetailPage> {
               ),
               minimumSize: const Size.fromHeight(48),
             ),
-            onPressed: blockedReason != null || _cancelling ? null : () => _cancel(a),
+            onPressed:
+                blockedReason != null || _cancelling ? null : () => _cancel(a),
             child: _cancelling
                 ? const SizedBox(
                     width: 20,
@@ -201,7 +227,8 @@ class _AppointmentDetailPageState extends ConsumerState<AppointmentDetailPage> {
           if (blockedReason != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: Text(blockedReason, style: muted, textAlign: TextAlign.center),
+              child: Text(blockedReason,
+                  style: muted, textAlign: TextAlign.center),
             ),
         ],
       ],
@@ -224,7 +251,8 @@ class _Line extends StatelessWidget {
         children: [
           Icon(icon, size: 20, color: AppColors.primary),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodyLarge)),
+          Expanded(
+              child: Text(text, style: Theme.of(context).textTheme.bodyLarge)),
         ],
       ),
     );

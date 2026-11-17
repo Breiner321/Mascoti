@@ -7,7 +7,8 @@ import '../../../core/theme/app_theme.dart';
 /// Otra veterinaria: círculo gris más pequeño con cruz médica. Se distinguen
 /// por forma y tamaño, no solo por el color.
 class VetMarkerIcon extends StatelessWidget {
-  const VetMarkerIcon({super.key, required this.ally, this.emergency = false, this.scale = 1});
+  const VetMarkerIcon(
+      {super.key, required this.ally, this.emergency = false, this.scale = 1});
 
   final bool ally;
   final bool emergency;
@@ -20,7 +21,9 @@ class VetMarkerIcon extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: ally ? (emergency ? AppColors.sos : AppColors.primary) : AppColors.textMuted,
+        color: ally
+            ? (emergency ? AppColors.sos : AppColors.primary)
+            : AppColors.textMuted,
         shape: BoxShape.circle,
         border: Border.all(color: AppColors.surface, width: 2 * scale),
       ),

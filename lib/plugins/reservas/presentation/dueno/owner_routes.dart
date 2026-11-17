@@ -24,4 +24,9 @@ abstract final class OwnerBookingRoutes {
 
   /// Registro de mascota (plugin mascotas, por ruta).
   static const newPet = '/mascotas/nueva';
+
+  /// Chat con la clínica (RF-15, plugin chat, por ruta): abre o crea la
+  /// conversación.
+  static String chatWithClinic(String clinicId) =>
+      Uri(path: '/chat/abrir', queryParameters: {'clinicId': clinicId}).toString();
 }

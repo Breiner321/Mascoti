@@ -9,4 +9,9 @@ abstract final class DirectorioRoutes {
   /// el plugin; mientras no exista se muestra "Próximamente".
   static String schedule(String clinicId) =>
       '/reservas/nueva?clinicId=$clinicId';
+
+  /// Chat con la clínica (RF-15, plugin chat): abre o crea la conversación.
+  static String chatWithClinic(String clinicId) =>
+      Uri(path: '/chat/abrir', queryParameters: {'clinicId': clinicId})
+          .toString();
 }

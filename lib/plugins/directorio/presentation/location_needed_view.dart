@@ -26,8 +26,7 @@ class LocationNeededView extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       children: [
-        Icon(Icons.location_off_outlined,
-            size: 48, color: AppColors.primary),
+        Icon(Icons.location_off_outlined, size: 48, color: AppColors.primary),
         const SizedBox(height: 12),
         Text(message, textAlign: TextAlign.center, style: textTheme.bodyLarge),
         const SizedBox(height: 12),

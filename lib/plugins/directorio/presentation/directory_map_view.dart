@@ -91,8 +91,8 @@ class _DirectoryMapViewState extends State<DirectoryMapView> {
     _debounce?.cancel();
     _debounce = Timer(DirectoryMapView.reloadDelay, () {
       final b = camera.visibleBounds;
-      widget.data.onAreaChanged
-          ?.call(MapArea(sur: b.south, oeste: b.west, norte: b.north, este: b.east));
+      widget.data.onAreaChanged?.call(
+          MapArea(sur: b.south, oeste: b.west, norte: b.north, este: b.east));
     });
   }
 

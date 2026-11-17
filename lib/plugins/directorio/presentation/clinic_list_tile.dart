@@ -65,8 +65,8 @@ class ClinicListTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(subtitle,
-                  style:
-                      textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+                  style: textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textMuted)),
               const SizedBox(height: 4),
               const AllyBadge(),
             ],

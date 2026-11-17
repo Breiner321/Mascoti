@@ -108,8 +108,8 @@ class DirectoryFilters {
       other.onlyAllies == onlyAllies;
 
   @override
-  int get hashCode => Object.hash(
-      Object.hashAllUnordered(animalTypes), service, emergencies, radiusKm, onlyAllies);
+  int get hashCode => Object.hash(Object.hashAllUnordered(animalTypes), service,
+      emergencies, radiusKm, onlyAllies);
 }
 
 /// "850 m" o "2,3 km".
