@@ -7,7 +7,9 @@ import 'domain/app_notification.dart';
 ///
 /// El core no importa plugins: las rutas se escriben aquí tal cual las
 /// declaran los plugins reservas (`/reservas/:id`), mascotas
-/// (`/mascotas/perfil/:petId`) y chat (`/chat/:chatId`).
+/// (`/mascotas/perfil/:petId`), chat (`/chat/:chatId`) y tienda
+/// (`/tienda/pedidos/:id` para el dueño y `/tienda/clinica/pedidos` para la
+/// clínica, RF-12).
 String? notificationRoute(String? tipo, String? referenciaId) {
   final type = NotificationType.fromValue(tipo);
   final id = referenciaId ?? '';
@@ -15,6 +17,8 @@ String? notificationRoute(String? tipo, String? referenciaId) {
   if (type.isAppointment) return '/reservas/$id';
   if (type == NotificationType.vacuna) return '/mascotas/perfil/$id';
   if (type == NotificationType.mensaje) return '/chat/$id';
+  if (type == NotificationType.pedido) return '/tienda/pedidos/$id';
+  if (type == NotificationType.pedidoNuevo) return '/tienda/clinica/pedidos';
   return null;
 }
 

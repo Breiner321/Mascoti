@@ -6,6 +6,7 @@ import '../../plugins/clinica/clinica_plugin.dart';
 import '../../plugins/directorio/directorio_plugin.dart';
 import '../../plugins/mascotas/mascotas_plugin.dart';
 import '../../plugins/reservas/reservas_plugin.dart';
+import '../../plugins/tienda/tienda_plugin.dart';
 import 'mascoti_plugin.dart';
 
 final List<MascotiPlugin> enabledPlugins = [
@@ -14,7 +15,7 @@ final List<MascotiPlugin> enabledPlugins = [
   const ReservasPlugin(), // Ambos: citas (RF-14)
   const DirectorioPlugin(), // Dueño: directorio de clínicas con mapa (RF-09)
   const ChatPlugin(), // Ambos: mensajes (RF-15, RF-16)
-  // const TiendaPlugin(),     // semana 6 — RF-07, RF-12
+  const TiendaPlugin(), // Ambos: tienda e inventario (RF-07, RF-12)
   // const SosPlugin(),        // semana 7 — RF-10
   // const UtilidadesPlugin(), // semana 7 — RF-17, RF-18
   // const ChatbotPlugin(),    // semana 7 — RF-11 (opcional)

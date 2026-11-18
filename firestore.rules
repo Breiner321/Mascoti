@@ -92,6 +92,30 @@ service cloud.firestore {
           && request.resource.data.updatedAt == request.time
           && request.resource.data.valido == true;
       }
+
+      // Carrito (RF-12): solo su dueño. nombre y precio son de referencia
+      // (el total lo calcula `crear-pedido` con los precios de Firestore).
+      // "Un carrito, una clínica" lo controla la app (ShopRepository.addToCart
+      // pregunta "¿Vaciarlo?") y lo vuelve a verificar el servidor: las
+      // reglas no pueden consultar los demás documentos del carrito.
+      match /cart/{productId} {
+        allow read, delete: if isSelf(uid);
+        allow create, update: if isSelf(uid)
+          && hasRole('dueno')
+          && validCartItem(request.resource.data)
+          && (resource == null
+              ? request.resource.data.addedAt == request.time
+              : request.resource.data.addedAt == resource.data.addedAt);
+
+        function validCartItem(d) {
+          return d.keys().hasOnly(['clinicId', 'nombre', 'precio', 'cantidad', 'addedAt'])
+            && d.clinicId is string && d.clinicId.size() > 0 && d.clinicId.size() <= 128
+            && d.nombre is string && d.nombre.size() <= 60
+            && d.precio is int && d.precio > 0
+            && d.cantidad is int && d.cantidad >= 1 && d.cantidad <= 99
+            && exists(/databases/$(database)/documents/clinics/$(d.clinicId)/products/$(productId));
+        }
+      }
     }
 
     // ---------- Validaciones de campos ----------
@@ -305,6 +329,56 @@ service cloud.firestore {
             && d.createdAt == request.time;
         }
       }
+
+      // ---------- Productos de la tienda (RF-07) ----------
+      // La clínica dueña los crea y los edita; no se borran (soft delete con
+      // estado 'inactivo'). `agotado` ⇔ stock == 0 (salvo 'inactivo'), en
+      // vez del trigger de Cloud Functions del RF. `stockReservado`
+      // (unidades apartadas por pagos en curso) lo cambia SOLO el servidor.
+      // Los dueños solo leen productos activos o agotados (su consulta debe
+      // filtrar `estado in ['activo', 'agotado']`).
+      match /products/{productId} {
+        allow read: if signedIn()
+          && (resource.data.estado in ['activo', 'agotado'] || isClinicOwner(clinicId));
+        allow create: if hasRole('clinica')
+          && isClinicOwner(clinicId)
+          && validProduct(request.resource.data)
+          && request.resource.data.stockReservado == 0
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if hasRole('clinica')
+          && isClinicOwner(clinicId)
+          && validProduct(request.resource.data)
+          && request.resource.data.get('stockReservado', 0) == resource.data.get('stockReservado', 0)
+          && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null)
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+
+        // Igual a ProductValidators (lib/core/domain/product.dart). La foto
+        // va en la carpeta de la clínica del bucket `productos` de Supabase.
+        function validProduct(d) {
+          return d.keys().hasOnly(['clinicId', 'nombre', 'categoria', 'descripcion', 'precio',
+                                   'stock', 'stockReservado', 'fotoPath', 'estado',
+                                   'createdAt', 'updatedAt'])
+            && d.clinicId == clinicId
+            && d.nombre is string && d.nombre.size() >= 3 && d.nombre.size() <= 60
+            && d.nombre == d.nombre.trim()
+            && d.categoria in ['alimento', 'juguete', 'accesorio', 'medicamento_otc']
+            && optString(d, 'descripcion', 1000)
+            && d.precio is int && d.precio > 0 && d.precio <= 100000000
+            && d.stock is int && d.stock >= 0 && d.stock <= 100000
+            && d.fotoPath is string
+            && d.fotoPath.matches('^' + request.auth.uid + '/[A-Za-z0-9_-]+[.](jpg|png)$')
+            && d.estado in ['activo', 'agotado', 'inactivo']
+            && (d.estado == 'inactivo' || ((d.estado == 'agotado') == (d.stock == 0)));
+        }
+      }
+    }
+
+    // Catálogo general de la tienda (RF-12): consulta de grupo `products`
+    // con `estado in ['activo', 'agotado']`.
+    match /{path=**}/products/{productId} {
+      allow read: if signedIn() && resource.data.estado in ['activo', 'agotado'];
     }
 
     // ---------- Código de paciente (semana 3) ----------
@@ -566,6 +640,22 @@ service cloud.firestore {
       allow read: if isActive()
         && (resource.data.ownerUid == request.auth.uid
             || (hasRole('clinica') && resource.data.clinicId == userData().clinicId));
+      allow write: if false;
+    }
+
+    // ---------- Pedidos de la tienda (RF-12) ----------
+    // Los crean y los cambian SOLO las Edge Functions (crear-pedido,
+    // webhook-wompi, actualizar-pedido, tarea programada): la app nunca
+    // calcula el total ni marca un pedido como pagado. Lee el dueño del
+    // pedido; la clínica, solo los ya pagados (su consulta debe filtrar
+    // `estado in [...]`).
+    match /orders/{orderId} {
+      allow read: if isActive()
+        && (resource.data.ownerUid == request.auth.uid
+            || (hasRole('clinica')
+                && resource.data.clinicId == userData().clinicId
+                && resource.data.estado in ['pagado', 'preparando', 'listo', 'enviado',
+                                            'entregado', 'cancelado']));
       allow write: if false;
     }
 

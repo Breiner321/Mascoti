@@ -11,7 +11,11 @@ enum NotificationType {
   citaCancelada('cita_cancelada'),
   recordatorioCita('recordatorio_cita'),
   vacuna('vacuna'),
+  /// Cambio de un pedido para el dueño (RF-12): `referenciaId` = orderId.
   pedido('pedido'),
+
+  /// Pedido pagado para la clínica (RF-12): `referenciaId` = orderId.
+  pedidoNuevo('pedido_nuevo'),
   mensaje('mensaje');
 
   const NotificationType(this.value);

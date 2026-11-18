@@ -2,7 +2,7 @@
 
 Fuente única de verdad del esquema. **Todo PR que agregue o cambie colecciones o campos debe actualizar este archivo y `firestore.rules`.**
 
-Modelos en Dart: `lib/core/domain/` (`Clinic`, `ClinicService`, `Slot`, `Pet`, `MedicalRecord`, `Appointment`), compartidos por todos los plugins. Los enums guardan en Firestore el valor en español de esta página.
+Modelos en Dart: `lib/core/domain/` (`Clinic`, `ClinicService`, `Slot`, `Pet`, `MedicalRecord`, `Appointment`, `Product`, `CartItem`, `ShopOrder`), compartidos por todos los plugins. Los enums guardan en Firestore el valor en español de esta página.
 
 Horas (`hora`, `horarioBase.apertura/cierre`): se **guardan** en 24 h `HH:mm`; la app las **muestra** en 12 h con a. m./p. m. (`TimeFormat` en `lib/core/format`).
 
@@ -26,7 +26,7 @@ Convenciones: nombres de campos en español como en los RF; fechas como `Timesta
 | createdAt, lastLoginAt | Timestamp | |
 | estadoActualizadoEn | Timestamp? | lo pone el script de suspensión |
 
-Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13: `deviceId` es un id aleatorio por instalación guardado en el teléfono; la app lo guarda siempre con `valido: true` y `updatedAt` = hora del servidor, y lo borra al cerrar sesión; solo el servidor lo marca `valido: false` cuando FCM rechaza el token; `DeviceRegistry` en `lib/core/notificaciones`) · `cart/{productId}` `{clinicId, cantidad, addedAt}` (RF-12) · `favoriteClinics/{clinicId}` (RF-10).
+Subcolecciones: `devices/{deviceId}` `{fcmToken, plataforma, updatedAt, valido}` (RF-13: `deviceId` es un id aleatorio por instalación guardado en el teléfono; la app lo guarda siempre con `valido: true` y `updatedAt` = hora del servidor, y lo borra al cerrar sesión; solo el servidor lo marca `valido: false` cuando FCM rechaza el token; `DeviceRegistry` en `lib/core/notificaciones`) · `cart/{productId}` (RF-12, ver la sección del carrito más abajo) · `favoriteClinics/{clinicId}` (RF-10).
 
 ## `clinics/{clinicId}` — RF-01, RF-04, RF-09
 
@@ -52,7 +52,12 @@ Subcolecciones:
 - `excepciones/{id}` — Cambio 2 (`ScheduleException`): `{tipo:'bloqueo'|'apertura', fechaInicio, fechaFin, desde?, hasta?, motivo?, createdAt}`. Cubre las fechas `[fechaInicio, fechaFin]` y, en cada una, `[desde, hasta)`; sin horas es el día completo (solo bloqueos). La crea y la borra la clínica dueña (no se edita); la leen los usuarios con sesión. Consulta: `where('fechaFin', '>=', hoy)` (índice automático).
 - `slots/{fecha}_{hora}` (p. ej. `2026-10-15_09:30`, ver `Slot.idFor`) — **desde el Cambio 2 los escribe solo la Edge Function `citas`**: son el candado de cada reserva, `{fecha, hora, inicio, estado, appointmentId?}`, uno por cada franja que ocupa la cita. Una franja sin documento (o en `disponible`) está libre si el horario la cubre. Las franjas `no_disponible` de la agenda anterior siguen contando como bloqueadas. Formato anterior (RF-06): `{fecha:'2026-10-15', hora:'09:30', inicio:Timestamp, serviceId?, precio?, estado}`; `inicio` = `fecha` + `hora` en hora de Bogotá (`Slot.at`); el servidor no confía en él y lo recalcula al agendar; `estado ∈ disponible, no_disponible, reservado_temporal, ocupado`. Id determinístico `{fecha}_{hora}` para evitar duplicados. Una franja `disponible` ocupa de `hora` a `hora + duracionMin` del servicio: las franjas que quedan dentro de ese rango no tienen documento (la app las muestra como "cubiertas") y la app no permite guardar si el rango pisa otra franja o pasa del cierre (`DaySchedule.conflicts`). Una franja sin documento no se ofrece a los dueños.
 - `pacientes/{petId}` — registros médicos (semana 3): `{duenoNombre, vinculadoAt}`. Nombre del dueño de cada mascota vinculada, para la lista "Pacientes" de la clínica (la clínica no puede leer `users/{ownerUid}`). La app lo guarda con lo que devuelve la Edge Function `vincular-mascota`; las reglas solo dejan escribir a la clínica dueña y si la mascota ya la tiene en `clinicasAutorizadas`. La lista de pacientes sale de `pets where clinicasAutorizadas array-contains clinicId` (índice automático de un campo); este documento solo aporta el nombre.
-- `products/{productId}` — RF-07: `{nombre, categoria, descripcion, precio, stock, fotoUrl, estado:'activo'|'agotado'|'inactivo', createdAt}`.
+- `products/{productId}` — RF-07 (modelo `Product`): `{clinicId, nombre, categoria, descripcion, precio, stock, stockReservado, fotoPath, estado, createdAt, updatedAt}`.
+  - `nombre` 3–60 sin espacios en los extremos (el RF decía 80; el equipo lo igualó a los servicios); `categoria ∈ alimento, juguete, accesorio, medicamento_otc`; `descripcion` ≤ 1000; `precio` en COP **entero** > 0; `stock` entero ≥ 0 (unidades físicas).
+  - `estado ∈ activo, agotado, inactivo`. **`agotado` ⇔ `stock == 0`** salvo `inactivo` (borrado lógico; no se borra). Lo exigen las reglas: reemplaza al trigger de Cloud Functions del RF. La app lo ajusta sola (`Product.copyWith`, `ShopRepository.adjustStock`) y el servidor lo pone al vender la última unidad.
+  - `stockReservado`: unidades apartadas por pedidos `pendiente_pago` (15 min). **Solo lo escribe el servidor** (`crear-pedido` lo sube; el webhook, la tarea programada o un pedido reemplazado lo bajan). Disponible para comprar = `stock − stockReservado` (`Product.available`). Se eligió un campo aparte en vez de descontar `stock` y devolverlo: la clínica sigue editando su stock físico (ventas en mostrador, RF-07 paso 9) sin pisar las reservas, y "agotado" sigue significando "no hay unidades".
+  - `fotoPath`: `{uidDeLaClínica}/{productId}.jpg|png` en el bucket `productos` (no una URL). Las reglas exigen esa carpeta.
+  - Escribe la clínica dueña (activa); `stockReservado` y `createdAt` no cambian desde la app y `updatedAt` = hora del servidor. Leen los usuarios con sesión: los dueños solo `activo`/`agotado` (sus consultas filtran `estado in [...]`), la clínica todo. Catálogo general: consulta de grupo `products` con `estado in ['activo', 'agotado']`.
 
 ## `pets/{petId}` — soporte para RF-08, RF-14, RF-17, RF-18
 
@@ -139,17 +144,40 @@ Subcolección `messages/{messageId}` (id generado en la app): `{senderUid, tipo:
 - Nadie edita el texto ni borra; el **receptor** solo cambia `leido` a `true` (doble check).
 - Mensajes enviados sin conexión: la app los muestra con `ChatMessage.pendiente` (escritura local sin confirmar) hasta que Firestore los envía.
 
-## `orders/{orderId}` — RF-12 · *la crea solo la Function del webhook de pago*
+## `users/{uid}/cart/{productId}` — RF-12
 
-`{ownerUid, clinicId, items:[{productId, nombre, precio, cantidad}], total, direccionEntrega, estado:'confirmado'|'preparando'|'entregado'|'cancelado', pagoRef, createdAt}`
+Modelo `CartItem`. `{clinicId, nombre, precio, cantidad, addedAt}`. Lo escribe solo su dueño (rol `dueno`, activo); `cantidad` entera 1–99; `nombre` y `precio` son **de referencia** (para mostrar el carrito): el total real lo calcula `crear-pedido` con los precios de Firestore. `addedAt` = hora del servidor al crearlo y no cambia. Las reglas exigen que el producto exista en esa clínica.
+
+**Un carrito, una clínica.** Las reglas no pueden consultar los demás documentos del carrito, así que lo controla la app: `ShopRepository.addToCart` lanza `CartFromOtherClinic` ("Tu carrito tiene productos de otra clínica. ¿Vaciarlo?") y, si el dueño acepta, vacía y agrega en un solo lote (`replaceOtherClinic: true`). `crear-pedido` lo vuelve a verificar y rechaza un carrito mezclado. El servidor vacía el carrito cuando el pago se aprueba.
+
+## `orders/{orderId}` — RF-12 · *solo lo escriben las Edge Functions*
+
+Modelo `ShopOrder` (`Order` choca con una clase de `cloud_firestore`), repositorio `ShopRepository` (`lib/core/data`). Lo crea `crear-pedido` y lo cambian `webhook-wompi`, `actualizar-pedido` y la tarea programada; las reglas niegan toda escritura desde la app. **La app nunca calcula el total cobrado ni marca un pedido como pagado: el webhook de Wompi es la única fuente de verdad del pago.**
+
+`{ownerUid, ownerNombre, clinicId, clinicNombre, clinicOwnerUid, items:[{productId, nombre, precio, cantidad}], total, entrega:{tipo, direccion?, telefono}, estado, referenciaPago, expiraEn, wompiTransactionId?, wompiEstado?, motivoCancelacion?, pagoTardio?, createdAt, updatedAt}`
+
+- `items`, `total`, `ownerNombre`, `clinicNombre`: copias al crear el pedido, con los precios leídos en el servidor. Dinero en COP entero; a Wompi se envía `amount_in_cents = total × 100`.
+- `entrega.tipo ∈ recoger, domicilio`; `direccion` (5–200) obligatoria a domicilio; `telefono` de 10 dígitos.
+- `referenciaPago` = `MSC-{orderId}` (única; el webhook saca el pedido de ella y compara monto y referencia). `expiraEn` = creación + 15 min (también es el `expiration-time` del checkout de Wompi).
+- `estado` (`OrderStatus` en Dart, `estados_pedido.ts` en TS; las dos pasan `test/fixtures/estados_pedido.json`):
+  - `pendiente_pago → pagado | pago_rechazado | expirado` (webhook o tarea programada)
+  - `pagado → preparando | cancelado` (clínica)
+  - `preparando → listo` (solo recoger) `| enviado` (solo domicilio) `| cancelado`
+  - `listo | enviado → entregado`; `pago_rechazado`, `expirado`, `entregado` y `cancelado` son finales.
+- `motivoCancelacion` (1–300): obligatorio cuando la clínica cancela (solo `pagado` o `preparando`). El stock vuelve y el dueño recibe el aviso del reembolso (los reembolsos reales están fuera de alcance, ver `cambios-alcance.md`).
+- `wompiTransactionId`, `wompiEstado`: los pone el webhook.
+- `pagoTardio: true`: Wompi aprobó el pago de un pedido que ya había expirado (o fue reemplazado). No se cambia el estado (`expirado` es final) ni se descuenta stock; se avisa al dueño y a la clínica para el reembolso.
+- **Leen** el dueño del pedido (cualquier estado) y la clínica **solo los ya pagados** (`pagado`, `preparando`, `listo`, `enviado`, `entregado`, `cancelado`; su consulta debe filtrar `estado in [...]`). Cuentas suspendidas no leen.
+- **Reserva de stock:** al crear el pedido, en un solo commit con precondición sobre cada producto, se suma la cantidad a `stockReservado`. Aprobado → `stock` y `stockReservado` bajan (y el producto pasa a `agotado` si `stock` llega a 0). Rechazado, expirado o reemplazado → solo baja `stockReservado`.
+- **Límite:** máximo 3 pedidos `pendiente_pago` por dueño. Un pedido nuevo a la misma clínica reemplaza al anterior pendiente (lo marca `expirado` y libera su reserva); si el carrito y la entrega son iguales y no ha expirado, se reutiliza.
 
 ## `notifications/{notificationId}` — RF-13 · *la crea solo el servidor*
 
 `{uid, tipo, titulo, cuerpo, referenciaId, leido, createdAt}`
 
-- `tipo ∈ cita_nueva, cita_aprobada, cita_rechazada, cita_cancelada, recordatorio_cita, vacuna, pedido, mensaje` (`NotificationType` en Dart, `TipoNotificacion` en TS).
+- `tipo ∈ cita_nueva, cita_aprobada, cita_rechazada, cita_cancelada, recordatorio_cita, vacuna, pedido, pedido_nuevo, mensaje` (`NotificationType` en Dart, `TipoNotificacion` en TS).
 - `mensaje` (RF-15) **no crea documento** aquí (el chat tiene su contador `noLeidos` y la pestaña "Mensajes"): solo push, desde `notificar-mensaje`, con `data: {tipo: 'mensaje', referenciaId: chatId}` → `/chat/:chatId`.
-- `referenciaId`: la cita (`appointmentId`) en los tipos de citas; la **mascota** (`petId`) en `vacuna`. El push lleva lo mismo en `data: {tipo, referenciaId, notificationId}` y la app navega con eso (`/reservas/:id` o `/mascotas/perfil/:petId`; si la ruta no existe, al inicio).
+- `referenciaId`: la cita (`appointmentId`) en los tipos de citas; la **mascota** (`petId`) en `vacuna`; el **pedido** (`orderId`) en `pedido` (al dueño → `/tienda/pedidos/:id`) y `pedido_nuevo` (a la clínica → `/tienda/clinica/pedidos`). El push lleva lo mismo en `data: {tipo, referenciaId, notificationId}` y la app navega con eso (`/reservas/:id` o `/mascotas/perfil/:petId`; si la ruta no existe, al inicio).
 - La crea `enviarNotificacion` (`supabase/functions/_shared/notificaciones.ts`), **siempre**, antes de enviar el push: aunque el usuario niegue el permiso, la ve en el centro de notificaciones. Los recordatorios usan ids fijos (`recordatorio_{appointmentId}`, `vacuna_{vacunaProgramadaId}`) para no duplicarse.
 - Reglas: cada usuario lee las suyas y solo puede cambiar `leido` a `true`; nadie más escribe.
 
@@ -185,6 +213,14 @@ Sin políticas para la app: todo pasa por la Edge Function `adjuntos-historial`.
 
 Sin políticas para la app: la Edge Function `adjuntos-chat` verifica en Firestore que quien pide está en `chats/{chatId}.participantes` y entrega un enlace de subida de un solo uso (`subir`, valida extensión y tamaño) o de lectura de 15 min (`leer`). El nombre del archivo se limpia en la ruta (sin carpetas ni acentos, ≤ 80); el original va en `adjunto.nombre`. Migración: `supabase/migrations/20261110000000_storage_chats.sql`.
 
+### Bucket `productos` (fotos de productos, RF-07)
+
+| Ruta | Escribe | Lee | Límites |
+|---|---|---|---|
+| `{uidDeLaClínica}/{productId}.jpg\|png` | solo la cuenta de la clínica (su carpeta) | cualquier usuario con sesión (enlace firmado) | JPG/PNG, máximo 1 MB (la app comprime con `flutter_image_compress`) |
+
+Migración: `supabase/migrations/20261118000000_storage_productos.sql`. `products.fotoPath` guarda esta ruta.
+
 ### Bucket `mascotas` (fotos de mascotas)
 
 Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
@@ -205,5 +241,7 @@ Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
 - `notifications`: `uid ASC, createdAt DESC` (el contador de no leídas, `uid ==` y `leido ==`, no necesita índice compuesto)
 - `clinics`: `estado ASC, geo.geohash ASC` (búsqueda geográfica de `ClinicsGeoRepository`, `lib/core/data`)
 - `vacunasProgramadas`: `ownerUid ASC, fechaProximaDosis ASC` · `notificado ASC, fechaProximaDosis ASC`
+- `orders`: `ownerUid ASC, createdAt DESC` (mis pedidos) · `clinicId ASC, estado ASC, createdAt DESC` (pedidos de la clínica) · `estado ASC, createdAt ASC` (tarea de pedidos vencidos)
+- `products`: exención del campo `estado` con alcance de **grupo de colecciones** (catálogo general)
 
 **Ubicación de la clínica (semana 3):** `direccion` solo cambia junto con `lat`, `lng` y `geo`, y `geo.geopoint` debe coincidir con `lat`/`lng` (reglas). Usa `ClinicsGeoRepository.addressUpdate(...)`, que arma los cuatro campos. Para revisar o recalcular `geo` de clínicas existentes: `npm run verificar-geo` en `functions/`.

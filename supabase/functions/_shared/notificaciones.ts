@@ -18,6 +18,8 @@ export type TipoNotificacion =
   | "cita_cancelada"
   | "recordatorio_cita"
   | "vacuna"
+  | "pedido"
+  | "pedido_nuevo"
   | "mensaje";
 
 export interface Aviso {
@@ -25,7 +27,7 @@ export interface Aviso {
   tipo: TipoNotificacion;
   titulo: string;
   cuerpo: string;
-  /** Cita (appointmentId) o, para vacunas, la mascota (petId). */
+  /** Cita (appointmentId), la mascota (petId) en vacunas o el pedido (orderId). */
   referenciaId: string;
   /** Push con prioridad alta (cancelación de la clínica). */
   prioridadAlta?: boolean;
