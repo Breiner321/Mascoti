@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_providers.dart';
 import '../auth/domain/app_user.dart';
+import '../data/shop_providers.dart';
 import '../kernel/mascoti_plugin.dart';
 import '../kernel/plugin_registry.dart';
 import '../notificaciones/presentation/notification_bell.dart';
@@ -125,11 +126,7 @@ class _ShellHeader extends StatelessWidget implements PreferredSizeWidget {
                   if (showCart)
                     Semantics(
                       sortKey: const OrdinalSortKey(2),
-                      child: _HeaderButton(
-                        tooltip: 'Carrito',
-                        icon: Icons.shopping_cart_outlined,
-                        onPressed: () => context.push('/tienda/carrito'),
-                      ),
+                      child: const _CartButton(),
                     ),
                   if (showSos)
                     Semantics(sortKey: const OrdinalSortKey(0), child: const SosButton()),
@@ -176,6 +173,38 @@ class _HeaderButton extends StatelessWidget {
           backgroundColor: AppColors.onPrimaryTranslucent,
           foregroundColor: AppColors.onPrimary,
           // Cambio 3: área táctil mínima de 48×48 dp.
+          fixedSize: const Size(48, 48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Carrito del encabezado (RF-12) con el número de unidades. La ruta es la
+/// del plugin tienda, escrita tal cual (el core no importa plugins).
+class _CartButton extends ConsumerWidget {
+  const _CartButton();
+
+  static const cartRoute = '/tienda/carrito';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Sin conexión o con error, el carrito se ve sin número.
+    final count = ref.watch(cartCountProvider);
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: IconButton(
+        tooltip: count == 0 ? 'Carrito' : 'Carrito, $count ${count == 1 ? 'producto' : 'productos'}',
+        onPressed: () => context.push(cartRoute),
+        icon: Badge(
+          isLabelVisible: count > 0,
+          label: Text(count > 99 ? '99+' : '$count'),
+          child: const Icon(Icons.shopping_cart_outlined),
+        ),
+        style: IconButton.styleFrom(
+          backgroundColor: AppColors.onPrimaryTranslucent,
+          foregroundColor: AppColors.onPrimary,
           fixedSize: const Size(48, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),

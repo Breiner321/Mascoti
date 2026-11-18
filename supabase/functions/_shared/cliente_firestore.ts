@@ -4,6 +4,7 @@
  * emulador). Ver functions/test/citas.emulador.test.ts.
  */
 import {
+  type BorradoFirestore,
   type Consulta,
   consultaEstructurada,
   decodificarCampos,
@@ -20,7 +21,7 @@ export interface DocumentoLeido {
   updateTime: string;
 }
 
-export type Escritura = EscrituraFirestore | TransformacionFirestore;
+export type Escritura = EscrituraFirestore | TransformacionFirestore | BorradoFirestore;
 
 /**
  * Lo que necesitan las Edge Functions de la base de datos. Las pruebas

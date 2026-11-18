@@ -243,3 +243,16 @@ export function consultaEstructurada(consulta: Consulta): Record<string, unknown
     ...(consulta.limite ? { limit: consulta.limite } : {}),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Borrado (semana 6: vaciar el carrito al aprobar el pago)
+// ---------------------------------------------------------------------------
+
+/** Escritura que borra un documento (no falla si no existe). */
+export interface BorradoFirestore {
+  delete: string;
+}
+
+export function borrarDocumento(proyecto: string, ruta: string): BorradoFirestore {
+  return { delete: rutaDocumento(proyecto, ruta) };
+}

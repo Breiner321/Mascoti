@@ -439,3 +439,19 @@ verify_jwt = false
 
 [functions.adjuntos-chat]
 verify_jwt = false
+
+# RF-12: la app llama a crear-pedido y actualizar-pedido con su ID token de
+# Firebase, que la función verifica ella misma (como citas).
+[functions.crear-pedido]
+verify_jwt = false
+
+[functions.actualizar-pedido]
+verify_jwt = false
+
+# RF-12: webhook-wompi lo llama WOMPI, que no tiene un JWT de Supabase ni de
+# Firebase: sin verify_jwt = false el gateway respondería 401 a cada evento.
+# Su seguridad es la firma del evento (SHA-256 con el secreto
+# WOMPI_EVENTS_SECRET), que la función verifica antes de tocar Firestore y
+# rechaza cualquier evento inválido. Desplegar con --no-verify-jwt.
+[functions.webhook-wompi]
+verify_jwt = false
