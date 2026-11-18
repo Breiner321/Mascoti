@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/domain/clinic.dart';
 import '../../../core/domain/clinic_service.dart';
+import '../../../core/kernel/plugin_registry.dart';
 import '../../../core/maps/external_links.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/clinic_schedule.dart';
 import 'ally_badge.dart';
+import '../directorio_routes.dart';
 import 'directory_providers.dart';
 import 'open_external.dart';
 import 'schedule_action.dart';
@@ -141,6 +144,18 @@ class _Profile extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         FilledButton(onPressed: onSchedule, child: const Text('Agendar')),
+        // RF-15: abre o crea el chat con la clínica (plugin chat, por ruta).
+        if (ref
+            .watch(pluginRegistryProvider)
+            .hasRoute(DirectorioRoutes.chatWithClinic(clinic.id))) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () =>
+                context.push(DirectorioRoutes.chatWithClinic(clinic.id)),
+            icon: const Icon(Icons.chat_bubble_outline),
+            label: const Text('Escribir a la clínica'),
+          ),
+        ],
         const SizedBox(height: 24),
         Text('Especies atendidas', style: muted),
         const SizedBox(height: 6),

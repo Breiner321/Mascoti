@@ -26,6 +26,12 @@ void main() {
       expect(notificationRoute('mensaje', 'ana_c1'), '/chat/ana_c1');
     });
 
+    test('los pedidos abren el detalle (dueño) o la lista de pedidos (clínica)', () {
+      expect(notificationRoute('pedido', 'o1'), '/tienda/pedidos/o1');
+      expect(notificationRoute('pedido_nuevo', 'o1'), '/tienda/clinica/pedidos');
+      expect(notificationRoute('pedido', '../x'), isNull);
+    });
+
     test('con la app abierta no se avisa el mensaje de la conversación en pantalla', () {
       const data = {'tipo': 'mensaje', 'referenciaId': 'ana_c1'};
       expect(isNotificationScreenOpen(data, '/chat/ana_c1'), isTrue);
@@ -38,7 +44,6 @@ void main() {
     });
 
     test('sin pantalla específica o datos raros → null', () {
-      expect(notificationRoute('pedido', 'o1'), isNull);
       expect(notificationRoute('desconocido', 'x'), isNull);
       expect(notificationRoute(null, 'a1'), isNull);
       expect(notificationRoute('cita_aprobada', null), isNull);
@@ -93,7 +98,7 @@ void main() {
   test('tipos de notificación iguales al servidor', () {
     expect(NotificationType.values.map((t) => t.value), [
       'cita_nueva', 'cita_aprobada', 'cita_rechazada', 'cita_cancelada', 'recordatorio_cita',
-      'vacuna', 'pedido', 'mensaje',
+      'vacuna', 'pedido', 'pedido_nuevo', 'mensaje',
     ]);
   });
 

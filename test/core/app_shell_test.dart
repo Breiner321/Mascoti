@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/auth/auth_providers.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
+import 'package:mascoti/core/data/shop_providers.dart';
+import 'package:mascoti/core/domain/cart_item.dart';
 import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mascoti/core/widgets/app_shell.dart';
@@ -27,11 +29,13 @@ void main() {
     WidgetTester tester, {
     required AppUser user,
     required List<String> plugins,
+    List<CartItem> cart = const [],
   }) =>
       tester.pumpWidget(
         ProviderScope(
           overrides: [
             currentUserProvider.overrideWithValue(user),
+            cartProvider.overrideWith((ref) => Stream.value(cart)),
             pluginRegistryProvider.overrideWithValue(PluginRegistry([
               for (final id in plugins)
                 FakePlugin(id, roles: {UserRole.dueno, UserRole.clinica}),
@@ -70,5 +74,18 @@ void main() {
     await pumpShell(tester, user: clinic, plugins: ['clinica', 'tienda', 'sos']);
     expect(cart, findsNothing);
     expect(sos, findsNothing);
+  });
+
+  testWidgets('el carrito muestra cuántas unidades tiene (RF-12)', (tester) async {
+    const item = CartItem(productId: 'p1', clinicId: 'c1', nombre: 'Collar', precio: 1000, cantidad: 2);
+    await pumpShell(
+      tester,
+      user: owner,
+      plugins: ['mascotas', 'tienda'],
+      cart: [item, item.copyWith(cantidad: 1)],
+    );
+    await tester.pump();
+    expect(find.byTooltip('Carrito, 3 productos'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
   });
 }

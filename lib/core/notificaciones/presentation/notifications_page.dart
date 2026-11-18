@@ -84,6 +84,7 @@ class _NotificationTile extends ConsumerWidget {
         NotificationType.recordatorioCita => Icons.alarm,
         NotificationType.vacuna => Icons.vaccines_outlined,
         NotificationType.pedido => Icons.shopping_bag_outlined,
+        NotificationType.pedidoNuevo => Icons.receipt_long_outlined,
         NotificationType.mensaje => Icons.chat_bubble_outline,
         null => Icons.notifications_outlined,
       };

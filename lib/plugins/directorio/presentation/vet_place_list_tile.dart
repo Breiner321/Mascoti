@@ -29,13 +29,16 @@ class VetPlaceListTile extends StatelessWidget {
         color: selected ? AppColors.primaryContainer : AppColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: selected ? AppColors.primary : AppColors.border),
+          side: BorderSide(
+              color: selected ? AppColors.primary : AppColors.border),
         ),
         clipBehavior: Clip.antiAlias,
         child: ListTile(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           onTap: onTap,
-          leading: Icon(Icons.local_hospital_outlined, color: AppColors.textMuted),
+          leading:
+              Icon(Icons.local_hospital_outlined, color: AppColors.textMuted),
           title: Text(
             vet.nombre,
             maxLines: 1,

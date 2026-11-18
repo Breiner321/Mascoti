@@ -1,0 +1,35 @@
+{
+  "_descripcion": "Máquina de estados del pedido (RF-12). La leen order_test.dart y functions/test/estados_pedido.test.ts: si cambias una implementación, cambia la otra y este archivo. Toda combinación (de, a, entrega) que no esté en 'validas' es inválida.",
+  "estados": [
+    "pendiente_pago",
+    "pagado",
+    "pago_rechazado",
+    "expirado",
+    "preparando",
+    "listo",
+    "enviado",
+    "entregado",
+    "cancelado"
+  ],
+  "entregas": ["recoger", "domicilio"],
+  "validas": [
+    ["pendiente_pago", "pagado", "recoger"],
+    ["pendiente_pago", "pagado", "domicilio"],
+    ["pendiente_pago", "pago_rechazado", "recoger"],
+    ["pendiente_pago", "pago_rechazado", "domicilio"],
+    ["pendiente_pago", "expirado", "recoger"],
+    ["pendiente_pago", "expirado", "domicilio"],
+    ["pagado", "preparando", "recoger"],
+    ["pagado", "preparando", "domicilio"],
+    ["pagado", "cancelado", "recoger"],
+    ["pagado", "cancelado", "domicilio"],
+    ["preparando", "listo", "recoger"],
+    ["preparando", "enviado", "domicilio"],
+    ["preparando", "cancelado", "recoger"],
+    ["preparando", "cancelado", "domicilio"],
+    ["listo", "entregado", "recoger"],
+    ["enviado", "entregado", "domicilio"]
+  ],
+  "porLaClinica": ["preparando", "listo", "enviado", "entregado", "cancelado"],
+  "finales": ["pago_rechazado", "expirado", "entregado", "cancelado"]
+}
