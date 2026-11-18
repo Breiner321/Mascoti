@@ -22,6 +22,8 @@ void main() {
     expect(owner.path, '/tienda');
     expect(clinic.label, 'Inventario');
     expect(clinic.path, '/tienda/inventario');
+    // Número de pedidos pagados por preparar sobre la pestaña.
+    expect(clinic.badge, isNotNull);
   });
 
   test('declara las rutas acordadas', () {
@@ -32,8 +34,13 @@ void main() {
       '/tienda/pedidos',
       '/tienda/pedidos/:id',
       '/tienda/inventario',
+      '/tienda/inventario/nuevo',
+      '/tienda/inventario/:id/editar',
       '/tienda/clinica/pedidos',
+      '/tienda/clinica/pedidos/:id',
     ]);
+    expect(TiendaRoutes.editProduct('p1'), '/tienda/inventario/p1/editar');
+    expect(TiendaRoutes.clinicOrder('o1'), '/tienda/clinica/pedidos/o1');
     expect(TiendaRoutes.product('c 1', 'p1'), '/tienda/producto/p1?clinicId=c+1');
   });
 
@@ -51,7 +58,8 @@ void main() {
   });
 
   testWidgets('la pantalla provisional es accesible', (tester) async {
-    await tester.pumpWidget(MaterialApp(theme: AppTheme.light(), home: const Scaffold(body: StorePage())));
+    await tester
+        .pumpWidget(MaterialApp(theme: AppTheme.light(), home: const Scaffold(body: StorePage())));
     expect(find.text('Tienda'), findsOneWidget);
     await expectAccessible(tester);
   });

@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/domain/app_user.dart';
 import '../../core/kernel/mascoti_plugin.dart';
 import '../../core/router/navigator_keys.dart';
+import 'presentation/clinica/clinic_order_detail_page.dart';
 import 'presentation/clinica/clinic_orders_page.dart';
+import 'presentation/clinica/clinic_shop_providers.dart';
 import 'presentation/clinica/inventory_page.dart';
+import 'presentation/clinica/product_form_page.dart';
 import 'presentation/dueno/cart_page.dart';
 import 'presentation/dueno/order_detail_page.dart';
 import 'presentation/dueno/owner_orders_page.dart';
@@ -56,14 +59,30 @@ class TiendaPlugin extends MascotiPlugin {
           builder: (context, state) => const InventoryPage(),
         ),
         GoRoute(
+          path: TiendaRoutes.newProduct,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const ProductFormPage(),
+        ),
+        GoRoute(
+          path: TiendaRoutes.editProductPattern,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => ProductFormPage(productId: state.pathParameters['id']),
+        ),
+        GoRoute(
           path: TiendaRoutes.clinicOrders,
           parentNavigatorKey: rootNavigatorKey,
           builder: (context, state) => const ClinicOrdersPage(),
         ),
+        GoRoute(
+          path: TiendaRoutes.clinicOrderPattern,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => ClinicOrderDetailPage(orderId: state.pathParameters['id']!),
+        ),
       ];
 
   /// Dueño: "Tienda" entre "Mapa" (10) y "Citas" (30). Clínica:
-  /// "Inventario" después de "Agenda" (20) y antes de "Mensajes" (30).
+  /// "Inventario" después de "Agenda" (20) y antes de "Mensajes" (30), con
+  /// el número de pedidos pagados por preparar.
   @override
   List<PluginDestination> destinations(UserRole role) => switch (role) {
         UserRole.dueno => const [
@@ -75,13 +94,14 @@ class TiendaPlugin extends MascotiPlugin {
               order: 20,
             ),
           ],
-        UserRole.clinica => const [
+        UserRole.clinica => [
             PluginDestination(
               label: 'Inventario',
               icon: Icons.inventory_2_outlined,
               selectedIcon: Icons.inventory_2,
               path: TiendaRoutes.inventory,
               order: 25,
+              badge: pendingClinicOrdersCountProvider,
             ),
           ],
       };

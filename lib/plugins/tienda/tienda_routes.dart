@@ -11,7 +11,10 @@ abstract final class TiendaRoutes {
 
   // Clínica
   static const inventory = '/tienda/inventario';
+  static const newProduct = '/tienda/inventario/nuevo';
+  static const editProductPattern = '/tienda/inventario/:id/editar';
   static const clinicOrders = '/tienda/clinica/pedidos';
+  static const clinicOrderPattern = '/tienda/clinica/pedidos/:id';
 
   /// Un producto vive en `clinics/{clinicId}/products/{id}`: la ruta lleva
   /// la clínica como parámetro (`?clinicId=`).
@@ -19,4 +22,8 @@ abstract final class TiendaRoutes {
       '/tienda/producto/$productId?clinicId=${Uri.encodeQueryComponent(clinicId)}';
 
   static String order(String orderId) => '/tienda/pedidos/$orderId';
+
+  static String editProduct(String productId) => '/tienda/inventario/$productId/editar';
+
+  static String clinicOrder(String orderId) => '/tienda/clinica/pedidos/$orderId';
 }
