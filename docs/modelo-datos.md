@@ -166,7 +166,7 @@ Modelo `ShopOrder` (`Order` choca con una clase de `cloud_firestore`), repositor
   - `listo | enviado → entregado`; `pago_rechazado`, `expirado`, `entregado` y `cancelado` son finales.
 - `motivoCancelacion` (1–300): obligatorio cuando la clínica cancela (solo `pagado` o `preparando`). El stock vuelve y el dueño recibe el aviso del reembolso (los reembolsos reales están fuera de alcance, ver `cambios-alcance.md`).
 - `wompiTransactionId`, `wompiEstado`: los pone el webhook.
-- `pagoTardio: true`: Wompi aprobó el pago de un pedido que ya había expirado (o fue reemplazado). No se cambia el estado (`expirado` es final) ni se descuenta stock; se avisa al dueño y a la clínica para el reembolso.
+- `pagoTardio: true`: Wompi aprobó un pago de un pedido que ya no estaba pendiente (expirado, reemplazado o con un intento rechazado antes en el mismo checkout). No se cambia el estado (son finales) ni se descuenta stock; se avisa al dueño para el reembolso. La clínica no lo ve (las reglas solo le muestran pedidos pagados): por ahora se revisa en Firestore.
 - **Leen** el dueño del pedido (cualquier estado) y la clínica **solo los ya pagados** (`pagado`, `preparando`, `listo`, `enviado`, `entregado`, `cancelado`; su consulta debe filtrar `estado in [...]`). Cuentas suspendidas no leen.
 - **Reserva de stock:** al crear el pedido, en un solo commit con precondición sobre cada producto, se suma la cantidad a `stockReservado`. Aprobado → `stock` y `stockReservado` bajan (y el producto pasa a `agotado` si `stock` llega a 0). Rechazado, expirado o reemplazado → solo baja `stockReservado`.
 - **Límite:** máximo 3 pedidos `pendiente_pago` por dueño. Un pedido nuevo a la misma clínica reemplaza al anterior pendiente (lo marca `expirado` y libera su reserva); si el carrito y la entrega son iguales y no ha expirado, se reutiliza.
@@ -241,7 +241,7 @@ Políticas en `supabase/migrations/20261015000000_storage_mascotas.sql`.
 - `notifications`: `uid ASC, createdAt DESC` (el contador de no leídas, `uid ==` y `leido ==`, no necesita índice compuesto)
 - `clinics`: `estado ASC, geo.geohash ASC` (búsqueda geográfica de `ClinicsGeoRepository`, `lib/core/data`)
 - `vacunasProgramadas`: `ownerUid ASC, fechaProximaDosis ASC` · `notificado ASC, fechaProximaDosis ASC`
-- `orders`: `ownerUid ASC, createdAt DESC` (mis pedidos) · `clinicId ASC, estado ASC, createdAt DESC` (pedidos de la clínica) · `estado ASC, createdAt ASC` (tarea de pedidos vencidos)
+- `orders`: `ownerUid ASC, createdAt DESC` (mis pedidos) · `clinicId ASC, estado ASC, createdAt DESC` (pedidos de la clínica) · `estado ASC, expiraEn ASC` (tarea de pedidos vencidos)
 - `products`: exención del campo `estado` con alcance de **grupo de colecciones** (catálogo general)
 
 **Ubicación de la clínica (semana 3):** `direccion` solo cambia junto con `lat`, `lng` y `geo`, y `geo.geopoint` debe coincidir con `lat`/`lng` (reglas). Usa `ClinicsGeoRepository.addressUpdate(...)`, que arma los cuatro campos. Para revisar o recalcular `geo` de clínicas existentes: `npm run verificar-geo` en `functions/`.

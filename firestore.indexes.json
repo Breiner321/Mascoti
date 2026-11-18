@@ -231,7 +231,7 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "createdAt",
+          "fieldPath": "expiraEn",
           "order": "ASCENDING"
         }
       ]

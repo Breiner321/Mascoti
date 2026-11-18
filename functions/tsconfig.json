@@ -32,6 +32,8 @@
     "../supabase/functions/_shared/validacion.ts",
     "../supabase/functions/_shared/veterinarias_osm.ts",
     "../supabase/functions/_shared/vinculacion.ts",
-    "../supabase/functions/_shared/estados_pedido.ts"
+    "../supabase/functions/_shared/estados_pedido.ts",
+    "../supabase/functions/_shared/wompi.ts",
+    "../supabase/functions/_shared/pedidos.ts"
   ]
 }
