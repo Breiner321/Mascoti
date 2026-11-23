@@ -8,6 +8,7 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 | 2 | Disponibilidad automática según el horario de la clínica | RF-04, RF-06, RF-14 | ✅ |
 | 3 | Accesibilidad (WCAG 2.1 AA) y modo oscuro | Todos | ✅ |
 | 4 | Mapa con todas las veterinarias y "Aliados Mascoti" | RF-09, RF-10 | ✅ |
+| 5 | Pagos de la tienda: por ahora pagos simulados (Wompi Sandbox queda listo), reserva de stock, estados del pedido y reembolsos fuera de alcance | RF-07, RF-12 | 🟨 |
 
 ---
 
@@ -86,3 +87,25 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 **Por qué.** El dueño quiere ver todas las veterinarias de su zona, sobre todo en una urgencia, aunque no usen Mascoti; y la distinción "Aliado Mascoti" muestra a las clínicas el valor de registrarse.
 
 **Límites.** Los datos de OSM los mantiene la comunidad: pueden faltar veterinarias o tener datos viejos (la tarjeta dice "Datos de OpenStreetMap"). El SOS (RF-10) aún no existe como pantalla; cuando se construya puede usar `nearbyVetPlacesProvider`, `VetMatching` y `ExternalLinks` del core.
+
+---
+
+## Cambio 5 — Pagos de la tienda con Wompi Sandbox
+
+> **Actualización (23/11/2026): por ahora no hay pasarela.** El equipo decidió manejar **pagos ficticios** dentro de la app y dejar la integración con Wompi lista para activarla después. `crear-pedido` usa la pasarela del secreto `PASARELA_PAGO` (vacío = `simulada`): con la simulada no devuelve enlace de pago y la app abre la pantalla "Pagar pedido" (`/tienda/pedidos/:id/pagar`), con el aviso "Pago de prueba: no se cobra dinero real" y los botones **Pagar** y **Simular pago rechazado**. La Edge Function `pagar-pedido-simulado` (solo el dueño, pedido `pendiente_pago` sin vencer y creado con la simulada) registra el resultado con la MISMA lógica que el webhook (`registrarPago`): stock, `agotado`, carrito y avisos. Todo lo de abajo sobre Wompi sigue implementado y probado; para activarlo: `supabase secrets set PASARELA_PAGO=wompi` más sus llaves (ver `configuracion-inicial.md`, C5). Otra pasarela futura implementa la interfaz `Pasarela` de `supabase/functions/_shared/pasarela.ts`.
+
+**Qué decían los RF.** RF-12: el dueño paga (tarjeta guardada o nueva), y "al recibir confirmación de pago exitoso" se crea `orders` con `estado: 'confirmado'` y se descuenta el stock; pago rechazado → "Tu pago no pudo ser procesado". RF-07: un trigger pone `agotado` cuando el stock llega a 0. No decían qué pasa con el stock mientras el dueño paga, ni cómo cancela la clínica un pedido pagado.
+
+**Qué cambia.**
+- **Wompi Web Checkout en sandbox, sin tarjetas guardadas.** La app nunca ve la tarjeta: abre el checkout de Wompi en un WebView. La firma de integridad (SHA-256) la calcula la Edge Function `crear-pedido`; el secreto nunca está en la app.
+- **El pedido se crea ANTES de pagar**, como `pendiente_pago`, con el total calculado en el servidor con los precios de Firestore, y **aparta el stock 15 minutos** (`products.stockReservado`). El checkout expira a la misma hora (`expiration-time`). Así dos personas no pagan la última unidad: de dos compras simultáneas, solo una logra apartarla (la otra recibe "Collar ya no tiene unidades disponibles" o "Solo quedan 2 unidades de X").
+- **El webhook de Wompi (`webhook-wompi`) es la única fuente de verdad del pago.** Verifica la firma del evento, la referencia y el monto; es idempotente. Aprobado → `pagado`, stock descontado (y `agotado` si llega a 0, en lugar del trigger), carrito vaciado, avisos "Pago aprobado" (dueño) y "Nuevo pedido" (clínica). Rechazado, anulado o con error → `pago_rechazado`, se libera la reserva, el carrito se mantiene.
+- **Estados del pedido** (reemplazan `confirmado/preparando/entregado/cancelado`): `pendiente_pago → pagado | pago_rechazado | expirado`; `pagado → preparando → listo` (recoger) `o enviado` (domicilio) `→ entregado`; la clínica cancela `pagado` o `preparando` con motivo. La tarea programada expira cada 10 min los pendientes de más de 15 min.
+- **Un carrito, una clínica.** Cada pedido es de una sola clínica (cada una prepara y entrega lo suyo). Al agregar un producto de otra clínica la app pregunta "Tu carrito tiene productos de otra clínica. ¿Vaciarlo?".
+- **Límite:** 3 pedidos pendientes de pago por dueño; volver a "Confirmar compra" con el mismo carrito reutiliza el pedido pendiente.
+
+**Reembolsos: fuera de alcance.** Si la clínica cancela un pedido pagado, el stock vuelve y el dueño recibe "Tu pedido fue cancelado: <motivo>. La clínica se comunicará contigo para el reembolso". Lo mismo si Wompi aprueba un pago de un pedido que ya no estaba pendiente — expirado, reemplazado o con un intento rechazado antes en el mismo checkout (`pagoTardio`): el pedido no revive (el stock ya se liberó) y se avisa al dueño. **La app no devuelve el dinero**: no hay anulaciones ni reembolsos con la API de Wompi (en sandbox no mueve dinero real). Si el producto sale a producción, hay que definir quién recibe el dinero (cuenta de Wompi de Mascoti o de cada clínica) y agregar el reembolso.
+
+**Por qué.** Sin reserva, dos dueños podían pagar la misma última unidad y uno quedaba sin producto pero con el cobro hecho. Calcular el total y confirmar el pago en el servidor evita que una app modificada pague menos o marque un pedido como pagado.
+
+**Límites.** Los datos de prueba de Wompi solo funcionan en sandbox. Si Wompi tarda en avisar (reintenta a los 30 min, 3 h y 24 h), el pedido puede expirar antes: queda como pago tardío.

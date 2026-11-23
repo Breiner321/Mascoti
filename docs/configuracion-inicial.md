@@ -169,6 +169,49 @@ No hay que configurar nada en Firebase: FCM viene con el proyecto y es gratis en
 curl.exe -X POST https://tahnazumbqsupzpusrba.supabase.co/functions/v1/tareas-programadas -H "x-cron-secret: <CRON_SECRET>" -H "Content-Type: application/json" -d '{\"tarea\":\"recordatorios\"}'
 ```
 
+## C5. Tienda y pagos con Wompi Sandbox (RF-07, RF-12)
+
+**Por ahora los pagos son simulados** (Cambio 5): no hace falta configurar Wompi. Sin el secreto `PASARELA_PAGO` (o con `PASARELA_PAGO=simulada`), `crear-pedido` no devuelve enlace de pago y el dueño paga en la pantalla de pago de prueba de la app, que llama a `pagar-pedido-simulado`. Para desplegar solo lo necesario con pagos simulados, sigue los pasos 1 a 3 de abajo (en el paso 3 incluye `pagar-pedido-simulado`; `webhook-wompi` y el paso 4 se pueden dejar para cuando se active Wompi).
+
+**Activar Wompi más adelante:** configura sus tres secretos (abajo), `supabase secrets set --project-ref tahnazumbqsupzpusrba PASARELA_PAGO=wompi`, vuelve a desplegar `crear-pedido` y `pagar-pedido-simulado` si cambiaron, y haz el paso 4. Con Wompi activo, `pagar-pedido-simulado` responde "Los pagos de prueba están desactivados".
+
+Con Wompi, los pagos son **solo en sandbox**. Los tres secretos de Wompi ya están en Supabase (`WOMPI_PUBLIC_KEY` = `pub_test_…`, `WOMPI_INTEGRITY_SECRET`, `WOMPI_EVENTS_SECRET`); si hay que cambiarlos, en el panel de Wompi Sandbox → **Desarrolladores → Secretos para integración técnica**:
+```powershell
+supabase secrets set --project-ref tahnazumbqsupzpusrba WOMPI_PUBLIC_KEY=pub_test_... WOMPI_INTEGRITY_SECRET=test_integrity_... WOMPI_EVENTS_SECRET=test_events_...
+```
+Opcional: `WOMPI_REDIRECT_URL` (a dónde vuelve el checkout). Por defecto es `https://tahnazumbqsupzpusrba.supabase.co/functions/v1/webhook-wompi/retorno/{orderId}`, que solo dice "vuelve a la app"; la app cierra el WebView al llegar ahí (`ShopRepository.isCheckoutReturn`).
+
+**Desplegar, en este orden** (cada paso necesita el anterior):
+1. Reglas e índices de Firestore: `firebase deploy --only firestore:rules,firestore:indexes` (los índices de `orders` tardan unos minutos en construirse).
+2. Migraciones de Supabase (SQL Editor o `supabase db push`): `20261118000000_storage_productos.sql` (bucket de fotos) y `20261118010000_pedidos_vencidos.sql` (pg_cron cada 10 min; usa el `cron_secret` del Vault de C2).
+3. Edge Functions:
+   ```powershell
+   supabase functions deploy crear-pedido --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy pagar-pedido-simulado --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy actualizar-pedido --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy webhook-wompi --project-ref tahnazumbqsupzpusrba --use-api --no-verify-jwt
+   supabase functions deploy tareas-programadas --project-ref tahnazumbqsupzpusrba --use-api
+   ```
+   `webhook-wompi` **debe** ir sin verificación JWT (la llama Wompi; su seguridad es la firma del evento). Está en `supabase/config.toml`; `--no-verify-jwt` lo asegura.
+4. En el panel de **Wompi Sandbox → Desarrolladores → URL de eventos**, pon:
+   `https://tahnazumbqsupzpusrba.supabase.co/functions/v1/webhook-wompi`
+5. La app (APK nuevo con el plugin `tienda`).
+
+**Probar una compra de punta a punta (sandbox):** con un dueño, agrega productos al carrito, "Confirmar compra" y en el checkout de Wompi usa los datos de prueba de su documentación (https://docs.wompi.co/docs/colombia/datos-de-prueba-en-sandbox/):
+
+| Método | Aprobada | Rechazada |
+|---|---|---|
+| Tarjeta | `4242 4242 4242 4242` | `4111 1111 1111 1111` |
+| Nequi | `3991111111` | `3992222222` |
+| PSE | banco que aprueba | banco que rechaza |
+
+Tarjetas: cualquier fecha futura y cualquier CVC de 3 dígitos; cualquier otro número termina en `ERROR`. Revisa en Firestore que el pedido pase a `pagado` (o `pago_rechazado`), el stock y `stockReservado`, y los avisos "Pago aprobado" / "Nuevo pedido". En **Supabase → Edge Functions → webhook-wompi → Logs** se ve cada evento ("Evento Wompi {...}").
+
+**Expirar a mano** (sin esperar 10 min):
+```powershell
+curl.exe -X POST https://tahnazumbqsupzpusrba.supabase.co/functions/v1/tareas-programadas -H "x-cron-secret: <CRON_SECRET>" -H "Content-Type: application/json" -d '{\"tarea\":\"pedidos-vencidos\"}'
+```
+
 ## D. Todos: correr la app
 
 ```powershell

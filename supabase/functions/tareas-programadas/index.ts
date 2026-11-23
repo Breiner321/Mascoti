@@ -2,6 +2,8 @@
 // ver supabase/migrations/*_tareas_programadas.sql) en lugar de las funciones
 // programadas de Firebase, que necesitan el plan Blaze.
 //   {tarea: "vencidas"}      cada 30 min: no-show y solicitudes expiradas (RF-14).
+//   {tarea: "pedidos-vencidos"} cada 10 min: pedidos 'pendiente_pago' de más
+//                            de 15 min → 'expirado' y liberan el stock (RF-12).
 //   {tarea: "recordatorios"} 8:00 a. m. hora Colombia: citas de mañana y
 //                            vacunas de los próximos 3 días (RF-13).
 //   {tarea: "veterinarias-osm"} cada 2 h: precarga la caché de veterinarias
@@ -14,6 +16,7 @@ import type { BaseDatos } from "../_shared/cliente_firestore.ts";
 import { leerCuentaServicio } from "../_shared/cuenta_servicio.ts";
 import { clienteFirestore, dependenciasNotificaciones } from "../_shared/google.ts";
 import { enviarRecordatoriosDiarios, notificarCambioCita } from "../_shared/notificaciones.ts";
+import { expirarPedidos } from "../_shared/pedidos.ts";
 import {
   consultarOverpass,
   consultarPhoton,
@@ -77,6 +80,12 @@ Deno.serve(async (req) => {
           db: clienteFirestore(cuenta),
           ahora: () => new Date(),
           alCambiar: (cambio) => notificarCambioCita(notificaciones, cambio),
+          log: console.warn,
+        }));
+      case "pedidos-vencidos":
+        return responder(200, await expirarPedidos({
+          db: clienteFirestore(cuenta),
+          ahora: () => new Date(),
           log: console.warn,
         }));
       case "recordatorios":
