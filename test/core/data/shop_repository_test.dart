@@ -113,7 +113,8 @@ void main() {
       final p = product('p1', stock: 3, stockReservado: 1);
       await expectLater(
         repository.addToCart('ana', p, 3),
-        throwsA(isA<ShopFailure>().having((e) => e.message, 'message', 'Solo quedan 2 unidades de Concentrado')),
+        throwsA(isA<ShopFailure>()
+            .having((e) => e.message, 'message', 'Solo quedan 2 unidades de Concentrado')),
       );
       await expectLater(
         repository.addToCart('ana', product('p2', stock: 0), 1),
@@ -143,7 +144,8 @@ void main() {
       await repository.addToCart('ana', product('p2'), 1);
       await repository.setCartQuantity('ana', 'p1', 4, product: p);
       expect((await cartDoc('p1'))!['cantidad'], 4);
-      expect(() => repository.setCartQuantity('ana', 'p1', 6, product: p), throwsA(isA<ShopFailure>()));
+      expect(() => repository.setCartQuantity('ana', 'p1', 6, product: p),
+          throwsA(isA<ShopFailure>()));
       await repository.setCartQuantity('ana', 'p1', 0);
       expect(await cartDoc('p1'), isNull);
       await repository.clearCart('ana');
@@ -152,7 +154,11 @@ void main() {
   });
 
   group('pedidos', () {
-    Future<void> seedOrder(String id, {String owner = 'ana', String clinic = 'c1', required String estado, required int day}) =>
+    Future<void> seedOrder(String id,
+            {String owner = 'ana',
+            String clinic = 'c1',
+            required String estado,
+            required int day}) =>
         firestore.doc('orders/$id').set({
           'ownerUid': owner,
           'clinicId': clinic,
@@ -174,7 +180,8 @@ void main() {
       expect(mine.map((o) => o.id), ['o2', 'o1', 'o4']);
       final clinic = await repository.watchClinicOrders('c1').first;
       expect(clinic.map((o) => o.id), ['o3', 'o1']);
-      final onlyPaid = await repository.watchClinicOrders('c1', estados: [OrderStatus.pagado]).first;
+      final onlyPaid =
+          await repository.watchClinicOrders('c1', estados: [OrderStatus.pagado]).first;
       expect(onlyPaid.map((o) => o.id), ['o1']);
       expect((await repository.watchOrder('o2').first)!.estado, OrderStatus.pendientePago);
       expect(await repository.watchOrder('nada').first, isNull);
@@ -217,8 +224,47 @@ void main() {
         'clinicId': 'c1',
         'entrega': {'tipo': 'recoger', 'telefono': '3001234567'},
       });
-      expect(ShopRepository.isCheckoutReturn('https://mascoti.app/pago?id=1-2-3', session.redirectUrl), isTrue);
-      expect(ShopRepository.isCheckoutReturn('https://checkout.wompi.co/p/', session.redirectUrl), isFalse);
+      // Respuesta sin `pasarela` (servidor anterior): era Wompi.
+      expect(session.gateway, PaymentGateway.wompi);
+      expect(session.isSimulated, isFalse);
+      expect(
+          ShopRepository.isCheckoutReturn(
+              'https://mascoti.app/pago?id=1-2-3', session.redirectUrl!),
+          isTrue);
+      expect(ShopRepository.isCheckoutReturn('https://checkout.wompi.co/p/', session.redirectUrl!),
+          isFalse);
+    });
+
+    test('con pagos simulados no hay página de pago', () async {
+      answer('crear-pedido', {
+        'orderId': 'o2',
+        'pasarela': 'simulada',
+        'checkoutUrl': null,
+        'redirectUrl': null,
+        'total': 45000,
+        'expiraEn': '2026-11-18T15:15:00.000Z',
+      });
+      final session = await repository.createOrder(clinicId: 'c1', delivery: delivery);
+      expect(session.isSimulated, isTrue);
+      expect(session.checkoutUrl, isNull);
+      expect(session.total, 45000);
+    });
+
+    test('pago simulado: aprobado o rechazado, y errores del servidor', () async {
+      answer('pagar-pedido-simulado', {'resultado': 'pagado', 'orderId': 'o1'});
+      await repository.paySimulated('o1');
+      expect(sentBody('pagar-pedido-simulado'), {'orderId': 'o1', 'resultado': 'aprobado'});
+
+      await repository.paySimulated('o1', approve: false);
+      expect(sentBody('pagar-pedido-simulado'), {'orderId': 'o1', 'resultado': 'rechazado'});
+
+      failWith('pagar-pedido-simulado', 412, 'failed-precondition',
+          'El tiempo para pagar este pedido terminó. Vuelve a confirmar la compra.');
+      await expectLater(
+        repository.paySimulated('o1'),
+        throwsA(isA<ShopFailure>().having((e) => e.message, 'message',
+            'El tiempo para pagar este pedido terminó. Vuelve a confirmar la compra.')),
+      );
     });
 
     test('la entrega inválida no llega al servidor', () async {
@@ -264,14 +310,16 @@ void main() {
 
       await expectLater(
         repository.updateOrderStatus('o1', OrderStatus.cancelado),
-        throwsA(isA<ShopFailure>().having((e) => e.message, 'message', 'Indica el motivo de la cancelación.')),
+        throwsA(isA<ShopFailure>()
+            .having((e) => e.message, 'message', 'Indica el motivo de la cancelación.')),
       );
       await expectLater(
         repository.updateOrderStatus('o1', OrderStatus.pagado),
         throwsA(isA<ShopFailure>()),
       );
       await repository.updateOrderStatus('o1', OrderStatus.cancelado, motivo: ' Sin stock ');
-      expect(sentBody('actualizar-pedido'), {'orderId': 'o1', 'estado': 'cancelado', 'motivo': 'Sin stock'});
+      expect(sentBody('actualizar-pedido'),
+          {'orderId': 'o1', 'estado': 'cancelado', 'motivo': 'Sin stock'});
     });
   });
 }

@@ -9,6 +9,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 ///   del chat, PDF…). Máximo 10 MB; imágenes y PDF.
 /// - `mascotas`: fotos de mascotas en `{ownerUid}/{petId}/foto.jpg|png`.
 ///   Máximo 5 MB; solo JPG/PNG. Las lee cualquier usuario con sesión.
+/// - `productos`: fotos de productos de la tienda en
+///   `{uidDeLaClínica}/{productId}.jpg|png` (RF-07). Máximo 1 MB; solo
+///   JPG/PNG. Las lee cualquier usuario con sesión.
 ///
 /// Las políticas están en supabase/migrations. Para mostrar un archivo se
 /// pide un enlace firmado temporal ([signedUrl]); en Firestore se guarda la
@@ -21,6 +24,7 @@ class StorageRepository {
 
   static const bucket = 'mascoti';
   static const petsBucket = 'mascotas';
+  static const productsBucket = 'productos';
 
   StorageFileApi _files(String bucketId) {
     final storage = _storage;
@@ -47,6 +51,17 @@ class StorageRepository {
       throw ArgumentError('Mascota inválida: $ownerUid/$petId');
     }
     return '$ownerUid/$petId/foto.${png ? 'png' : 'jpg'}';
+  }
+
+  /// Ruta de la foto de un producto en el bucket `productos`
+  /// (= `products/{productId}.fotoPath`). [clinicUid] es el uid de la cuenta
+  /// de la clínica (no el id de la clínica): así lo exigen las políticas.
+  static String productPhotoPath(String clinicUid, String productId, {bool png = false}) {
+    final validId = RegExp(r'^[A-Za-z0-9_-]+$');
+    if (clinicUid.isEmpty || clinicUid.contains('/') || !validId.hasMatch(productId)) {
+      throw ArgumentError('Producto inválido: $clinicUid/$productId');
+    }
+    return '$clinicUid/$productId.${png ? 'png' : 'jpg'}';
   }
 
   /// Sube (o reemplaza) un archivo del usuario al bucket `mascoti` y devuelve
@@ -77,6 +92,27 @@ class StorageRepository {
   }) async {
     final path = petPhotoPath(ownerUid, petId, png: png);
     await _files(petsBucket).uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(
+        contentType: png ? 'image/png' : 'image/jpeg',
+        upsert: true,
+      ),
+    );
+    return path;
+  }
+
+  /// Sube (o reemplaza) la foto de un producto y devuelve la ruta que se
+  /// guarda en `products/{productId}.fotoPath`. Supabase rechaza archivos de
+  /// más de 1 MB o que no sean JPG/PNG.
+  Future<String> uploadProductPhoto({
+    required String clinicUid,
+    required String productId,
+    required Uint8List bytes,
+    bool png = false,
+  }) async {
+    final path = productPhotoPath(clinicUid, productId, png: png);
+    await _files(productsBucket).uploadBinary(
       path,
       bytes,
       fileOptions: FileOptions(

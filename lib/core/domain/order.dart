@@ -11,8 +11,23 @@ enum DeliveryType {
   final String value;
   final String label;
 
-  static DeliveryType fromValue(Object? value) =>
-      value == domicilio.value ? domicilio : recoger;
+  static DeliveryType fromValue(Object? value) => value == domicilio.value ? domicilio : recoger;
+}
+
+/// Pasarela con la que se paga un pedido (Cambio 5). Por ahora la tienda usa
+/// pagos SIMULADOS (sin dinero real, con `pagar-pedido-simulado`); Wompi
+/// queda listo para cuando se active en el servidor (`PASARELA_PAGO`).
+enum PaymentGateway {
+  simulada('simulada', 'Pago de prueba'),
+  wompi('wompi', 'Wompi');
+
+  const PaymentGateway(this.value, this.label);
+
+  final String value;
+  final String label;
+
+  /// Los pedidos anteriores a este campo son de Wompi.
+  static PaymentGateway fromValue(Object? value) => value == simulada.value ? simulada : wompi;
 }
 
 /// Estado de un pedido (RF-12). [value] se guarda en Firestore.
@@ -220,6 +235,8 @@ class ShopOrder {
     required this.entrega,
     required this.estado,
     required this.referenciaPago,
+    this.pasarela = PaymentGateway.simulada,
+    this.transaccionId,
     this.wompiTransactionId,
     this.motivoCancelacion,
     this.pagoTardio = false,
@@ -244,6 +261,8 @@ class ShopOrder {
         ),
         estado: OrderStatus.fromValue(map['estado']) ?? OrderStatus.pendientePago,
         referenciaPago: map['referenciaPago'] as String? ?? '',
+        pasarela: PaymentGateway.fromValue(map['pasarela']),
+        transaccionId: map['transaccionId'] as String?,
         wompiTransactionId: map['wompiTransactionId'] as String?,
         motivoCancelacion: map['motivoCancelacion'] as String?,
         pagoTardio: map['pagoTardio'] == true,
@@ -268,6 +287,13 @@ class ShopOrder {
 
   /// Referencia única enviada a Wompi (`MSC-{orderId}`).
   final String referenciaPago;
+
+  /// Con qué se pagó (o se paga) este pedido.
+  final PaymentGateway pasarela;
+
+  /// Id de la transacción en la pasarela (`SIM-…` en pagos simulados); lo
+  /// pone el servidor al registrar el pago.
+  final String? transaccionId;
   final String? wompiTransactionId;
   final String? motivoCancelacion;
 
@@ -293,6 +319,8 @@ class ShopOrder {
         'entrega': entrega.toMap(),
         'estado': estado.value,
         'referenciaPago': referenciaPago,
+        'pasarela': pasarela.value,
+        if (transaccionId != null) 'transaccionId': transaccionId,
         if (wompiTransactionId != null) 'wompiTransactionId': wompiTransactionId,
         if (motivoCancelacion != null) 'motivoCancelacion': motivoCancelacion,
         if (pagoTardio) 'pagoTardio': true,
@@ -312,6 +340,8 @@ class ShopOrder {
         entrega: entrega,
         estado: estado ?? this.estado,
         referenciaPago: referenciaPago,
+        pasarela: pasarela,
+        transaccionId: transaccionId,
         wompiTransactionId: wompiTransactionId,
         motivoCancelacion: motivoCancelacion ?? this.motivoCancelacion,
         pagoTardio: pagoTardio,
@@ -333,6 +363,8 @@ class ShopOrder {
       other.entrega == entrega &&
       other.estado == estado &&
       other.referenciaPago == referenciaPago &&
+      other.pasarela == pasarela &&
+      other.transaccionId == transaccionId &&
       other.wompiTransactionId == wompiTransactionId &&
       other.motivoCancelacion == motivoCancelacion &&
       other.pagoTardio == pagoTardio &&
@@ -341,7 +373,23 @@ class ShopOrder {
       other.updatedAt == updatedAt;
 
   @override
-  int get hashCode => Object.hash(id, ownerUid, ownerNombre, clinicId, clinicNombre,
-      Object.hashAll(items), total, entrega, estado, referenciaPago, wompiTransactionId,
-      motivoCancelacion, pagoTardio, expiraEn, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+      id,
+      ownerUid,
+      ownerNombre,
+      clinicId,
+      clinicNombre,
+      Object.hashAll(items),
+      total,
+      entrega,
+      estado,
+      referenciaPago,
+      pasarela,
+      transaccionId,
+      wompiTransactionId,
+      motivoCancelacion,
+      pagoTardio,
+      expiraEn,
+      createdAt,
+      updatedAt);
 }

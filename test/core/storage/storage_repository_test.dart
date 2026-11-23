@@ -99,4 +99,26 @@ void main() {
   test('sin Supabase configurado avisa con un error claro', () {
     expect(() => StorageRepository(null).signedUrl('x'), throwsStateError);
   });
+
+  test('la foto de un producto va en la carpeta de la cuenta de la clínica', () async {
+    expect(StorageRepository.productPhotoPath('vet', 'p1'), 'vet/p1.jpg');
+    expect(StorageRepository.productPhotoPath('vet', 'p1', png: true), 'vet/p1.png');
+    expect(() => StorageRepository.productPhotoPath('', 'p1'), throwsArgumentError);
+    expect(() => StorageRepository.productPhotoPath('vet', '../p1'), throwsArgumentError);
+
+    final products = _MockFiles();
+    when(() => storage.from('productos')).thenReturn(products);
+    when(() => products.uploadBinary(any(), any(), fileOptions: any(named: 'fileOptions')))
+        .thenAnswer((_) async => 'productos/vet/p1.jpg');
+    final path = await repository.uploadProductPhoto(
+      clinicUid: 'vet',
+      productId: 'p1',
+      bytes: Uint8List(4),
+    );
+    expect(path, 'vet/p1.jpg');
+    final options = verify(() => products.uploadBinary('vet/p1.jpg', any(),
+        fileOptions: captureAny(named: 'fileOptions'))).captured.single as FileOptions;
+    expect(options.contentType, 'image/jpeg');
+    expect(options.upsert, isTrue);
+  });
 }

@@ -18,11 +18,13 @@ import {
   type ValorCampo,
 } from "../../supabase/functions/_shared/firestore.ts";
 import type { Aviso } from "../../supabase/functions/_shared/notificaciones.ts";
+import { pasarelaSimulada, pasarelaWompi } from "../../supabase/functions/_shared/pasarela.ts";
 import {
   actualizarPedido,
   crearPedido,
   type DependenciasCrearPedido,
   expirarPedidos,
+  pagarPedidoSimulado,
   procesarEventoWompi,
 } from "../../supabase/functions/_shared/pedidos.ts";
 
@@ -115,11 +117,11 @@ describe.skipIf(!host)("Edge Functions de pedidos (emulador)", () => {
       notificar: async (aviso) => {
         avisos.push(aviso);
       },
-      wompi: {
+      pasarela: pasarelaWompi({
         llavePublica: "pub_test_123",
         secretoIntegridad: "test_integrity_secreto",
         urlRegreso: "https://x.supabase.co/functions/v1/webhook-wompi/retorno",
-      },
+      }),
     };
 
     await poner("users/ana", { role: "dueno", estado: "activo", nombre: "Ana Pérez" });
@@ -169,7 +171,7 @@ describe.skipIf(!host)("Edge Functions de pedidos (emulador)", () => {
       expect(await producto("p1")).toMatchObject({ stock: 5, stockReservado: 2, estado: "activo" });
       expect(await producto("p2")).toMatchObject({ stock: 1, stockReservado: 1, estado: "activo" });
 
-      const url = new URL(r.checkoutUrl);
+      const url = new URL(r.checkoutUrl!);
       const expiracion = new Date(AHORA.getTime() + 15 * MINUTO).toISOString();
       expect(url.searchParams.get("amount-in-cents")).toBe("10250000");
       expect(url.searchParams.get("reference")).toBe("MSC-pedido1");
@@ -433,6 +435,82 @@ describe.skipIf(!host)("Edge Functions de pedidos (emulador)", () => {
       // Dos veces no libera dos veces.
       expect(await expirarPedidos(deps)).toEqual({ expirados: 0 });
       expect((await producto("p1")).stockReservado).toBe(0);
+    });
+  });
+
+  describe("pago simulado (sin pasarela)", () => {
+    const simulado = () => ({ ...deps, pasarela: pasarelaSimulada });
+
+    function pagar(uid: string, cuerpo: Record<string, unknown>, pasarelaActiva: "simulada" | "wompi" = "simulada") {
+      return pagarPedidoSimulado({ ...deps, pasarelaActiva }, `Bearer ${uid}`, cuerpo);
+    }
+
+    it("crear-pedido no devuelve enlace de pago y marca el pedido como simulado", async () => {
+      const r = await crearPedido(simulado(), "Bearer ana", { clinicId: "c1", entrega });
+      expect(r).toMatchObject({ pasarela: "simulada", checkoutUrl: null, redirectUrl: null, total: 102500 });
+      expect(await leer(`orders/${r.orderId}`)).toMatchObject({
+        estado: "pendiente_pago",
+        pasarela: "simulada",
+      });
+      expect(await producto("p1")).toMatchObject({ stock: 5, stockReservado: 2 });
+    });
+
+    it("aprobado: pagado, stock descontado, agotado en 0, carrito vaciado y avisos", async () => {
+      const { orderId } = await crearPedido(simulado(), "Bearer ana", { clinicId: "c1", entrega });
+      avisos = [];
+      expect(await pagar("ana", { orderId, resultado: "aprobado" })).toEqual({ resultado: "pagado", orderId });
+
+      expect(await leer(`orders/${orderId}`)).toMatchObject({
+        estado: "pagado",
+        transaccionId: `SIM-${orderId}`,
+        estadoPasarela: "APPROVED",
+      });
+      expect(await producto("p1")).toMatchObject({ stock: 3, stockReservado: 0, estado: "activo" });
+      expect(await producto("p2")).toMatchObject({ stock: 0, stockReservado: 0, estado: "agotado" });
+      expect(await leer("users/ana/cart/p1")).toBeUndefined();
+      expect(avisos.map((a) => [a.uid, a.tipo])).toEqual([
+        ["ana", "pedido"],
+        ["vet", "pedido_nuevo"],
+      ]);
+
+      // Repetir no descuenta dos veces.
+      expect(await pagar("ana", { orderId, resultado: "aprobado" })).toEqual({ resultado: "duplicado", orderId });
+      expect((await producto("p1")).stock).toBe(3);
+    });
+
+    it("rechazado: pago_rechazado, libera la reserva y deja el carrito", async () => {
+      const { orderId } = await crearPedido(simulado(), "Bearer ana", { clinicId: "c1", entrega });
+      expect(await pagar("ana", { orderId, resultado: "rechazado" }))
+        .toEqual({ resultado: "pago_rechazado", orderId });
+      expect(await leer(`orders/${orderId}`)).toMatchObject({
+        estado: "pago_rechazado",
+        estadoPasarela: "DECLINED",
+      });
+      expect(await producto("p1")).toMatchObject({ stock: 5, stockReservado: 0 });
+      expect(await leer("users/ana/cart/p1")).toBeDefined();
+      expect((await error(pagar("ana", { orderId, resultado: "aprobado" }))).message)
+        .toBe("Este pedido ya no se puede pagar.");
+    });
+
+    it("solo el dueño, con datos válidos, a tiempo y con la pasarela simulada activa", async () => {
+      const { orderId } = await crearPedido(simulado(), "Bearer ana", { clinicId: "c1", entrega });
+
+      expect((await error(pagar("beto", { orderId, resultado: "aprobado" }))).codigo).toBe("not-found");
+      expect((await error(pagar("ana", { orderId, resultado: "quizas" }))).codigo).toBe("invalid-argument");
+      expect((await error(pagar("ana", { resultado: "aprobado" }))).codigo).toBe("invalid-argument");
+      expect((await error(pagar("ana", { orderId, resultado: "aprobado" }, "wompi"))).message)
+        .toBe("Los pagos de prueba están desactivados.");
+
+      ahora = new Date(AHORA.getTime() + 16 * MINUTO);
+      expect((await error(pagar("ana", { orderId, resultado: "aprobado" }))).message)
+        .toBe("El tiempo para pagar este pedido terminó. Vuelve a confirmar la compra.");
+      expect((await leer(`orders/${orderId}`))!.estado).toBe("pendiente_pago");
+    });
+
+    it("un pedido de Wompi no se puede pagar como simulado", async () => {
+      const { orderId } = await comprar("ana");
+      expect((await error(pagar("ana", { orderId, resultado: "aprobado" }))).message)
+        .toBe("Este pedido no admite pagos de prueba.");
     });
   });
 });
