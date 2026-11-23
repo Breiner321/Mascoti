@@ -63,12 +63,16 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     }
     final inventory = ref.watch(inventoryProvider(clinicId));
 
+    // Con el inventario vacío el botón va en el centro (estado vacío).
+    final empty = inventory.value?.isEmpty ?? true;
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(TiendaRoutes.newProduct),
-        icon: const Icon(Icons.add),
-        label: const Text('Nuevo Producto'),
-      ),
+      floatingActionButton: empty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => context.push(TiendaRoutes.newProduct),
+              icon: const Icon(Icons.add),
+              label: const Text('Nuevo Producto'),
+            ),
       body: switch (inventory) {
         AsyncData(:final value) => _buildList(clinicId, value),
         AsyncError() => ShopMessage(
@@ -87,8 +91,9 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
   Widget _buildList(String clinicId, List<Product> all) {
     if (all.isEmpty) {
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _Header(),
+          const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: _Header()),
           Expanded(
             child: ShopMessage(
               icon: Icons.inventory_2_outlined,
@@ -181,7 +186,9 @@ class _Header extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pending = ref.watch(pendingClinicOrdersCountProvider);
-    return Padding(
+    // Ancho completo: título a la izquierda y "Pedidos" a la derecha.
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Wrap(
         alignment: WrapAlignment.spaceBetween,

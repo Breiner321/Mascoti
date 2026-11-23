@@ -32,7 +32,7 @@ void main() {
     await pump(tester);
 
     expect(find.text('Aún no tienes productos. Agrega el primero'), findsOneWidget);
-    expect(find.text('Nuevo Producto'), findsWidgets);
+    expect(find.text('Nuevo Producto'), findsOneWidget);
     await expectAccessible(tester);
   });
 

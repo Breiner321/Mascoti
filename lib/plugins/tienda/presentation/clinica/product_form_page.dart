@@ -149,7 +149,8 @@ class _ProductFormState extends ConsumerState<_ProductForm> {
               bytes: photo.bytes,
               png: photo.png,
             );
-      } catch (_) {
+      } catch (e) {
+        debugPrint('RF-07: no se pudo subir la foto del producto $id: $e');
         if (mounted) {
           setState(() {
             _stage = null;
@@ -183,7 +184,8 @@ class _ProductFormState extends ConsumerState<_ProductForm> {
       } else {
         await repo.updateProduct(product);
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('RF-07: no se pudo guardar el producto $id: $e');
       if (mounted) {
         setState(() {
           _stage = null;
