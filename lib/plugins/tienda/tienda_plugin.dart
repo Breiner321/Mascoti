@@ -10,11 +10,13 @@ import 'presentation/clinica/clinic_shop_providers.dart';
 import 'presentation/clinica/inventory_page.dart';
 import 'presentation/clinica/product_form_page.dart';
 import 'presentation/dueno/cart_page.dart';
+import 'presentation/dueno/checkout_page.dart';
 import 'presentation/dueno/order_detail_page.dart';
 import 'presentation/dueno/owner_orders_page.dart';
 import 'presentation/dueno/product_page.dart';
 import 'presentation/dueno/simulated_payment_page.dart';
 import 'presentation/dueno/store_page.dart';
+import 'presentation/dueno/wompi_checkout_page.dart';
 import 'tienda_routes.dart';
 
 /// Plugin compartido: tienda y carrito del dueño (RF-12) e inventario y
@@ -32,7 +34,9 @@ class TiendaPlugin extends MascotiPlugin {
 
   @override
   List<RouteBase> routes() => [
-        GoRoute(path: TiendaRoutes.store, builder: (context, state) => const StorePage()),
+        GoRoute(
+            path: TiendaRoutes.store,
+            builder: (context, state) => const StorePage()),
         GoRoute(
           path: TiendaRoutes.productPattern,
           parentNavigatorKey: rootNavigatorKey,
@@ -47,18 +51,42 @@ class TiendaPlugin extends MascotiPlugin {
           builder: (context, state) => const CartPage(),
         ),
         GoRoute(
+          path: TiendaRoutes.checkout,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const CheckoutPage(),
+        ),
+        GoRoute(
           path: TiendaRoutes.ownerOrders,
           builder: (context, state) => const OwnerOrdersPage(),
         ),
         GoRoute(
           path: TiendaRoutes.orderPattern,
           parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => OrderDetailPage(orderId: state.pathParameters['id']!),
+          builder: (context, state) =>
+              OrderDetailPage(orderId: state.pathParameters['id']!),
         ),
         GoRoute(
           path: TiendaRoutes.payOrderPattern,
           parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => SimulatedPaymentPage(orderId: state.pathParameters['id']!),
+          builder: (context, state) =>
+              SimulatedPaymentPage(orderId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: TiendaRoutes.wompiCheckoutPattern,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            final extra = state.extra;
+            // Sin la sesión (p. ej. al volver desde una notificación) se
+            // muestra el pedido.
+            return extra is ({String checkoutUrl, String redirectUrl})
+                ? WompiCheckoutPage(
+                    orderId: id,
+                    checkoutUrl: extra.checkoutUrl,
+                    redirectUrl: extra.redirectUrl,
+                  )
+                : OrderDetailPage(orderId: id);
+          },
         ),
         GoRoute(
           path: TiendaRoutes.inventory,
@@ -72,7 +100,8 @@ class TiendaPlugin extends MascotiPlugin {
         GoRoute(
           path: TiendaRoutes.editProductPattern,
           parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => ProductFormPage(productId: state.pathParameters['id']),
+          builder: (context, state) =>
+              ProductFormPage(productId: state.pathParameters['id']),
         ),
         GoRoute(
           path: TiendaRoutes.clinicOrders,
@@ -82,7 +111,8 @@ class TiendaPlugin extends MascotiPlugin {
         GoRoute(
           path: TiendaRoutes.clinicOrderPattern,
           parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => ClinicOrderDetailPage(orderId: state.pathParameters['id']!),
+          builder: (context, state) =>
+              ClinicOrderDetailPage(orderId: state.pathParameters['id']!),
         ),
       ];
 
