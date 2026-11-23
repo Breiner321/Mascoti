@@ -33,6 +33,7 @@ void main() {
       '/tienda/carrito',
       '/tienda/pedidos',
       '/tienda/pedidos/:id',
+      '/tienda/pedidos/:id/pagar',
       '/tienda/inventario',
       '/tienda/inventario/nuevo',
       '/tienda/inventario/:id/editar',
@@ -41,6 +42,7 @@ void main() {
     ]);
     expect(TiendaRoutes.editProduct('p1'), '/tienda/inventario/p1/editar');
     expect(TiendaRoutes.clinicOrder('o1'), '/tienda/clinica/pedidos/o1');
+    expect(TiendaRoutes.payOrder('o1'), '/tienda/pedidos/o1/pagar');
     expect(TiendaRoutes.product('c 1', 'p1'), '/tienda/producto/p1?clinicId=c+1');
   });
 

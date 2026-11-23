@@ -35,40 +35,60 @@ class ShopFailure implements Exception {
 /// acepta, vuelve a llamar a `addToCart(..., replaceOtherClinic: true)`.
 @immutable
 class CartFromOtherClinic extends ShopFailure {
-  const CartFromOtherClinic()
-      : super('Tu carrito tiene productos de otra clínica. ¿Vaciarlo?');
+  const CartFromOtherClinic() : super('Tu carrito tiene productos de otra clínica. ¿Vaciarlo?');
 }
 
-/// Lo que devuelve `crear-pedido`: abrir [checkoutUrl] (Web Checkout de
-/// Wompi) en un WebView y cerrarlo cuando navegue a [redirectUrl]
-/// (ver [ShopRepository.isCheckoutReturn]). El estado real del pago llega
-/// por el webhook: la pantalla escucha `watchOrder(orderId)`.
+/// Lo que devuelve `crear-pedido`. Según [gateway]:
+///
+/// - [PaymentGateway.simulada] (por ahora): no hay página de pago; la app
+///   muestra su pantalla de pago de prueba y llama a
+///   [ShopRepository.paySimulated].
+/// - [PaymentGateway.wompi] (futuro): abrir [checkoutUrl] (Web Checkout) en un
+///   WebView y cerrarlo cuando navegue a [redirectUrl]
+///   (ver [ShopRepository.isCheckoutReturn]).
+///
+/// En los dos casos el estado real del pago lo registra el servidor: la
+/// pantalla escucha `watchOrder(orderId)`.
 @immutable
 class CheckoutSession {
   const CheckoutSession({
     required this.orderId,
-    required this.checkoutUrl,
-    required this.redirectUrl,
     required this.total,
     required this.expiraEn,
+    this.gateway = PaymentGateway.simulada,
+    this.checkoutUrl,
+    this.redirectUrl,
   });
 
-  factory CheckoutSession.fromMap(Map<String, dynamic> map) => CheckoutSession(
-        orderId: map['orderId'] as String,
-        checkoutUrl: map['checkoutUrl'] as String,
-        redirectUrl: map['redirectUrl'] as String? ?? '',
-        total: (map['total'] as num?)?.toInt() ?? 0,
-        expiraEn: DateTime.tryParse(map['expiraEn'] as String? ?? '') ??
-            DateTime.now().add(const Duration(minutes: OrderLimits.reservaMin)),
-      );
+  factory CheckoutSession.fromMap(Map<String, dynamic> map) {
+    final checkoutUrl = map['checkoutUrl'] as String?;
+    return CheckoutSession(
+      orderId: map['orderId'] as String,
+      // Sin el campo (versión anterior del servidor) solo existía Wompi.
+      gateway: map['pasarela'] == null && checkoutUrl != null
+          ? PaymentGateway.wompi
+          : PaymentGateway.fromValue(map['pasarela']),
+      checkoutUrl: checkoutUrl,
+      redirectUrl: map['redirectUrl'] as String?,
+      total: (map['total'] as num?)?.toInt() ?? 0,
+      expiraEn: DateTime.tryParse(map['expiraEn'] as String? ?? '') ??
+          DateTime.now().add(const Duration(minutes: OrderLimits.reservaMin)),
+    );
+  }
 
   final String orderId;
-  final String checkoutUrl;
-  final String redirectUrl;
+  final PaymentGateway gateway;
+
+  /// Página de la pasarela; null con pagos simulados.
+  final String? checkoutUrl;
+  final String? redirectUrl;
 
   /// Total en pesos calculado por el servidor.
   final int total;
   final DateTime expiraEn;
+
+  /// true: pagar con la pantalla de pago de prueba (sin dinero real).
+  bool get isSimulated => gateway == PaymentGateway.simulada;
 }
 
 /// Tienda (RF-07, RF-12), compartido por el inventario de la clínica y la
@@ -79,9 +99,10 @@ class CheckoutSession {
 ///   solo lo cambia el servidor.
 /// - Carrito: `users/{uid}/cart/{productId}`, directo (solo su dueño).
 /// - Pedidos: solo lectura. Crear y cambiar de estado van por las Edge
-///   Functions `crear-pedido` y `actualizar-pedido`; el pago lo confirma
-///   únicamente el webhook de Wompi. La app nunca calcula el total cobrado
-///   ni marca un pedido como pagado.
+///   Functions `crear-pedido` y `actualizar-pedido`; el resultado del pago
+///   lo registra SOLO el servidor (hoy `pagar-pedido-simulado`; con Wompi,
+///   su webhook). La app nunca calcula el total cobrado ni marca un pedido
+///   como pagado.
 class ShopRepository {
   ShopRepository({FirebaseFirestore? firestore, FunctionsClient? functions})
       : _firestore = firestore ?? FirebaseFirestore.instance,
@@ -94,6 +115,7 @@ class ShopRepository {
 
   static const createOrderFunction = 'crear-pedido';
   static const updateOrderFunction = 'actualizar-pedido';
+  static const simulatedPaymentFunction = 'pagar-pedido-simulado';
   static const _timeout = Duration(seconds: 30);
 
   /// Productos que ve un dueño.
@@ -107,9 +129,9 @@ class ShopRepository {
 
   CollectionReference<Map<String, dynamic>> get _orders => _firestore.collection('orders');
 
-  static List<Product> _productList(QuerySnapshot<Map<String, dynamic>> snap) =>
-      [for (final d in snap.docs) Product.fromMap(d.id, d.data())]
-        ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
+  static List<Product> _productList(QuerySnapshot<Map<String, dynamic>> snap) => [
+        for (final d in snap.docs) Product.fromMap(d.id, d.data())
+      ]..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
 
   static List<ShopOrder> _orderList(QuerySnapshot<Map<String, dynamic>> snap) =>
       [for (final d in snap.docs) ShopOrder.fromMap(d.id, d.data())];
@@ -269,8 +291,7 @@ class ShopRepository {
     });
   }
 
-  Future<void> removeFromCart(String uid, String productId) =>
-      _cart(uid).doc(productId).delete();
+  Future<void> removeFromCart(String uid, String productId) => _cart(uid).doc(productId).delete();
 
   /// Vacía el carrito (el servidor también lo vacía cuando el pago se aprueba).
   Future<void> clearCart(String uid) async {
@@ -361,6 +382,17 @@ class ShopRepository {
       'orderId': orderId,
       'estado': estado.value,
       if (reason.isNotEmpty) 'motivo': reason,
+    });
+  }
+
+  /// Pago de PRUEBA (sin dinero real) de un pedido `pendiente_pago` creado
+  /// con la pasarela simulada: [approve] false simula un pago rechazado. El
+  /// servidor registra el resultado (stock, carrito y avisos) y la pantalla
+  /// lo ve llegar con `watchOrder(orderId)`.
+  Future<void> paySimulated(String orderId, {bool approve = true}) async {
+    await _invoke(simulatedPaymentFunction, {
+      'orderId': orderId,
+      'resultado': approve ? 'aprobado' : 'rechazado',
     });
   }
 

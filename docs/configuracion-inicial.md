@@ -171,7 +171,11 @@ curl.exe -X POST https://tahnazumbqsupzpusrba.supabase.co/functions/v1/tareas-pr
 
 ## C5. Tienda y pagos con Wompi Sandbox (RF-07, RF-12)
 
-Los pagos son **solo en sandbox**. Los tres secretos de Wompi ya están en Supabase (`WOMPI_PUBLIC_KEY` = `pub_test_…`, `WOMPI_INTEGRITY_SECRET`, `WOMPI_EVENTS_SECRET`); si hay que cambiarlos, en el panel de Wompi Sandbox → **Desarrolladores → Secretos para integración técnica**:
+**Por ahora los pagos son simulados** (Cambio 5): no hace falta configurar Wompi. Sin el secreto `PASARELA_PAGO` (o con `PASARELA_PAGO=simulada`), `crear-pedido` no devuelve enlace de pago y el dueño paga en la pantalla de pago de prueba de la app, que llama a `pagar-pedido-simulado`. Para desplegar solo lo necesario con pagos simulados, sigue los pasos 1 a 3 de abajo (en el paso 3 incluye `pagar-pedido-simulado`; `webhook-wompi` y el paso 4 se pueden dejar para cuando se active Wompi).
+
+**Activar Wompi más adelante:** configura sus tres secretos (abajo), `supabase secrets set --project-ref tahnazumbqsupzpusrba PASARELA_PAGO=wompi`, vuelve a desplegar `crear-pedido` y `pagar-pedido-simulado` si cambiaron, y haz el paso 4. Con Wompi activo, `pagar-pedido-simulado` responde "Los pagos de prueba están desactivados".
+
+Con Wompi, los pagos son **solo en sandbox**. Los tres secretos de Wompi ya están en Supabase (`WOMPI_PUBLIC_KEY` = `pub_test_…`, `WOMPI_INTEGRITY_SECRET`, `WOMPI_EVENTS_SECRET`); si hay que cambiarlos, en el panel de Wompi Sandbox → **Desarrolladores → Secretos para integración técnica**:
 ```powershell
 supabase secrets set --project-ref tahnazumbqsupzpusrba WOMPI_PUBLIC_KEY=pub_test_... WOMPI_INTEGRITY_SECRET=test_integrity_... WOMPI_EVENTS_SECRET=test_events_...
 ```
@@ -183,6 +187,7 @@ Opcional: `WOMPI_REDIRECT_URL` (a dónde vuelve el checkout). Por defecto es `ht
 3. Edge Functions:
    ```powershell
    supabase functions deploy crear-pedido --project-ref tahnazumbqsupzpusrba --use-api
+   supabase functions deploy pagar-pedido-simulado --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy actualizar-pedido --project-ref tahnazumbqsupzpusrba --use-api
    supabase functions deploy webhook-wompi --project-ref tahnazumbqsupzpusrba --use-api --no-verify-jwt
    supabase functions deploy tareas-programadas --project-ref tahnazumbqsupzpusrba --use-api

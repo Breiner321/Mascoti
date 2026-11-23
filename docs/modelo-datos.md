@@ -152,9 +152,9 @@ Modelo `CartItem`. `{clinicId, nombre, precio, cantidad, addedAt}`. Lo escribe s
 
 ## `orders/{orderId}` — RF-12 · *solo lo escriben las Edge Functions*
 
-Modelo `ShopOrder` (`Order` choca con una clase de `cloud_firestore`), repositorio `ShopRepository` (`lib/core/data`). Lo crea `crear-pedido` y lo cambian `webhook-wompi`, `actualizar-pedido` y la tarea programada; las reglas niegan toda escritura desde la app. **La app nunca calcula el total cobrado ni marca un pedido como pagado: el webhook de Wompi es la única fuente de verdad del pago.**
+Modelo `ShopOrder` (`Order` choca con una clase de `cloud_firestore`), repositorio `ShopRepository` (`lib/core/data`). Lo crea `crear-pedido` y lo cambian `pagar-pedido-simulado` (pagos de prueba, por ahora), `webhook-wompi` (cuando se active), `actualizar-pedido` y la tarea programada; las reglas niegan toda escritura desde la app. **La app nunca calcula el total cobrado ni marca un pedido como pagado: el resultado del pago lo registra solo el servidor** (`registrarPago` en `_shared/pedidos.ts`, igual para toda pasarela).
 
-`{ownerUid, ownerNombre, clinicId, clinicNombre, clinicOwnerUid, items:[{productId, nombre, precio, cantidad}], total, entrega:{tipo, direccion?, telefono}, estado, referenciaPago, expiraEn, wompiTransactionId?, wompiEstado?, motivoCancelacion?, pagoTardio?, createdAt, updatedAt}`
+`{ownerUid, ownerNombre, clinicId, clinicNombre, clinicOwnerUid, items:[{productId, nombre, precio, cantidad}], total, entrega:{tipo, direccion?, telefono}, estado, pasarela, referenciaPago, expiraEn, transaccionId?, estadoPasarela?, wompiTransactionId?, wompiEstado?, motivoCancelacion?, pagoTardio?, createdAt, updatedAt}`
 
 - `items`, `total`, `ownerNombre`, `clinicNombre`: copias al crear el pedido, con los precios leídos en el servidor. Dinero en COP entero; a Wompi se envía `amount_in_cents = total × 100`.
 - `entrega.tipo ∈ recoger, domicilio`; `direccion` (5–200) obligatoria a domicilio; `telefono` de 10 dígitos.
@@ -165,7 +165,9 @@ Modelo `ShopOrder` (`Order` choca con una clase de `cloud_firestore`), repositor
   - `preparando → listo` (solo recoger) `| enviado` (solo domicilio) `| cancelado`
   - `listo | enviado → entregado`; `pago_rechazado`, `expirado`, `entregado` y `cancelado` son finales.
 - `motivoCancelacion` (1–300): obligatorio cuando la clínica cancela (solo `pagado` o `preparando`). El stock vuelve y el dueño recibe el aviso del reembolso (los reembolsos reales están fuera de alcance, ver `cambios-alcance.md`).
-- `wompiTransactionId`, `wompiEstado`: los pone el webhook.
+- `pasarela ∈ simulada, wompi` (`PaymentGateway` en Dart): con qué se paga, según el secreto `PASARELA_PAGO` al crear el pedido (por defecto `simulada`: pagos de prueba sin dinero real). Los pedidos sin el campo son de Wompi.
+- `transaccionId`, `estadoPasarela`: los pone el servidor al registrar el pago (`SIM-{orderId}` y `APPROVED`/`DECLINED` en pagos simulados; el id y el estado de la transacción en Wompi).
+- `wompiTransactionId`, `wompiEstado`: los pone además el webhook de Wompi (compatibilidad).
 - `pagoTardio: true`: Wompi aprobó un pago de un pedido que ya no estaba pendiente (expirado, reemplazado o con un intento rechazado antes en el mismo checkout). No se cambia el estado (son finales) ni se descuenta stock; se avisa al dueño para el reembolso. La clínica no lo ve (las reglas solo le muestran pedidos pagados): por ahora se revisa en Firestore.
 - **Leen** el dueño del pedido (cualquier estado) y la clínica **solo los ya pagados** (`pagado`, `preparando`, `listo`, `enviado`, `entregado`, `cancelado`; su consulta debe filtrar `estado in [...]`). Cuentas suspendidas no leen.
 - **Reserva de stock:** al crear el pedido, en un solo commit con precondición sobre cada producto, se suma la cantidad a `stockReservado`. Aprobado → `stock` y `stockReservado` bajan (y el producto pasa a `agotado` si `stock` llega a 0). Rechazado, expirado o reemplazado → solo baja `stockReservado`.

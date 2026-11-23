@@ -9,6 +9,10 @@ abstract final class TiendaRoutes {
   static const ownerOrders = '/tienda/pedidos';
   static const orderPattern = '/tienda/pedidos/:id';
 
+  /// Pantalla de pago de prueba: el checkout navega aquí cuando
+  /// `CheckoutSession.isSimulated` (pagos ficticios, sin pasarela).
+  static const payOrderPattern = '/tienda/pedidos/:id/pagar';
+
   // Clínica
   static const inventory = '/tienda/inventario';
   static const newProduct = '/tienda/inventario/nuevo';
@@ -22,6 +26,8 @@ abstract final class TiendaRoutes {
       '/tienda/producto/$productId?clinicId=${Uri.encodeQueryComponent(clinicId)}';
 
   static String order(String orderId) => '/tienda/pedidos/$orderId';
+
+  static String payOrder(String orderId) => '/tienda/pedidos/$orderId/pagar';
 
   static String editProduct(String productId) => '/tienda/inventario/$productId/editar';
 

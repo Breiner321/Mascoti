@@ -13,6 +13,7 @@ import 'presentation/dueno/cart_page.dart';
 import 'presentation/dueno/order_detail_page.dart';
 import 'presentation/dueno/owner_orders_page.dart';
 import 'presentation/dueno/product_page.dart';
+import 'presentation/dueno/simulated_payment_page.dart';
 import 'presentation/dueno/store_page.dart';
 import 'tienda_routes.dart';
 
@@ -53,6 +54,11 @@ class TiendaPlugin extends MascotiPlugin {
           path: TiendaRoutes.orderPattern,
           parentNavigatorKey: rootNavigatorKey,
           builder: (context, state) => OrderDetailPage(orderId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: TiendaRoutes.payOrderPattern,
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => SimulatedPaymentPage(orderId: state.pathParameters['id']!),
         ),
         GoRoute(
           path: TiendaRoutes.inventory,

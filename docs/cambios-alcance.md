@@ -8,7 +8,7 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 | 2 | Disponibilidad automática según el horario de la clínica | RF-04, RF-06, RF-14 | ✅ |
 | 3 | Accesibilidad (WCAG 2.1 AA) y modo oscuro | Todos | ✅ |
 | 4 | Mapa con todas las veterinarias y "Aliados Mascoti" | RF-09, RF-10 | ✅ |
-| 5 | Pagos de la tienda con Wompi Sandbox: reserva de stock, estados del pedido y reembolsos fuera de alcance | RF-07, RF-12 | 🟨 |
+| 5 | Pagos de la tienda: por ahora pagos simulados (Wompi Sandbox queda listo), reserva de stock, estados del pedido y reembolsos fuera de alcance | RF-07, RF-12 | 🟨 |
 
 ---
 
@@ -91,6 +91,8 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 ---
 
 ## Cambio 5 — Pagos de la tienda con Wompi Sandbox
+
+> **Actualización (23/11/2026): por ahora no hay pasarela.** El equipo decidió manejar **pagos ficticios** dentro de la app y dejar la integración con Wompi lista para activarla después. `crear-pedido` usa la pasarela del secreto `PASARELA_PAGO` (vacío = `simulada`): con la simulada no devuelve enlace de pago y la app abre la pantalla "Pagar pedido" (`/tienda/pedidos/:id/pagar`), con el aviso "Pago de prueba: no se cobra dinero real" y los botones **Pagar** y **Simular pago rechazado**. La Edge Function `pagar-pedido-simulado` (solo el dueño, pedido `pendiente_pago` sin vencer y creado con la simulada) registra el resultado con la MISMA lógica que el webhook (`registrarPago`): stock, `agotado`, carrito y avisos. Todo lo de abajo sobre Wompi sigue implementado y probado; para activarlo: `supabase secrets set PASARELA_PAGO=wompi` más sus llaves (ver `configuracion-inicial.md`, C5). Otra pasarela futura implementa la interfaz `Pasarela` de `supabase/functions/_shared/pasarela.ts`.
 
 **Qué decían los RF.** RF-12: el dueño paga (tarjeta guardada o nueva), y "al recibir confirmación de pago exitoso" se crea `orders` con `estado: 'confirmado'` y se descuenta el stock; pago rechazado → "Tu pago no pudo ser procesado". RF-07: un trigger pone `agotado` cuando el stock llega a 0. No decían qué pasa con el stock mientras el dueño paga, ni cómo cancela la clínica un pedido pagado.
 

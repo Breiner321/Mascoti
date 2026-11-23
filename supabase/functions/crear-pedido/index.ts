@@ -1,10 +1,12 @@
 // Edge Function crear-pedido (RF-12). "Confirmar compra": lee el carrito y
 // los productos en Firestore, valida stock, calcula el total, crea el pedido
-// 'pendiente_pago' apartando el stock 15 min y devuelve el Web Checkout de
-// Wompi (sandbox) firmado. Cuerpo: {clinicId, entrega: {tipo, direccion?, telefono}}.
+// 'pendiente_pago' apartando el stock 15 min y devuelve cómo pagar según la
+// pasarela activa (PASARELA_PAGO): pago simulado (por defecto; la app paga
+// con pagar-pedido-simulado) o el Web Checkout de Wompi firmado.
+// Cuerpo: {clinicId, entrega: {tipo, direccion?, telefono}}.
 // Lógica en ../_shared/pedidos.ts (pruebas en functions/test/).
 import { leerCuentaServicio } from "../_shared/cuenta_servicio.ts";
-import { configWompi } from "../_shared/entorno_wompi.ts";
+import { pasarelaDesdeEntorno } from "../_shared/entorno_pago.ts";
 import { ErrorFuncion } from "../_shared/errores.ts";
 import { nuevoIdFirestore } from "../_shared/firestore.ts";
 import { clienteFirestore, verificarTokenFirebase } from "../_shared/google.ts";
@@ -38,7 +40,7 @@ Deno.serve(async (req) => {
         verificarToken: (token) => verificarTokenFirebase(token, PROYECTO_FIREBASE),
         ahora: () => new Date(),
         nuevoId: () => nuevoIdFirestore((n) => crypto.getRandomValues(new Uint8Array(n))),
-        wompi: configWompi(),
+        pasarela: pasarelaDesdeEntorno(),
         log: console.warn,
       },
       req.headers.get("Authorization"),
