@@ -6,12 +6,17 @@ abstract final class TiendaRoutes {
   static const store = '/tienda';
   static const productPattern = '/tienda/producto/:id';
   static const cart = '/tienda/carrito';
+  static const checkout = '/tienda/checkout';
   static const ownerOrders = '/tienda/pedidos';
   static const orderPattern = '/tienda/pedidos/:id';
 
   /// Pantalla de pago de prueba: el checkout navega aquí cuando
   /// `CheckoutSession.isSimulated` (pagos ficticios, sin pasarela).
   static const payOrderPattern = '/tienda/pedidos/:id/pagar';
+
+  /// Web Checkout de Wompi en un WebView (cuando la pasarela es Wompi). Va
+  /// con `extra: (checkoutUrl: …, redirectUrl: …)`.
+  static const wompiCheckoutPattern = '/tienda/pedidos/:id/wompi';
 
   // Clínica
   static const inventory = '/tienda/inventario';
@@ -29,7 +34,17 @@ abstract final class TiendaRoutes {
 
   static String payOrder(String orderId) => '/tienda/pedidos/$orderId/pagar';
 
-  static String editProduct(String productId) => '/tienda/inventario/$productId/editar';
+  static String wompiCheckout(String orderId) =>
+      '/tienda/pedidos/$orderId/wompi';
 
-  static String clinicOrder(String orderId) => '/tienda/clinica/pedidos/$orderId';
+  /// Chat con la clínica (plugin chat, por ruta): abre o crea la conversación.
+  static String chatWithClinic(String clinicId) =>
+      Uri(path: '/chat/abrir', queryParameters: {'clinicId': clinicId})
+          .toString();
+
+  static String editProduct(String productId) =>
+      '/tienda/inventario/$productId/editar';
+
+  static String clinicOrder(String orderId) =>
+      '/tienda/clinica/pedidos/$orderId';
 }
