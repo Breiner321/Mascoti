@@ -1,16 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/data/clinics_geo_providers.dart';
 import '../../../core/data/clinics_geo_repository.dart';
+import '../../../core/data/saved_clinics_store.dart';
 import '../../../core/data/vet_places_providers.dart';
 import '../../../core/data/vet_places_repository.dart';
 import '../../../core/domain/map_vet.dart';
 import '../../../core/domain/vet_place.dart';
 import '../../../core/maps/external_links.dart';
 import '../../../core/theme/app_theme.dart';
-import '../data/location_service.dart';
+import '../../../core/location/location_service.dart';
 import '../directorio_routes.dart';
 import '../domain/directory_filters.dart';
 import 'ally_badge.dart';
@@ -259,6 +262,13 @@ class _ResultsState extends ConsumerState<_Results> {
       fromLat: center.lat,
       fromLng: center.lng,
     );
+    // RF-10: las últimas veterinarias mostradas quedan en el teléfono para
+    // el SOS sin conexión ni ubicación.
+    if (allies.hasValue && vets.isNotEmpty) {
+      unawaited(ref
+          .read(savedClinicsStoreProvider)
+          .rememberShown([for (final v in vets) SavedClinic.fromMapVet(v)]));
+    }
     final accuracy = center.accuracyM;
     final showAccuracy = !_hideAccuracyWarning &&
         accuracy != null &&

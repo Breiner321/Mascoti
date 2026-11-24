@@ -191,6 +191,14 @@ Modelo `ShopOrder` (`Order` choca con una clase de `cloud_firestore`), repositor
 
 `{tipo:'emergencyTriggered', uid, lat?, lng?, createdAt}`
 
+- La crea la app al abrir el SOS (`SosRepository.logEmergency`), sin esperar la respuesta ni mostrar errores.
+- `lat`/`lng`: ubicación **aproximada** (2 decimales, ~1 km), los dos o ninguno; sin ubicación no se envían.
+- Reglas: solo un dueño activo crea eventos con su propio `uid`, `tipo == 'emergencyTriggered'`, `createdAt == request.time` y sin otros campos. Nadie los lee, cambia ni borra desde la app (estadísticas). Pruebas en `functions/test/sos.rules.test.ts`.
+
+### Guardado en el teléfono (`shared_preferences`) — RF-10
+
+No es Firestore: `SavedClinicsStore` (`lib/core/data/saved_clinics_store.dart`) guarda para el SOS sin conexión ni ubicación `sos.favoritas` (clínicas de citas anteriores del dueño, hasta 10) y `sos.recientes` (las últimas 10 mostradas en el mapa o en el SOS), como JSON `{key, nombre, lat, lng, telefono?, aliada, emergencias, abierto24h}`.
+
 ## Archivos (Supabase Storage, bucket privado `mascoti`)
 
 Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_mascoti.sql`.

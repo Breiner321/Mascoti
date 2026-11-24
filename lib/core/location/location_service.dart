@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
-/// Resultado de pedir la ubicación del dueño (RF-09 pasos 1-3).
+/// Resultado de pedir la ubicación del dueño (RF-09 pasos 1-3, RF-10).
+/// Vive en el core porque la usan el directorio y el SOS.
 sealed class LocationResult {
   const LocationResult();
 }
@@ -91,3 +93,9 @@ class GeolocatorLocationService implements LocationService {
       ? Geolocator.openAppSettings()
       : Geolocator.openLocationSettings();
 }
+
+/// Ubicación del teléfono para el directorio (RF-09) y el SOS (RF-10). Se
+/// reemplaza en las pruebas.
+final locationServiceProvider = Provider<LocationService>(
+  (ref) => const GeolocatorLocationService(),
+);

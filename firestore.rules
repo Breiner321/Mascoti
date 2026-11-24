@@ -859,6 +859,27 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // ---------- Auditoría del SOS (RF-10) ----------
+    // Cada dueño solo crea sus propios eventos `emergencyTriggered`, con la
+    // ubicación aproximada opcional y la hora del servidor. Nadie los lee ni
+    // los cambia desde la app (son para estadísticas).
+    match /auditEvents/{eventId} {
+      allow create: if hasRole('dueno')
+        && request.resource.data.keys().hasOnly(['tipo', 'uid', 'lat', 'lng', 'createdAt'])
+        && request.resource.data.keys().hasAll(['tipo', 'uid', 'createdAt'])
+        && request.resource.data.tipo == 'emergencyTriggered'
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && (request.resource.data.keys().hasAny(['lat', 'lng'])
+          ? request.resource.data.keys().hasAll(['lat', 'lng'])
+            && request.resource.data.lat is number
+            && request.resource.data.lng is number
+            && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+            && request.resource.data.lng >= -180 && request.resource.data.lng <= 180
+          : true);
+      allow read, update, delete: if false;
+    }
+
     // ---------- Todo lo demás está cerrado por defecto ----------
     match /{document=**} {
       allow read, write: if false;

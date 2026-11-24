@@ -86,7 +86,7 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 
 **Por qué.** El dueño quiere ver todas las veterinarias de su zona, sobre todo en una urgencia, aunque no usen Mascoti; y la distinción "Aliado Mascoti" muestra a las clínicas el valor de registrarse.
 
-**Límites.** Los datos de OSM los mantiene la comunidad: pueden faltar veterinarias o tener datos viejos (la tarjeta dice "Datos de OpenStreetMap"). El SOS (RF-10) aún no existe como pantalla; cuando se construya puede usar `nearbyVetPlacesProvider`, `VetMatching` y `ExternalLinks` del core.
+**Límites.** Los datos de OSM los mantiene la comunidad: pueden faltar veterinarias o tener datos viejos (la tarjeta dice "Datos de OpenStreetMap"). El SOS (RF-10) usa `nearbyVetPlacesProvider`, `VetMatching` y `ExternalLinks` del core para mostrar también las no aliadas.
 
 ---
 
@@ -109,3 +109,16 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 **Por qué.** Sin reserva, dos dueños podían pagar la misma última unidad y uno quedaba sin producto pero con el cobro hecho. Calcular el total y confirmar el pago en el servidor evita que una app modificada pague menos o marque un pedido como pagado.
 
 **Límites.** Los datos de prueba de Wompi solo funcionan en sandbox. Si Wompi tarda en avisar (reintenta a los 30 min, 3 h y 24 h), el pedido puede expirar antes: queda como pago tardío.
+
+---
+
+## RF-10 — Decisiones del SOS
+
+Decisiones de la semana 7 al construir el SOS (no son un cambio de alcance numerado; ajustan el RF-10).
+
+- **Sin confirmación de 3 segundos.** El RF pedía un diálogo con cuenta regresiva antes de buscar. Abrir la pantalla no llama a nadie (la llamada exige tocar "Llamar"), así que un toque accidental no tiene costo, y la espera retrasaría a alguien con prisa.
+- **Favoritas = "Tus clínicas".** La app no tiene clínicas favoritas: se usan las de las citas anteriores del dueño (como en reservas y tienda). Se guardan en el teléfono cada vez que se abre el SOS con conexión, junto con las últimas veterinarias mostradas en el mapa o en el SOS (`SavedClinicsStore`, `shared_preferences`).
+- **Sin ubicación:** se muestran esas clínicas guardadas con "Activar ubicación" (el RF pedía un listado por la ciudad del perfil, pero el perfil no tiene ciudad). Si no hay nada guardado, se explica cómo verlas; la pantalla nunca queda vacía.
+- **Orden:** aliadas con `atencionEmergencias`, luego veterinarias de OpenStreetMap con horario "24/7", luego las demás cercanas; cada grupo por distancia, hasta 15. Las aliadas se buscan de 10 en 10 km hasta tener 3 o llegar a 50 km; las de OpenStreetMap en un cuadro de 20 km.
+- **Auditoría** con ubicación aproximada (~1 km), sin bloquear la pantalla.
+- **Lector de pantalla:** el botón del encabezado se anuncia "Emergencia, botón" (antes "SOS: emergencia veterinaria") y la primera acción de la pantalla es "Llamar a" la clínica más cercana.
