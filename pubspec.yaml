@@ -30,6 +30,8 @@ dependencies:
   image_picker: ^1.2.4
   intl: ^0.20.3
   latlong2: ^0.10.1
+  qr_flutter: ^4.1.0
+  share_plus: ^13.3.1
   shared_preferences: ^2.5.6
   supabase_flutter: ^2.18.0
   table_calendar: ^3.3.0

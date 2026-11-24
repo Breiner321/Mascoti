@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Placa Mascoti</title>
+  <link rel="stylesheet" href="/q.css">
+  <script src="/q.js" defer></script>
+</head>
+<body>
+  <header class="encabezado">
+    <span class="marca" aria-label="Mascoti">🐾 Mascoti</span>
+  </header>
+
+  <main id="contenido" class="contenido" aria-live="polite" aria-busy="true">
+    <p class="estado" id="cargando">Cargando la placa…</p>
+
+    <!-- Ficha: la llena q.js con lo que el dueño eligió mostrar. -->
+    <article id="ficha" class="tarjeta" hidden>
+      <img id="foto" class="foto" alt="" hidden>
+      <h1 id="nombre"></h1>
+      <p id="especie" class="secundario"></p>
+      <p class="aviso">Si encontraste a esta mascota, por favor contacta a su familia.</p>
+
+      <section id="bloque-mensaje" hidden>
+        <h2>Mensaje del dueño</h2>
+        <p id="mensaje"></p>
+      </section>
+
+      <section id="bloque-alergias" hidden>
+        <h2>Alergias</h2>
+        <ul id="alergias"></ul>
+      </section>
+
+      <section id="bloque-dueno" hidden>
+        <h2>Dueño</h2>
+        <p id="nombre-dueno"></p>
+      </section>
+
+      <section id="bloque-telefono" hidden>
+        <h2>Teléfono</h2>
+        <p id="telefono" class="telefono"></p>
+        <div class="acciones">
+          <button id="ver-telefono" type="button" class="boton secundario-boton">Ver teléfono</button>
+          <a id="llamar" class="boton" hidden>Llamar</a>
+        </div>
+        <p id="error-telefono" class="error" role="alert" hidden></p>
+      </section>
+    </article>
+
+    <section id="no-activa" class="tarjeta" hidden>
+      <h1>Esta placa no está activa</h1>
+      <p class="secundario">El dueño la desactivó o el código no existe.</p>
+    </section>
+
+    <section id="error" class="tarjeta" hidden>
+      <h1>No pudimos cargar la placa</h1>
+      <p class="secundario">Revisa tu conexión e intenta de nuevo.</p>
+      <button id="reintentar" type="button" class="boton">Reintentar</button>
+    </section>
+  </main>
+
+  <footer class="pie">Placa de identificación de Mascoti</footer>
+</body>
+</html>

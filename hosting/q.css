@@ -1,0 +1,124 @@
+/* Página pública de la placa QR (RF-17). Colores de lib/core/theme/app_palette.dart
+   (claro y oscuro), contraste AA. */
+:root {
+  --primario: #7e22ce;
+  --sobre-primario: #ffffff;
+  --contenedor: #f3e8ff;
+  --fondo: #faf5ff;
+  --superficie: #ffffff;
+  --borde: #ede4f7;
+  --texto: #1e1530;
+  --texto-suave: #675f73;
+  --error: #b91c1c;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primario: #c084fc;
+    --sobre-primario: #1e1530;
+    --contenedor: #3b2556;
+    --fondo: #14101c;
+    --superficie: #1f1829;
+    --borde: #3a2f4a;
+    --texto: #f4effa;
+    --texto-suave: #b8afc6;
+    --error: #fca5a5;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+.encabezado {
+  background: var(--primario);
+  color: var(--sobre-primario);
+  padding: 14px 16px;
+  border-radius: 0 0 20px 20px;
+}
+
+.marca { font-weight: 800; font-size: 1.25rem; }
+
+.contenido {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+.tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 20px;
+  padding: 20px;
+  text-align: center;
+}
+
+.foto {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid var(--contenedor);
+}
+
+h1 { margin: 12px 0 0; font-size: 1.75rem; }
+h2 { margin: 20px 0 4px; font-size: 1rem; color: var(--texto-suave); }
+
+.secundario { color: var(--texto-suave); margin: 4px 0 0; }
+
+.aviso {
+  background: var(--contenedor);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 16px 0 0;
+}
+
+ul { list-style: none; padding: 0; margin: 0; }
+li { padding: 2px 0; }
+
+.telefono { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.04em; margin: 0; }
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.boton {
+  min-height: 48px;
+  min-width: 140px;
+  padding: 12px 20px;
+  border-radius: 14px;
+  border: 2px solid var(--primario);
+  background: var(--primario);
+  color: var(--sobre-primario);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.secundario-boton { background: transparent; color: var(--primario); }
+
+.boton:focus-visible { outline: 3px solid var(--texto); outline-offset: 2px; }
+.boton:disabled { opacity: 0.6; cursor: progress; }
+
+.error { color: var(--error); font-weight: 600; }
+.estado { text-align: center; color: var(--texto-suave); }
+
+.pie { text-align: center; color: var(--texto-suave); font-size: 0.875rem; padding: 8px 16px 24px; }
+
+[hidden] { display: none !important; }

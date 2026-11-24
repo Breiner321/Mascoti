@@ -2,7 +2,7 @@
 
 Fuente única de verdad del esquema. **Todo PR que agregue o cambie colecciones o campos debe actualizar este archivo y `firestore.rules`.**
 
-Modelos en Dart: `lib/core/domain/` (`Clinic`, `ClinicService`, `Slot`, `Pet`, `MedicalRecord`, `Appointment`, `Product`, `CartItem`, `ShopOrder`), compartidos por todos los plugins. Los enums guardan en Firestore el valor en español de esta página.
+Modelos en Dart: `lib/core/domain/` (`Clinic`, `ClinicService`, `Slot`, `Pet`, `MedicalRecord`, `Appointment`, `Product`, `CartItem`, `ShopOrder`, `QrTag`), compartidos por todos los plugins. Los enums guardan en Firestore el valor en español de esta página.
 
 Horas (`hora`, `horarioBase.apertura/cierre`): se **guardan** en 24 h `HH:mm`; la app las **muestra** en 12 h con a. m./p. m. (`TimeFormat` en `lib/core/format`).
 
@@ -185,7 +185,16 @@ Modelo `ShopOrder` (`Order` choca con una clase de `cloud_firestore`), repositor
 
 ## `qrTags/{qrId}` — RF-17
 
-`{petId, ownerUid, activo, createdAt}` · Datos públicos se leen solo a través de la Function `verPlacaQr` (nunca directo desde la web).
+Modelo `QrTag` (`lib/core/domain`), repositorio `QrTagsRepository` (`lib/core/data`). La app la escribe directo; `firestore.rules` valida.
+
+`{petId, ownerUid, activo, mostrar:{nombreDueno:bool, telefono:bool, alergias:bool, mensaje?}, createdAt}`
+
+- **Id aleatorio** de 12 letras y dígitos (`QrTag.newId`, `Random.secure`, ≈ 70 bits); las reglas aceptan 10–40 `[A-Za-z0-9]`. Es lo único que va en el QR: `https://mascoti-b27cf.web.app/q/{qrId}` (`PublicLinks.qrTag`).
+- **Solo el dueño de la mascota** la crea (la mascota debe ser suya, `activo: true`, `createdAt` = hora del servidor), la lee, la desactiva o la vuelve a activar y cambia `mostrar`. `petId`, `ownerUid` y `createdAt` no cambian. **Nadie más lee el documento**; no se borra.
+- `mostrar`: qué ve quien escanea, además del nombre, la especie y la foto de la mascota (siempre). `mensaje` ≤ 200 caracteres. El nombre y el teléfono del dueño **no se copian**: la Edge Function los lee de `users/{ownerUid}` en cada consulta.
+- Requisitos para crearla (RF-17, en la app): la mascota tiene foto y hay al menos un contacto (el teléfono del dueño visible o un mensaje).
+- **Página pública:** `hosting/q.html` (Firebase Hosting, `/q/{qrId}`) llama a la Edge Function **`placa-publica`** (sin sesión), que devuelve solo lo elegido y el teléfono enmascarado (`300 *** **67`). Con `{revelar: true}` devuelve el número completo: máximo **5 por IP por hora** (tabla `public.intentos_placa` con el SHA-256 de la IP, nunca la IP; migración `20261123000000_limite_placa_qr.sql`). Placa desactivada, inexistente, de una mascota borrada o de una cuenta suspendida → "Esta placa no está activa".
+- Consulta de la app: `where ownerUid ==` y `where petId ==` (solo igualdades: sin índice compuesto); la placa vigente es la activa más reciente.
 
 ## `auditEvents/{id}` — RF-10
 

@@ -460,3 +460,9 @@ verify_jwt = false
 # la función verifica ella misma (como crear-pedido).
 [functions.pagar-pedido-simulado]
 verify_jwt = false
+
+# RF-17: la llama la página pública de la placa QR (Firebase Hosting) sin
+# sesión. Solo devuelve lo que el dueño eligió mostrar y limita "Ver
+# teléfono" por IP.
+[functions.placa-publica]
+verify_jwt = false
