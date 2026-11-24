@@ -78,6 +78,9 @@ Subcolección `medicalRecords/{recordId}` — RF-08 (la escribe la **clínica**;
 - Obligatorios: `fecha` (no futura) y `diagnostico` (1–2000). Máximo 10 vacunas (nombre 1–80, lote 1–40, `fechaProximaDosis` posterior a la aplicación) y 10 adjuntos: las reglas validan elemento por elemento porque no tienen ciclos.
 - `adjuntos[].path` (antes `url`): `{petId}/{recordId}/{archivo}` en el bucket privado **`registros`** de Supabase. Se suben y se ven con enlaces firmados de la Edge Function `adjuntos-historial`, que verifica en Firestore que quien pide es el dueño o una clínica autorizada (Supabase no puede leer Firestore en sus políticas).
 
+Subcolección `documentos/{docId}` — RF-18 (*solo la escribe la Edge Function `generar-carnet`*):
+`documentos/carnet` = `{path, generadoAt, vacunas:int}`: último carnet de vacunas generado (`path` en el bucket privado `documentos`). Lo **lee** solo el dueño activo de la mascota (la app muestra "Último carnet: …"); nadie lo escribe desde la app.
+
 ## `vacunasProgramadas/{recordId}_{n}` — semana 3, para RF-13
 
 `{petId, ownerUid, clinicId, recordId, vacuna, fechaProximaDosis, notificado, createdAt}`: una por cada vacuna `n` del registro que tenga `fechaProximaDosis`. La crea la clínica **en el mismo lote** que el registro y las reglas verifican que coincida con la vacuna `n` de ese registro. Existe porque Firestore no puede buscar por fechas dentro de una lista de objetos (`vacunas[].fechaProximaDosis`). La leen el dueño y la clínica autora; `notificado` lo marca RF-13 desde el servidor.
@@ -223,6 +226,14 @@ Reemplaza a Firebase Storage. Políticas en `supabase/migrations/*_storage_masco
 | `{petId}/{recordId}/{archivo}` | clínica autorizada (autora del registro, 24 h) | dueño y clínicas autorizadas | JPG/PNG/PDF, máximo 10 MB |
 
 Sin políticas para la app: todo pasa por la Edge Function `adjuntos-historial`. Migración: `supabase/migrations/20261016010000_storage_registros.sql`.
+
+### Bucket `documentos` (PDF generados, RF-18)
+
+| Ruta | Escribe | Lee | Límites |
+|---|---|---|---|
+| `pets/{petId}/documentos/carnet-AAAA-MM-DD.pdf` | solo la Edge Function `generar-carnet` (un archivo por día, se reemplaza) | el dueño, con el enlace firmado de 15 min que devuelve la función | solo PDF, máximo 5 MB |
+
+Sin políticas para la app. La fecha del nombre es la de Colombia. Migración: `supabase/migrations/20261124000000_storage_documentos.sql`.
 
 ### Bucket `chats` (adjuntos del chat, RF-16)
 

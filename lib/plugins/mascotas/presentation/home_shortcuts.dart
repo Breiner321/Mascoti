@@ -34,13 +34,6 @@ abstract final class HomeShortcuts {
     path: '/reservas/nueva',
   );
 
-  static const healthCard = HomeShortcut(
-    label: 'Vacunas y controles',
-    icon: Icons.vaccines_outlined,
-    pluginId: 'mascotas',
-    path: MascotasRoutes.healthCard,
-  );
-
   static const newPet = HomeShortcut(
     label: 'Registra tu primera mascota',
     icon: Icons.add,

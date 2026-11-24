@@ -466,3 +466,7 @@ verify_jwt = false
 # teléfono" por IP.
 [functions.placa-publica]
 verify_jwt = false
+
+# RF-18: carnet de vacunas en PDF. Verifica el token de Firebase por su cuenta.
+[functions.generar-carnet]
+verify_jwt = false

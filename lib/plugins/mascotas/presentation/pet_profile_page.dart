@@ -15,9 +15,12 @@ import 'widgets/pet_avatar.dart';
 /// Perfil de una mascota: datos, historial médico (RF-08) y la pestaña
 /// de documentos: placa QR (RF-17) y carnet (RF-18).
 class PetProfilePage extends ConsumerWidget {
-  const PetProfilePage({super.key, required this.petId});
+  const PetProfilePage({super.key, required this.petId, this.initialTab = PetProfileTab.datos});
 
   final String petId;
+
+  /// Pestaña al abrir (el home abre "Documentos" desde "Carnet").
+  final PetProfileTab initialTab;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,7 +28,8 @@ class PetProfilePage extends ConsumerWidget {
     final loaded = pet.value;
 
     return DefaultTabController(
-      length: 3,
+      length: PetProfileTab.values.length,
+      initialIndex: initialTab.index,
       child: Scaffold(
         appBar: AppBar(
           title: Text(loaded?.nombre ?? 'Mascota'),
@@ -75,6 +79,16 @@ class PetProfilePage extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Pestañas de la ficha, en orden. `?tab=documentos` en la ruta.
+enum PetProfileTab {
+  datos,
+  historial,
+  documentos;
+
+  static PetProfileTab fromQuery(String? value) =>
+      values.firstWhere((t) => t.name == value, orElse: () => datos);
 }
 
 class _PetDetails extends StatelessWidget {

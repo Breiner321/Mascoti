@@ -577,6 +577,16 @@ service cloud.firestore {
             && attachmentAt(list, 9);
         }
       }
+
+      // ---------- Documentos PDF (RF-18, semana 7) ----------
+      // documentos/carnet: último carnet de vacunas generado (path en el
+      // bucket privado `documentos`, fecha y número de vacunas). Lo escribe
+      // solo la Edge Function generar-carnet; lo lee el dueño.
+      match /documentos/{docId} {
+        allow read: if isActive()
+          && get(/databases/$(database)/documents/pets/$(petId)).data.ownerUid == request.auth.uid;
+        allow write: if false;
+      }
     }
 
     // ---------- Próximas dosis (semana 3, las usa RF-13) ----------

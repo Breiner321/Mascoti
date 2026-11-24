@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/domain/appointment.dart';
 import 'package:mascoti/core/format/bogota_time.dart';
@@ -11,6 +12,7 @@ import 'package:mascoti/plugins/mascotas/mascotas_plugin.dart';
 import 'package:mascoti/plugins/mascotas/presentation/next_appointment_provider.dart';
 import 'package:mascoti/plugins/mascotas/presentation/owner_home_page.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pets_providers.dart';
+import 'package:mascoti/plugins/mascotas/presentation/widgets/health_card_tile.dart';
 import 'package:mascoti/plugins/mascotas/presentation/widgets/shortcut_tile.dart';
 
 import '../../core/fake_plugins.dart';
@@ -108,6 +110,48 @@ void main() {
     expect(comingSoon('Tienda'), isFalse);
     expect(comingSoon('Agendar cita'), isFalse);
     expect(comingSoon('Mapa cercano'), isTrue);
+  });
+
+  testWidgets('"Carnet" sin "Próximamente": sin mascotas se ve deshabilitada', (tester) async {
+    await pumpHome(tester, pets: Stream.value(const []));
+    final tile = find.ancestor(of: find.text('Vacunas y controles'), matching: find.byType(HealthCardTile));
+    expect(find.descendant(of: tile, matching: find.text('Próximamente')), findsNothing);
+    expect(tester.widget<HealthCardTile>(tile).onTap, isNull);
+    expect(find.text('Registra una mascota para ver su carnet'), findsOneWidget);
+  });
+
+  testWidgets('"Carnet" abre Documentos de la mascota activa', (tester) async {
+    final opened = <String>[];
+    final router = GoRouter(routes: [
+      GoRoute(path: '/', builder: (_, __) => const Scaffold(body: OwnerHomePage())),
+      GoRoute(
+        path: '/mascotas/perfil/:petId',
+        builder: (_, state) {
+          opened.add(state.uri.toString());
+          return const Scaffold(body: Text('Ficha'));
+        },
+      ),
+    ]);
+    addTearDown(router.dispose);
+    tester.view.physicalSize = const Size(1080, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        pluginRegistryProvider.overrideWithValue(todayRegistry),
+        myPetsProvider.overrideWith((ref) => Stream.value(const [
+              Pet(id: 'p2', ownerUid: 'u1', nombre: 'Max', especie: PetSpecies.gato),
+              Pet(id: 'p1', ownerUid: 'u1', nombre: 'Luna', especie: PetSpecies.perro),
+            ])),
+        nextAppointmentProvider.overrideWithValue(null),
+      ],
+      child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Vacunas y controles'));
+    await tester.pumpAndSettle();
+    expect(opened, ['/mascotas/perfil/p2?tab=documentos']);
   });
 
   testWidgets('cargando muestra un indicador', (tester) async {
