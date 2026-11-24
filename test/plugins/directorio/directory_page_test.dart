@@ -14,7 +14,7 @@ import 'package:mascoti/core/domain/vet_place.dart';
 import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/core/places/places_providers.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
-import 'package:mascoti/plugins/directorio/data/location_service.dart';
+import 'package:mascoti/core/location/location_service.dart';
 import 'package:mascoti/plugins/directorio/directorio_plugin.dart';
 import 'package:mascoti/plugins/directorio/presentation/directory_map_view.dart';
 import 'package:mascoti/plugins/directorio/presentation/directory_page.dart';
