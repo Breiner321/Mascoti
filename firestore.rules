@@ -859,6 +859,65 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // ---------- Placa QR (RF-17) ----------
+    // qrTags/{qrId}: id aleatorio de 10-40 letras o dígitos (lo genera la
+    // app). Solo el dueño de la mascota la crea, la lee y la activa o
+    // desactiva; nadie más lee el documento. La página pública NO lo lee:
+    // usa la Edge Function placa-publica, que devuelve solo lo elegido en
+    // `mostrar`. No se borra (una placa perdida se desactiva).
+    match /qrTags/{qrId} {
+      allow read: if isActive() && resource.data.ownerUid == request.auth.uid;
+      allow create: if hasRole('dueno')
+        && qrId.matches('^[A-Za-z0-9]{10,40}$')
+        && request.resource.data.keys().hasOnly(['petId', 'ownerUid', 'activo', 'mostrar', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.petId is string
+        && request.resource.data.petId.size() > 0
+        && request.resource.data.petId.size() <= 128
+        && get(/databases/$(database)/documents/pets/$(request.resource.data.petId)).data.ownerUid
+             == request.auth.uid
+        && request.resource.data.activo == true
+        && validQrShow(request.resource.data.mostrar)
+        && request.resource.data.createdAt == request.time;
+      allow update: if hasRole('dueno')
+        && resource.data.ownerUid == request.auth.uid
+        && onlyChanges(['activo', 'mostrar'])
+        && request.resource.data.activo is bool
+        && validQrShow(request.resource.data.mostrar);
+      allow delete: if false;
+
+      // Qué ve quien escanea: nombre del dueño, teléfono y alergias (sí/no)
+      // y un mensaje opcional de hasta 200 caracteres.
+      function validQrShow(m) {
+        return m is map
+          && m.keys().hasOnly(['nombreDueno', 'telefono', 'alergias', 'mensaje'])
+          && m.nombreDueno is bool && m.telefono is bool && m.alergias is bool
+          && (m.get('mensaje', null) == null
+              || (m.mensaje is string && m.mensaje.size() <= 200));
+      }
+    }
+
+    // ---------- Auditoría del SOS (RF-10) ----------
+    // Cada dueño solo crea sus propios eventos `emergencyTriggered`, con la
+    // ubicación aproximada opcional y la hora del servidor. Nadie los lee ni
+    // los cambia desde la app (son para estadísticas).
+    match /auditEvents/{eventId} {
+      allow create: if hasRole('dueno')
+        && request.resource.data.keys().hasOnly(['tipo', 'uid', 'lat', 'lng', 'createdAt'])
+        && request.resource.data.keys().hasAll(['tipo', 'uid', 'createdAt'])
+        && request.resource.data.tipo == 'emergencyTriggered'
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && (request.resource.data.keys().hasAny(['lat', 'lng'])
+          ? request.resource.data.keys().hasAll(['lat', 'lng'])
+            && request.resource.data.lat is number
+            && request.resource.data.lng is number
+            && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+            && request.resource.data.lng >= -180 && request.resource.data.lng <= 180
+          : true);
+      allow read, update, delete: if false;
+    }
+
     // ---------- Todo lo demás está cerrado por defecto ----------
     match /{document=**} {
       allow read, write: if false;

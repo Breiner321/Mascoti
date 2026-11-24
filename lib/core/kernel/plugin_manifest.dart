@@ -6,6 +6,7 @@ import '../../plugins/clinica/clinica_plugin.dart';
 import '../../plugins/directorio/directorio_plugin.dart';
 import '../../plugins/mascotas/mascotas_plugin.dart';
 import '../../plugins/reservas/reservas_plugin.dart';
+import '../../plugins/sos/sos_plugin.dart';
 import '../../plugins/tienda/tienda_plugin.dart';
 import 'mascoti_plugin.dart';
 
@@ -16,7 +17,8 @@ final List<MascotiPlugin> enabledPlugins = [
   const DirectorioPlugin(), // Dueño: directorio de clínicas con mapa (RF-09)
   const ChatPlugin(), // Ambos: mensajes (RF-15, RF-16)
   const TiendaPlugin(), // Ambos: tienda e inventario (RF-07, RF-12)
-  // const SosPlugin(),        // semana 7 — RF-10
-  // const UtilidadesPlugin(), // semana 7 — RF-17, RF-18
-  // const ChatbotPlugin(),    // semana 7 — RF-11 (opcional)
+  const SosPlugin(), // Dueño: botón SOS de emergencia (RF-10)
+  // const UtilidadesPlugin(), // semana 7 — RF-18 (la placa QR, RF-17, está en mascotas)
+  // RF-11 (asistente virtual) queda fuera de la versión 1.0 (Cambio 6):
+  // se agregaría como un plugin más en esta lista, sin tocar el núcleo.
 ];

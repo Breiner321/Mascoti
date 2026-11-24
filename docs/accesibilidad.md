@@ -13,7 +13,7 @@ Meta: **WCAG 2.1 nivel AA** en lo aplicable a una app móvil. Usable con lector 
 | Etiquetas | Todo botón de solo ícono tiene `tooltip`; fotos "Foto de Luna"; flechas "Mes anterior/siguiente" | pruebas `labeledTapTargetGuideline` |
 | No solo color | Estados de cita y de franja con ícono y texto; días con horas con un punto; "Próximamente" escrito | `AppointmentStatusChip`, `DayExceptionsView`, `BookingCalendar` |
 | Movimiento | Respeta "Quitar animaciones" de Android y la opción "Reducir animaciones" de la app (cambio de pantalla sin animación) | `AppTheme.of(reduceMotion:)` |
-| SOS | 48 dp, ícono + texto, se anuncia "SOS: emergencia veterinaria" y es lo primero del encabezado para el lector | `lib/core/widgets/sos_button.dart` |
+| SOS | 48 dp, ícono + texto, se anuncia "Emergencia, botón" y es lo primero del encabezado para el lector. En la pantalla SOS la primera acción es "Llamar a <clínica más cercana>"; botón Llamar de 64 dp; aliadas con huella y texto "Aliado Mascoti" | `lib/core/widgets/sos_button.dart`, `lib/plugins/sos/` |
 
 ### Reglas para el código nuevo
 - Colores **solo** desde `AppColors` (lee la paleta activa). Nunca `Colors.white`, `Color(0x…)` ni colores guardados en `static final`: no cambiarían con el tema.
@@ -46,7 +46,8 @@ Activa TalkBack: Ajustes → Accesibilidad → TalkBack (o mantén presionadas l
 - [ ] Después de una acción (guardar, bloquear, solicitar) el aviso inferior se lee.
 
 **Encabezado y SOS (dueño)**
-- [ ] Al entrar al encabezado, lo primero que se anuncia es "SOS: emergencia veterinaria".
+- [ ] Al entrar al encabezado, lo primero que se anuncia es "Emergencia, botón".
+- [ ] Al abrir el SOS, la primera acción es "Llamar a" la clínica más cercana; "Cerrar" queda al final.
 - [ ] Desde la parte superior de la pantalla se llega al SOS con un solo deslizamiento.
 
 **Dueño**

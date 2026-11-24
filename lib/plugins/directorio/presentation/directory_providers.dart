@@ -6,12 +6,8 @@ import '../../../core/domain/clinic.dart';
 import '../../../core/domain/clinic_service.dart';
 import '../../../core/places/place_address.dart';
 import '../data/clinic_directory_repository.dart';
-import '../data/location_service.dart';
+import '../../../core/location/location_service.dart';
 import '../domain/directory_filters.dart';
-
-final locationServiceProvider = Provider<LocationService>(
-  (ref) => const GeolocatorLocationService(),
-);
 
 final clinicDirectoryRepositoryProvider = Provider<ClinicDirectoryRepository>(
   (ref) => ClinicDirectoryRepository(),

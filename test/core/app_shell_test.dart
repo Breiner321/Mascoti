@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mascoti/core/auth/auth_providers.dart';
@@ -68,6 +69,15 @@ void main() {
     await pumpShell(tester, user: owner, plugins: ['mascotas', 'tienda', 'sos']);
     expect(cart, findsOneWidget);
     expect(sos, findsOneWidget);
+  });
+
+  testWidgets('el SOS se anuncia "Emergencia, botón" (RF-10)', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpShell(tester, user: owner, plugins: ['mascotas', 'sos']);
+    final node = tester.getSemantics(find.bySemanticsLabel('Emergencia'));
+    expect(node.getSemanticsData().flagsCollection.isButton, isTrue);
+    expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    handle.dispose();
   });
 
   testWidgets('la clínica nunca ve carrito ni SOS', (tester) async {

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:mascoti/core/auth/auth_providers.dart';
+import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/data/medical_records_providers.dart';
+import 'package:mascoti/core/data/qr_tags_providers.dart';
+import 'package:mascoti/core/data/qr_tags_repository.dart';
 import 'package:mascoti/core/domain/pet.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pet_profile_page.dart';
@@ -20,6 +25,10 @@ void main() {
         overrides: [
           petProvider('p1').overrideWith((ref) => pet),
           medicalRecordsProvider('p1').overrideWith((ref) => Stream.value(const [])),
+          currentUserProvider.overrideWithValue(const AppUser(
+              uid: 'ana', email: 'ana@example.com', displayName: 'Ana', role: UserRole.dueno)),
+          qrTagsRepositoryProvider
+              .overrideWithValue(QrTagsRepository(firestore: FakeFirebaseFirestore())),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
@@ -59,7 +68,8 @@ void main() {
 
     await tester.tap(find.text('Documentos'));
     await tester.pumpAndSettle();
-    expect(find.text('Próximamente'), findsOneWidget);
+    expect(find.text('Placa QR'), findsOneWidget);
+    expect(find.text('Carnet de vacunas (PDF)'), findsOneWidget);
   });
 
   testWidgets('mascota inexistente', (tester) async {
