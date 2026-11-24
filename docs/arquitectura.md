@@ -77,7 +77,7 @@ final List<MascotiPlugin> enabledPlugins = [
 | `tienda` | ambos | 07 (clínica), 12 (dueño) | 6 |
 | `sos` | dueño | 10 | 7 |
 | `utilidades` | dueño | 17, 18 | 7 |
-| `chatbot` | dueño | 11 | 7 (opcional) |
+| `chatbot` | dueño | 11 | fuera de la v1.0 (Cambio 6) |
 
 ## Reglas de dependencia
 
