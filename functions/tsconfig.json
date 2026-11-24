@@ -34,6 +34,7 @@
     "../supabase/functions/_shared/vinculacion.ts",
     "../supabase/functions/_shared/estados_pedido.ts",
     "../supabase/functions/_shared/wompi.ts",
-    "../supabase/functions/_shared/pedidos.ts"
+    "../supabase/functions/_shared/pedidos.ts",
+    "../supabase/functions/_shared/placa.ts"
   ]
 }

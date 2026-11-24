@@ -9,6 +9,7 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 | 3 | Accesibilidad (WCAG 2.1 AA) y modo oscuro | Todos | ✅ |
 | 4 | Mapa con todas las veterinarias y "Aliados Mascoti" | RF-09, RF-10 | ✅ |
 | 5 | Pagos de la tienda: por ahora pagos simulados (Wompi Sandbox queda listo), reserva de stock, estados del pedido y reembolsos fuera de alcance | RF-07, RF-12 | 🟨 |
+| 6 | Asistente virtual (RF-11) fuera de la versión 1.0 | RF-11 | ✅ |
 
 ---
 
@@ -122,3 +123,16 @@ Decisiones de la semana 7 al construir el SOS (no son un cambio de alcance numer
 - **Orden:** aliadas con `atencionEmergencias`, luego veterinarias de OpenStreetMap con horario "24/7", luego las demás cercanas; cada grupo por distancia, hasta 15. Las aliadas se buscan de 10 en 10 km hasta tener 3 o llegar a 50 km; las de OpenStreetMap en un cuadro de 20 km.
 - **Auditoría** con ubicación aproximada (~1 km), sin bloquear la pantalla.
 - **Lector de pantalla:** el botón del encabezado se anuncia "Emergencia, botón" (antes "SOS: emergencia veterinaria") y la primera acción de la pantalla es "Llamar a" la clínica más cercana.
+## Cambio 6 — Asistente virtual (RF-11) fuera de la versión 1.0
+
+**Qué decía el RF.** RF-11 pedía un asistente virtual (chatbot) que respondiera preguntas frecuentes y orientara al dueño, con Dialogflow como opción.
+
+**Qué cambia.** RF-11 **no entra en la versión 1.0** (entrega del 27 de noviembre de 2026). No hay plugin, pantalla, botón ni ruta del asistente en la app; el plan ya lo tenía como primer candidato a recorte si faltaba tiempo (`docs/plan.md`, "Si hay retraso").
+
+**Por qué.** Por tiempo: la última semana se dedicó a cerrar la tienda (RF-07, RF-12), la placa QR (RF-17) y el carnet (RF-18), y a estabilizar la app. Un asistente a medias daría respuestas pobres en temas de salud de las mascotas.
+
+**Cómo agregarlo después, sin tocar el núcleo.** Por la arquitectura microkernel basta con:
+1. Crear `lib/plugins/chatbot/` con un `ChatbotPlugin` que implemente `MascotiPlugin` (rutas bajo `/chatbot`, pestaña o enlace de perfil para el rol `dueno`).
+2. Registrarlo con una línea en `lib/core/kernel/plugin_manifest.dart`.
+3. Empezar con preguntas frecuentes locales (árbol de decisión en Dart); si se usa Dialogflow, sus llaves van en una Edge Function como secretos, nunca en la app.
+

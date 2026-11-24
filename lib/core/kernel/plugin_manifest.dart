@@ -18,6 +18,7 @@ final List<MascotiPlugin> enabledPlugins = [
   const ChatPlugin(), // Ambos: mensajes (RF-15, RF-16)
   const TiendaPlugin(), // Ambos: tienda e inventario (RF-07, RF-12)
   const SosPlugin(), // Dueño: botón SOS de emergencia (RF-10)
-  // const UtilidadesPlugin(), // semana 7 — RF-17, RF-18
-  // const ChatbotPlugin(),    // semana 7 — RF-11 (opcional)
+  // const UtilidadesPlugin(), // semana 7 — RF-18 (la placa QR, RF-17, está en mascotas)
+  // RF-11 (asistente virtual) queda fuera de la versión 1.0 (Cambio 6):
+  // se agregaría como un plugin más en esta lista, sin tocar el núcleo.
 ];

@@ -6,13 +6,14 @@ import '../../../core/domain/pet.dart';
 import '../../../core/theme/app_theme.dart';
 import '../mascotas_routes.dart';
 import 'date_label.dart';
+import 'documents_tab.dart';
 import 'medical_history_tab.dart';
 import 'pets_providers.dart';
 import 'widgets/patient_access_card.dart';
 import 'widgets/pet_avatar.dart';
 
 /// Perfil de una mascota: datos, historial médico (RF-08) y la pestaña
-/// preparada para los documentos (RF-17/18).
+/// de documentos: placa QR (RF-17) y carnet (RF-18).
 class PetProfilePage extends ConsumerWidget {
   const PetProfilePage({super.key, required this.petId});
 
@@ -51,10 +52,7 @@ class PetProfilePage extends ConsumerWidget {
               children: [
                 _PetDetails(pet: p),
                 MedicalHistoryTab(petId: p.id),
-                const _ComingSoonTab(
-                  icon: Icons.description_outlined,
-                  text: 'Aquí encontrarás el carnet de vacunas y la placa QR de tu mascota.',
-                ),
+                DocumentsTab(pet: p),
               ],
             ),
           AsyncData() => const _Centered(child: Text('No encontramos esta mascota.')),
@@ -177,30 +175,6 @@ class _Tags extends StatelessWidget {
               runSpacing: 4,
               children: [for (final v in values) Chip(label: Text(v))],
             ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Pestaña vacía de una funcionalidad de semanas siguientes.
-class _ComingSoonTab extends StatelessWidget {
-  const _ComingSoonTab({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Centered(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: AppColors.textMuted),
-          const SizedBox(height: 12),
-          Text('Próximamente', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(text, textAlign: TextAlign.center),
         ],
       ),
     );
