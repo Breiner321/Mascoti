@@ -18,23 +18,27 @@ import {
 } from "./firestore.ts";
 import { nombreVisible } from "./nombres.ts";
 import type { Aviso } from "./notificaciones.ts";
-import type { UsuarioFirebase } from "./registro.ts";
 import {
-  centavos,
-  type EventoWompi,
-  firmaIntegridad,
-  MONEDA,
-  urlCheckout,
-  verificarEvento,
-} from "./wompi.ts";
+  type NombrePasarela,
+  type Pasarela,
+  pasarelaDelPedido,
+  PREFIJO_TRANSACCION_SIMULADA,
+} from "./pasarela.ts";
+import type { UsuarioFirebase } from "./registro.ts";
+import { type EventoWompi, MONEDA, verificarEvento } from "./wompi.ts";
+
+export type { ConfigWompi } from "./pasarela.ts";
 
 /**
  * Pedidos de la tienda (RF-12): lógica de las Edge Functions `crear-pedido`,
- * `webhook-wompi` y `actualizar-pedido`, y de la tarea de pedidos vencidos.
+ * `pagar-pedido-simulado`, `webhook-wompi` y `actualizar-pedido`, y de la
+ * tarea de pedidos vencidos.
  *
  * Reglas de oro: la app nunca calcula el total ni marca un pedido como
- * pagado; precio y stock se leen aquí; el webhook de Wompi es la única
- * fuente de verdad del pago.
+ * pagado; precio y stock se leen aquí; el resultado del pago lo registra
+ * SOLO el servidor ([registrarPago]): hoy con pagos simulados
+ * (`pagar-pedido-simulado`) y, cuando se active, con el webhook de Wompi
+ * (ver ./pasarela.ts).
  *
  * Cada cambio es UN commit con precondición `updateTime` sobre el pedido y
  * cada producto que toca (transacción optimista, como `citas.ts`): si otra
@@ -64,17 +68,6 @@ const MINUTO_MS = 60 * 1000;
 
 export const MENSAJE_PAGO_RECHAZADO = "Tu pago no pudo ser procesado";
 
-export interface ConfigWompi {
-  llavePublica: string;
-  secretoIntegridad: string;
-  secretoEventos: string;
-  /**
-   * Base de la URL de regreso del checkout; se le agrega `/{orderId}` (p. ej.
-   * `https://<proyecto>.supabase.co/functions/v1/webhook-wompi/retorno`).
-   */
-  urlRegreso: string;
-}
-
 export interface DependenciasPedidos {
   db: BaseDatos;
   ahora(): Date;
@@ -86,7 +79,14 @@ export interface DependenciasPedidos {
 export interface DependenciasCrearPedido extends DependenciasPedidos {
   verificarToken(token: string): Promise<UsuarioFirebase>;
   nuevoId(): string;
-  wompi: Pick<ConfigWompi, "llavePublica" | "secretoIntegridad" | "urlRegreso">;
+  /** Pasarela activa (`PASARELA_PAGO`): por ahora la simulada. */
+  pasarela: Pasarela;
+}
+
+export interface DependenciasPagoSimulado extends DependenciasPedidos {
+  verificarToken(token: string): Promise<UsuarioFirebase>;
+  /** Pasarela activa: el pago simulado solo funciona si es la simulada. */
+  pasarelaActiva: NombrePasarela;
 }
 
 type Cuerpo = Record<string, unknown>;
@@ -299,8 +299,11 @@ export interface ResultadoCrearPedido {
   orderId: string;
   referencia: string;
   total: number;
-  checkoutUrl: string;
-  redirectUrl: string;
+  /** Con qué se paga: `simulada` (pantalla de prueba en la app) o `wompi`. */
+  pasarela: NombrePasarela;
+  /** Página de la pasarela; null con pagos simulados. */
+  checkoutUrl: string | null;
+  redirectUrl: string | null;
   expiraEn: string;
   /** true si se reutilizó un pedido pendiente idéntico. */
   reutilizado: boolean;
@@ -325,31 +328,14 @@ async function checkoutDe(
   contacto: { correo?: string; nombre?: string; telefono?: string },
 ): Promise<Omit<ResultadoCrearPedido, "reutilizado">> {
   const referencia = `${PREFIJO_REFERENCIA}${orderId}`;
-  const montoEnCentavos = centavos(total);
-  const expiracion = expiraEn.toISOString();
-  const firma = await firmaIntegridad({
-    referencia,
-    montoEnCentavos,
-    moneda: MONEDA,
-    expiracion,
-    secretoIntegridad: deps.wompi.secretoIntegridad,
-  });
-  const redirectUrl = `${deps.wompi.urlRegreso.replace(/\/+$/, "")}/${orderId}`;
+  const inicio = await deps.pasarela.iniciarPago({ orderId, referencia, total, expiraEn, contacto });
   return {
     orderId,
     referencia,
     total,
-    checkoutUrl: urlCheckout({
-      llavePublica: deps.wompi.llavePublica,
-      referencia,
-      montoEnCentavos,
-      firma,
-      redirectUrl,
-      expiracion,
-      ...contacto,
-    }),
-    redirectUrl,
-    expiraEn: expiracion,
+    pasarela: deps.pasarela.nombre,
+    ...inicio,
+    expiraEn: expiraEn.toISOString(),
   };
 }
 
@@ -357,7 +343,8 @@ async function checkoutDe(
  * "Confirmar compra" (RF-12 pasos 6-7). Lee el carrito y los productos,
  * valida clínica activa, productos activos y stock suficiente, calcula el
  * total y, en UN commit, crea el pedido `pendiente_pago` y aparta el stock
- * por 15 minutos. Devuelve el Web Checkout de Wompi firmado.
+ * por 15 minutos. Devuelve cómo pagar según la pasarela activa (pago
+ * simulado o Web Checkout de Wompi firmado).
  */
 export async function crearPedido(
   deps: DependenciasCrearPedido,
@@ -432,6 +419,7 @@ export async function crearPedido(
     const vigente = deEstaClinica.find((p) =>
       p.datos.expiraEn instanceof Date &&
       p.datos.expiraEn.getTime() > ahora.getTime() + MINUTO_MS &&
+      pasarelaDelPedido(p.datos.pasarela) === deps.pasarela.nombre &&
       mismoPedido(p.datos, itemsActuales, entrega)
     );
     if (vigente) {
@@ -515,6 +503,7 @@ export async function crearPedido(
         total,
         entrega: { ...entrega },
         estado: "pendiente_pago",
+        pasarela: deps.pasarela.nombre,
         referenciaPago: `${PREFIJO_REFERENCIA}${orderId}`,
         expiraEn,
         createdAt: HORA_SERVIDOR,
@@ -587,71 +576,156 @@ async function aplicarEvento(deps: DependenciasPedidos, evento: EventoWompi): Pr
       );
       return { resultado: "ignorado", orderId, motivo: "monto o referencia no coinciden" };
     }
+    return await registrarPago(deps, pedido, orderId, {
+      aprobado: estadoTx === "APPROVED",
+      transaccionId: texto(tx.id),
+      estadoPasarela: estadoTx,
+      // Campos de siempre del webhook (los leen la app y las pruebas).
+      camposPasarela: { wompiTransactionId: texto(tx.id), wompiEstado: estadoTx },
+    });
+  });
+}
 
-    if (d.estado !== "pendiente_pago") {
-      // Pago aprobado de un pedido que ya expiró, fue reemplazado o tuvo un
-      // intento rechazado antes (un reintento en el mismo checkout usa la
-      // misma referencia): no se revive (son estados finales) ni se
-      // descuenta stock; se marca y se avisa para el reembolso.
-      if (
-        estadoTx === "APPROVED" &&
-        (d.estado === "expirado" || d.estado === "pago_rechazado") &&
-        d.pagoTardio !== true
-      ) {
-        const r = await deps.db.commit([
-          escrituraPedido(deps.db, pedido, {
-            pagoTardio: true,
-            wompiTransactionId: texto(tx.id),
-            wompiEstado: estadoTx,
-          }),
-        ]);
-        if (r === "conflicto") return "conflicto";
-        await avisar(deps, avisosPedido(orderId, d, "pago_tardio"));
-        return { resultado: "pago_tardio", orderId };
-      }
-      return { resultado: "duplicado", orderId };
-    }
+/** Resultado de un pago que informa una pasarela (real o simulada). */
+interface ResultadoPago {
+  aprobado: boolean;
+  transaccionId: string;
+  /** Estado tal como lo reporta la pasarela (`APPROVED`, `DECLINED`…). */
+  estadoPasarela: string;
+  /** Campos propios de la pasarela que se guardan en el pedido. */
+  camposPasarela?: Record<string, ValorCampo>;
+}
 
-    const porProducto = cantidades(itemsDe(d));
-    const clinicId = texto(d.clinicId);
-    if (estadoTx === "APPROVED") {
-      const productos = await escriturasDeStock(deps.db, clinicId, porProducto.keys(), (p) => {
-        const n = porProducto.get(p.id) ?? 0;
-        const stock = Math.max(0, entero(p.datos.stock) - n);
-        return {
-          stock,
-          stockReservado: Math.max(0, entero(p.datos.stockReservado) - n),
-          estado: estadoPorStock(p.datos.estado, stock),
-        };
-      });
-      const r = await deps.db.commit([
-        escrituraPedido(deps.db, pedido, {
-          estado: "pagado",
-          wompiTransactionId: texto(tx.id),
-          wompiEstado: estadoTx,
-        }),
-        ...productos,
-        // Vaciar del carrito lo que se compró.
-        ...[...porProducto.keys()].map((id) =>
-          borrarDocumento(deps.db.proyecto, `users/${texto(d.ownerUid)}/cart/${id}`)
-        ),
-      ]);
+/**
+ * Registra el resultado del pago de [pedido], igual para toda pasarela:
+ * aprobado → `pagado`, descuenta el stock (y la reserva), pasa a `agotado`
+ * lo que llega a 0 y vacía del carrito lo comprado; rechazado →
+ * `pago_rechazado` y libera la reserva. Un pedido que ya no está pendiente
+ * no se toca (idempotente); si se aprueba un pago de un pedido expirado o
+ * rechazado se marca `pagoTardio` para el reembolso.
+ */
+async function registrarPago(
+  deps: DependenciasPedidos,
+  pedido: DocumentoLeido,
+  orderId: string,
+  pago: ResultadoPago,
+): Promise<ResultadoWebhook | "conflicto"> {
+  const d = pedido.datos;
+  const campos = {
+    transaccionId: pago.transaccionId,
+    estadoPasarela: pago.estadoPasarela,
+    ...pago.camposPasarela,
+  };
+
+  if (d.estado !== "pendiente_pago") {
+    // Pago aprobado de un pedido que ya expiró, fue reemplazado o tuvo un
+    // intento rechazado antes (un reintento en el mismo checkout usa la
+    // misma referencia): no se revive (son estados finales) ni se
+    // descuenta stock; se marca y se avisa para el reembolso.
+    if (
+      pago.aprobado &&
+      (d.estado === "expirado" || d.estado === "pago_rechazado") &&
+      d.pagoTardio !== true
+    ) {
+      const r = await deps.db.commit([escrituraPedido(deps.db, pedido, { pagoTardio: true, ...campos })]);
       if (r === "conflicto") return "conflicto";
-      await avisar(deps, avisosPedido(orderId, { ...d, estado: "pagado" }, "pagado"));
-      return { resultado: "pagado", orderId };
+      await avisar(deps, avisosPedido(orderId, d, "pago_tardio"));
+      return { resultado: "pago_tardio", orderId };
     }
+    return { resultado: "duplicado", orderId };
+  }
 
+  const porProducto = cantidades(itemsDe(d));
+  const clinicId = texto(d.clinicId);
+  if (pago.aprobado) {
+    const productos = await escriturasDeStock(deps.db, clinicId, porProducto.keys(), (p) => {
+      const n = porProducto.get(p.id) ?? 0;
+      const stock = Math.max(0, entero(p.datos.stock) - n);
+      return {
+        stock,
+        stockReservado: Math.max(0, entero(p.datos.stockReservado) - n),
+        estado: estadoPorStock(p.datos.estado, stock),
+      };
+    });
     const r = await deps.db.commit([
-      escrituraPedido(deps.db, pedido, {
-        estado: "pago_rechazado",
-        wompiTransactionId: texto(tx.id),
-        wompiEstado: estadoTx,
-      }),
-      ...await liberarReserva(deps.db, d),
+      escrituraPedido(deps.db, pedido, { estado: "pagado", ...campos }),
+      ...productos,
+      // Vaciar del carrito lo que se compró.
+      ...[...porProducto.keys()].map((id) =>
+        borrarDocumento(deps.db.proyecto, `users/${texto(d.ownerUid)}/cart/${id}`)
+      ),
     ]);
     if (r === "conflicto") return "conflicto";
-    await avisar(deps, avisosPedido(orderId, { ...d, estado: "pago_rechazado" }, "pago_rechazado"));
-    return { resultado: "pago_rechazado", orderId };
+    await avisar(deps, avisosPedido(orderId, { ...d, estado: "pagado" }, "pagado"));
+    return { resultado: "pagado", orderId };
+  }
+
+  const r = await deps.db.commit([
+    escrituraPedido(deps.db, pedido, { estado: "pago_rechazado", ...campos }),
+    ...await liberarReserva(deps.db, d),
+  ]);
+  if (r === "conflicto") return "conflicto";
+  await avisar(deps, avisosPedido(orderId, { ...d, estado: "pago_rechazado" }, "pago_rechazado"));
+  return { resultado: "pago_rechazado", orderId };
+}
+
+// ---------------------------------------------------------------------------
+// pagar-pedido-simulado
+// ---------------------------------------------------------------------------
+
+/** Resultados que puede pedir el dueño en la pantalla de pago de prueba. */
+export const RESULTADOS_SIMULADOS = ["aprobado", "rechazado"] as const;
+
+/**
+ * Pago de PRUEBA (sin dinero real) mientras no haya pasarela. El dueño del
+ * pedido elige "aprobado" o "rechazado" y se registra exactamente como lo
+ * haría el webhook de una pasarela real ([registrarPago]).
+ *
+ * Solo funciona con la pasarela simulada activa, para pedidos creados con
+ * ella, del mismo dueño, `pendiente_pago` y sin vencer.
+ * Cuerpo: `{orderId, resultado: "aprobado" | "rechazado"}`.
+ */
+export async function pagarPedidoSimulado(
+  deps: DependenciasPagoSimulado,
+  autorizacion: string | null,
+  cuerpo: unknown,
+): Promise<ResultadoWebhook> {
+  if (deps.pasarelaActiva !== "simulada") {
+    throw new ErrorFuncion("failed-precondition", "Los pagos de prueba están desactivados.");
+  }
+  const datos = (typeof cuerpo === "object" && cuerpo !== null ? cuerpo : {}) as Cuerpo;
+  const sesion = await usuarioActivo(deps, autorizacion);
+  const orderId = idDe(datos, "orderId");
+  const resultado = datos.resultado;
+  if (!(RESULTADOS_SIMULADOS as readonly unknown[]).includes(resultado)) {
+    throw new ErrorFuncion("invalid-argument", "Indica si el pago de prueba se aprueba o se rechaza.");
+  }
+
+  return await conReintentos<ResultadoWebhook>(async () => {
+    const pedido = await deps.db.leer(`orders/${orderId}`);
+    if (!pedido || pedido.datos.ownerUid !== sesion.uid) {
+      throw new ErrorFuncion("not-found", "No encontramos este pedido.");
+    }
+    const d = pedido.datos;
+    if (pasarelaDelPedido(d.pasarela) !== "simulada") {
+      throw new ErrorFuncion("failed-precondition", "Este pedido no admite pagos de prueba.");
+    }
+    if (d.estado === "pagado") return { resultado: "duplicado", orderId };
+    if (d.estado !== "pendiente_pago") {
+      throw new ErrorFuncion("failed-precondition", "Este pedido ya no se puede pagar.");
+    }
+    if (!(d.expiraEn instanceof Date) || d.expiraEn.getTime() <= deps.ahora().getTime()) {
+      throw new ErrorFuncion(
+        "failed-precondition",
+        "El tiempo para pagar este pedido terminó. Vuelve a confirmar la compra.",
+      );
+    }
+    const aprobado = resultado === "aprobado";
+    return await registrarPago(deps, pedido, orderId, {
+      aprobado,
+      transaccionId: `${PREFIJO_TRANSACCION_SIMULADA}${orderId}`,
+      estadoPasarela: aprobado ? "APPROVED" : "DECLINED",
+    });
   });
 }
 

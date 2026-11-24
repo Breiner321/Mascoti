@@ -7,6 +7,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/data/medical_records_providers.dart';
 import '../../../core/domain/medical_record.dart';
 import '../../../core/domain/pet.dart';
+import '../../../core/kernel/plugin_registry.dart';
 import '../../../core/theme/app_theme.dart';
 import '../clinica_routes.dart';
 import 'centered_message.dart';
@@ -70,6 +71,13 @@ class _Profile extends ConsumerWidget {
     final now = ref.watch(recordsClockProvider)();
     final owner = ref.watch(ownerNamesProvider(clinicId)).value?[pet.id] ?? '';
     final records = ref.watch(medicalRecordsProvider(pet.id));
+    final chatRoute = ClinicaRoutes.chatWithOwner(
+      ownerUid: pet.ownerUid,
+      ownerNombre: owner,
+      petId: pet.id,
+    );
+    final canMessage =
+        pet.ownerUid.isNotEmpty && ref.read(pluginRegistryProvider).hasRoute(chatRoute);
 
     return ListView(
       // Espacio abajo para que el botón flotante no tape la última consulta.
@@ -117,6 +125,14 @@ class _Profile extends ConsumerWidget {
               '${pet.contactoEmergencia!.nombre} · ${pet.contactoEmergencia!.telefono}',
             ),
         ]),
+        if (canMessage) ...[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => context.push(chatRoute),
+            icon: const Icon(Icons.chat_bubble_outline),
+            label: const Text('Enviar mensaje'),
+          ),
+        ],
         const SizedBox(height: 24),
         Text('Historial médico', style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),

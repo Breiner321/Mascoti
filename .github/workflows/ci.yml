@@ -21,6 +21,9 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Fija la versión que usa el equipo: con 3.50.0 `flutter analyze`
+          # falla. Subirla junto con la migración del código.
+          flutter-version: 3.47.7
           cache: true
       - run: flutter pub get
       - run: flutter analyze

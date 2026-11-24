@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/attachments/attachment_status.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/data/medical_records_providers.dart';
 import '../../../core/data/medical_records_repository.dart';

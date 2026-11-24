@@ -1,16 +1,12 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/kernel/plugin_manifest.dart';
 import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/core/notificaciones/notification_route.dart';
-import 'package:mascoti/core/theme/app_theme.dart';
-import 'package:mascoti/plugins/tienda/presentation/dueno/store_page.dart';
 import 'package:mascoti/plugins/tienda/tienda_plugin.dart';
 import 'package:mascoti/plugins/tienda/tienda_routes.dart';
 
-import '../../a11y.dart';
 
 void main() {
   const plugin = TiendaPlugin();
@@ -22,6 +18,8 @@ void main() {
     expect(owner.path, '/tienda');
     expect(clinic.label, 'Inventario');
     expect(clinic.path, '/tienda/inventario');
+    // Número de pedidos pagados por preparar sobre la pestaña.
+    expect(clinic.badge, isNotNull);
   });
 
   test('declara las rutas acordadas', () {
@@ -29,11 +27,21 @@ void main() {
       '/tienda',
       '/tienda/producto/:id',
       '/tienda/carrito',
+      '/tienda/checkout',
       '/tienda/pedidos',
       '/tienda/pedidos/:id',
+      '/tienda/pedidos/:id/pagar',
+      '/tienda/pedidos/:id/wompi',
       '/tienda/inventario',
+      '/tienda/inventario/nuevo',
+      '/tienda/inventario/:id/editar',
       '/tienda/clinica/pedidos',
+      '/tienda/clinica/pedidos/:id',
     ]);
+    expect(TiendaRoutes.editProduct('p1'), '/tienda/inventario/p1/editar');
+    expect(TiendaRoutes.clinicOrder('o1'), '/tienda/clinica/pedidos/o1');
+    expect(TiendaRoutes.payOrder('o1'), '/tienda/pedidos/o1/pagar');
+    expect(TiendaRoutes.wompiCheckout('o1'), '/tienda/pedidos/o1/wompi');
     expect(TiendaRoutes.product('c 1', 'p1'), '/tienda/producto/p1?clinicId=c+1');
   });
 
@@ -48,11 +56,5 @@ void main() {
     }
     final owner = registry.destinationsFor(UserRole.dueno).map((d) => d.label).toList();
     expect(owner.indexOf('Tienda'), owner.indexOf('Citas') - 1);
-  });
-
-  testWidgets('la pantalla provisional es accesible', (tester) async {
-    await tester.pumpWidget(MaterialApp(theme: AppTheme.light(), home: const Scaffold(body: StorePage())));
-    expect(find.text('Tienda'), findsOneWidget);
-    await expectAccessible(tester);
   });
 }

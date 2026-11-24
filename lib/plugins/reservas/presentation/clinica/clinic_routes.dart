@@ -10,4 +10,16 @@ abstract final class ClinicAppointmentRoutes {
   /// Formulario de consulta del plugin clinica, con la cita prellenada.
   static String newRecord(String petId, String appointmentId) =>
       '/clinica/pacientes/$petId/consulta?appointmentId=$appointmentId';
+
+  /// Conversación con el dueño (plugin chat): la abre o la crea.
+  static String chatWithOwner({
+    required String ownerUid,
+    required String ownerNombre,
+    required String petId,
+  }) =>
+      Uri(path: '/chat/abrir', queryParameters: {
+        'ownerUid': ownerUid,
+        'ownerNombre': ownerNombre,
+        'petId': petId,
+      }).toString();
 }

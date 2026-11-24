@@ -9,7 +9,7 @@ import 'package:mascoti/core/data/medical_records_providers.dart';
 import 'package:mascoti/core/data/medical_records_repository.dart';
 import 'package:mascoti/core/domain/medical_record.dart';
 import 'package:mascoti/core/domain/pet.dart';
-import 'package:mascoti/plugins/clinica/data/attachment_picker.dart';
+import 'package:mascoti/core/attachments/attachment_picker.dart';
 import 'package:mascoti/plugins/clinica/data/clinic_repository.dart';
 import 'package:mascoti/plugins/clinica/presentation/clinic_providers.dart';
 import 'package:mascoti/plugins/clinica/presentation/medical_record_form_page.dart';
