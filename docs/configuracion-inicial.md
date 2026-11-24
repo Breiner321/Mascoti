@@ -212,6 +212,22 @@ Tarjetas: cualquier fecha futura y cualquier CVC de 3 dígitos; cualquier otro n
 curl.exe -X POST https://tahnazumbqsupzpusrba.supabase.co/functions/v1/tareas-programadas -H "x-cron-secret: <CRON_SECRET>" -H "Content-Type: application/json" -d '{\"tarea\":\"pedidos-vencidos\"}'
 ```
 
+## C6. Placa QR (RF-17)
+
+La página pública de la placa es **HTML estático en Firebase Hosting** (gratis en Spark): `hosting/q.html`, `q.css` y `q.js`. `firebase.json` reenvía `/q/**` a `q.html`, que llama a la Edge Function `placa-publica` (Supabase, sin sesión). La URL que va en el QR es `https://mascoti-b27cf.web.app/q/{qrId}` (`PublicLinks` en `lib/core/config`).
+
+**Desplegar, en este orden:**
+1. Reglas de Firestore (agregan `qrTags`): `firebase deploy --only firestore:rules --project mascoti-b27cf`
+2. Migración del límite de "Ver teléfono" (SQL Editor o `supabase db query --linked -f`): `supabase/migrations/20261123000000_limite_placa_qr.sql`
+3. Edge Function (sin JWT: la llama la web pública):
+   ```powershell
+   supabase functions deploy placa-publica --project-ref tahnazumbqsupzpusrba --use-api --no-verify-jwt
+   ```
+4. Hosting: `firebase deploy --only hosting --project mascoti-b27cf`
+5. La app (APK nuevo).
+
+**Probar:** en la app, Mascota → Documentos → "Crear placa QR". Escanea el código con otro teléfono (o abre `https://mascoti-b27cf.web.app/q/<id>`): debe mostrar la ficha, "Ver teléfono" y "Llamar". Al desactivar la placa, la página dice "Esta placa no está activa". Localmente: `firebase emulators:start --only hosting` sirve la página en http://127.0.0.1:5000/q/<id> (consulta la función ya desplegada).
+
 ## D. Todos: correr la app
 
 ```powershell

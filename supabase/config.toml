@@ -455,3 +455,14 @@ verify_jwt = false
 # rechaza cualquier evento inválido. Desplegar con --no-verify-jwt.
 [functions.webhook-wompi]
 verify_jwt = false
+
+# RF-12 (pagos de prueba): la app la llama con su ID token de Firebase, que
+# la función verifica ella misma (como crear-pedido).
+[functions.pagar-pedido-simulado]
+verify_jwt = false
+
+# RF-17: la llama la página pública de la placa QR (Firebase Hosting) sin
+# sesión. Solo devuelve lo que el dueño eligió mostrar y limita "Ver
+# teléfono" por IP.
+[functions.placa-publica]
+verify_jwt = false

@@ -9,6 +9,7 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 | 3 | Accesibilidad (WCAG 2.1 AA) y modo oscuro | Todos | ✅ |
 | 4 | Mapa con todas las veterinarias y "Aliados Mascoti" | RF-09, RF-10 | ✅ |
 | 5 | Pagos de la tienda: por ahora pagos simulados (Wompi Sandbox queda listo), reserva de stock, estados del pedido y reembolsos fuera de alcance | RF-07, RF-12 | 🟨 |
+| 6 | Asistente virtual (RF-11) fuera de la versión 1.0 | RF-11 | ✅ |
 
 ---
 
@@ -109,3 +110,19 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 **Por qué.** Sin reserva, dos dueños podían pagar la misma última unidad y uno quedaba sin producto pero con el cobro hecho. Calcular el total y confirmar el pago en el servidor evita que una app modificada pague menos o marque un pedido como pagado.
 
 **Límites.** Los datos de prueba de Wompi solo funcionan en sandbox. Si Wompi tarda en avisar (reintenta a los 30 min, 3 h y 24 h), el pedido puede expirar antes: queda como pago tardío.
+
+---
+
+## Cambio 6 — Asistente virtual (RF-11) fuera de la versión 1.0
+
+**Qué decía el RF.** RF-11 pedía un asistente virtual (chatbot) que respondiera preguntas frecuentes y orientara al dueño, con Dialogflow como opción.
+
+**Qué cambia.** RF-11 **no entra en la versión 1.0** (entrega del 27 de noviembre de 2026). No hay plugin, pantalla, botón ni ruta del asistente en la app; el plan ya lo tenía como primer candidato a recorte si faltaba tiempo (`docs/plan.md`, "Si hay retraso").
+
+**Por qué.** Por tiempo: la última semana se dedicó a cerrar la tienda (RF-07, RF-12), la placa QR (RF-17) y el carnet (RF-18), y a estabilizar la app. Un asistente a medias daría respuestas pobres en temas de salud de las mascotas.
+
+**Cómo agregarlo después, sin tocar el núcleo.** Por la arquitectura microkernel basta con:
+1. Crear `lib/plugins/chatbot/` con un `ChatbotPlugin` que implemente `MascotiPlugin` (rutas bajo `/chatbot`, pestaña o enlace de perfil para el rol `dueno`).
+2. Registrarlo con una línea en `lib/core/kernel/plugin_manifest.dart`.
+3. Empezar con preguntas frecuentes locales (árbol de decisión en Dart); si se usa Dialogflow, sus llaves van en una Edge Function como secretos, nunca en la app.
+
