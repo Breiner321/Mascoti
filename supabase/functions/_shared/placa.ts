@@ -27,7 +27,7 @@ export const BUCKET_FOTOS = "mascotas";
 export const FORMATO_QR_ID = /^[A-Za-z0-9]{10,40}$/;
 
 /** Igual a PetSpecies.label en lib/core/domain/pet.dart. */
-const ESPECIES: Record<string, string> = {
+export const ESPECIES: Record<string, string> = {
   perro: "Perro",
   gato: "Gato",
   ave: "Ave",

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
-import 'coming_soon_badge.dart';
 
 /// Tarjeta "Carnet · Vacunas y controles" (RF-08, RF-18).
 class HealthCardTile extends StatelessWidget {
   const HealthCardTile({super.key, required this.onTap});
 
-  /// null = el carnet aún no existe ("Próximamente").
+  /// null = aún no hay mascotas: se ve deshabilitada con el motivo.
   final VoidCallback? onTap;
 
   @override
@@ -28,7 +27,7 @@ class HealthCardTile extends StatelessWidget {
                 children: [
                   Icon(Icons.vaccines_outlined, color: AppColors.primary),
                   const Spacer(),
-                  if (onTap == null) const ComingSoonBadge(),
+                  if (onTap != null) Icon(Icons.chevron_right, color: AppColors.primary),
                 ],
               ),
               const SizedBox(height: 24),
@@ -44,6 +43,13 @@ class HealthCardTile extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
+              if (onTap == null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Registra una mascota para ver su carnet',
+                  style: textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                ),
+              ],
             ],
           ),
         ),

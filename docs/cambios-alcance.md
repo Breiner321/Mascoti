@@ -10,6 +10,7 @@ Cambios de producto que pidió el equipo después de probar la app y que modific
 | 4 | Mapa con todas las veterinarias y "Aliados Mascoti" | RF-09, RF-10 | ✅ |
 | 5 | Pagos de la tienda: por ahora pagos simulados (Wompi Sandbox queda listo), reserva de stock, estados del pedido y reembolsos fuera de alcance | RF-07, RF-12 | 🟨 |
 | 6 | Asistente virtual (RF-11) fuera de la versión 1.0 | RF-11 | ✅ |
+| 7 | Certificado de viaje (RF-18) fuera de alcance: solo carnet de vacunas | RF-18 | ✅ |
 
 ---
 
@@ -136,3 +137,17 @@ Decisiones de la semana 7 al construir el SOS (no son un cambio de alcance numer
 2. Registrarlo con una línea en `lib/core/kernel/plugin_manifest.dart`.
 3. Empezar con preguntas frecuentes locales (árbol de decisión en Dart); si se usa Dialogflow, sus llaves van en una Edge Function como secretos, nunca en la app.
 
+## Cambio 7 — Certificado de viaje (RF-18) fuera de alcance
+
+**Qué decía el RF.** RF-18 pedía dos documentos: el carnet de vacunación y un certificado de viaje que bloqueara la generación si faltaba un requisito ("No se puede emitir el certificado: falta vacuna antirrábica vigente"), con QR de verificación, firma o sello de la clínica y vista previa con "Descargar", "Compartir" e "Imprimir".
+
+**Qué cambia.** En la versión 1.0 solo se genera el **carnet de vacunas**:
+- La Edge Function `generar-carnet` (solo el dueño) arma un PDF de 1 a 2 páginas con `pdf-lib`: nombre Mascoti en morado, datos de la mascota, tabla de **todas** las vacunas de su historial (de la más antigua a la más reciente, con lote, próxima dosis y clínica), fecha de emisión en hora de Colombia y el aviso "Documento informativo generado por Mascoti".
+- Si no hay vacunas, el PDF lo dice (no se bloquea). Si no caben en 2 páginas, van las más recientes y una fila "y N vacunas anteriores más en el historial de Mascoti".
+- Se guarda en el bucket privado `documentos` y se entrega un enlace firmado de 15 minutos. La app lo abre en el visor de PDF del teléfono (que permite descargarlo e imprimirlo) y lo comparte con `share_plus`.
+
+**Fuera de alcance:** certificado de viaje, validación de requisitos regulatorios, QR de verificación de autenticidad y firma o sello digital de la clínica. El carnet es **informativo**, no un documento oficial.
+
+**Por qué.** Los requisitos de viaje cambian según el destino y la aerolínea, y un certificado oficial requiere la firma de un médico veterinario: Mascoti no puede emitirlo de forma responsable en la última semana. El carnet cubre lo que el dueño más necesita (llevar el historial de vacunas a otra clínica o compartirlo).
+
+**Cómo agregarlo después.** Otra Edge Function (p. ej. `generar-certificado`) que reutilice `_shared/carnet.ts` (lectura de vacunas y dibujo con `pdf-lib`), y una tarjeta más en la pestaña "Documentos".

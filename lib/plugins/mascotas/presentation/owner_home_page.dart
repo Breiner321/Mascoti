@@ -32,6 +32,14 @@ class OwnerHomePage extends ConsumerWidget {
         ? () => context.push(shortcut.path)
         : null;
 
+    // "Carnet" abre los documentos de la mascota activa (la elegida o la
+    // más reciente, igual que "Mi mascota"); sin mascotas, deshabilitado.
+    final petList = pets.value ?? const [];
+    final selectedId = ref.watch(selectedPetIdProvider);
+    final activePet = petList.isEmpty
+        ? null
+        : petList.firstWhere((p) => p.id == selectedId, orElse: () => petList.first);
+
     return RefreshIndicator(
       onRefresh: () async => ref.invalidate(myPetsProvider),
       child: ListView(
@@ -39,7 +47,7 @@ class OwnerHomePage extends ConsumerWidget {
         children: [
           PetSummaryCard(
             pets: pets,
-            selectedPetId: ref.watch(selectedPetIdProvider),
+            selectedPetId: selectedId,
             onRetry: () => ref.invalidate(myPetsProvider),
             onAddPet: open(HomeShortcuts.newPet),
             onOpenPet: (pet) => context.push(MascotasRoutes.profile(pet.id)),
@@ -61,7 +69,11 @@ class OwnerHomePage extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: HealthCardTile(onTap: open(HomeShortcuts.healthCard)),
+                  child: HealthCardTile(
+                    onTap: activePet == null
+                        ? null
+                        : () => context.push(MascotasRoutes.documents(activePet.id)),
+                  ),
                 ),
               ],
             ),

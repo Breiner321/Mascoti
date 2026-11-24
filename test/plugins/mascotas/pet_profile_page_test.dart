@@ -9,13 +9,16 @@ import 'package:mascoti/core/data/qr_tags_providers.dart';
 import 'package:mascoti/core/data/qr_tags_repository.dart';
 import 'package:mascoti/core/domain/pet.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
+import 'package:mascoti/plugins/mascotas/data/health_card_repository.dart';
+import 'package:mascoti/plugins/mascotas/presentation/health_card_providers.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pet_profile_page.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pets_providers.dart';
 
 import '../../a11y.dart';
 
 void main() {
-  Future<void> pumpProfile(WidgetTester tester, Stream<Pet?> pet) async {
+  Future<void> pumpProfile(WidgetTester tester, Stream<Pet?> pet,
+      {PetProfileTab initialTab = PetProfileTab.datos}) async {
     tester.view.physicalSize = const Size(1080, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -29,10 +32,12 @@ void main() {
               uid: 'ana', email: 'ana@example.com', displayName: 'Ana', role: UserRole.dueno)),
           qrTagsRepositoryProvider
               .overrideWithValue(QrTagsRepository(firestore: FakeFirebaseFirestore())),
+          healthCardRepositoryProvider
+              .overrideWithValue(HealthCardRepository(firestore: FakeFirebaseFirestore())),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
-          home: const PetProfilePage(petId: 'p1'),
+          home: PetProfilePage(petId: 'p1', initialTab: initialTab),
         ),
       ),
     );
@@ -69,7 +74,21 @@ void main() {
     await tester.tap(find.text('Documentos'));
     await tester.pumpAndSettle();
     expect(find.text('Placa QR'), findsOneWidget);
-    expect(find.text('Carnet de vacunas (PDF)'), findsOneWidget);
+    expect(find.text('Carnet de vacunas'), findsOneWidget);
+  });
+
+  testWidgets('?tab=documentos abre directo en Documentos (acceso "Carnet" del home)', (tester) async {
+    expect(PetProfileTab.fromQuery('documentos'), PetProfileTab.documentos);
+    expect(PetProfileTab.fromQuery('otra'), PetProfileTab.datos);
+    expect(PetProfileTab.fromQuery(null), PetProfileTab.datos);
+    await pumpProfile(
+      tester,
+      Stream.value(const Pet(id: 'p1', ownerUid: 'ana', nombre: 'Luna', especie: PetSpecies.perro)),
+      initialTab: PetProfileTab.documentos,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Generar carnet PDF'), findsOneWidget);
+    expect(find.text('Placa QR'), findsOneWidget);
   });
 
   testWidgets('mascota inexistente', (tester) async {

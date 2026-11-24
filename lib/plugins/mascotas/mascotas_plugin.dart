@@ -43,8 +43,10 @@ class MascotasPlugin extends MascotiPlugin {
         GoRoute(
           path: MascotasRoutes.profilePattern,
           parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) =>
-              PetProfilePage(petId: state.pathParameters['petId']!),
+          builder: (context, state) => PetProfilePage(
+            petId: state.pathParameters['petId']!,
+            initialTab: PetProfileTab.fromQuery(state.uri.queryParameters['tab']),
+          ),
         ),
         GoRoute(
           path: MascotasRoutes.editPattern,

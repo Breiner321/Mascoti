@@ -228,6 +228,21 @@ La página pública de la placa es **HTML estático en Firebase Hosting** (grati
 
 **Probar:** en la app, Mascota → Documentos → "Crear placa QR". Escanea el código con otro teléfono (o abre `https://mascoti-b27cf.web.app/q/<id>`): debe mostrar la ficha, "Ver teléfono" y "Llamar". Al desactivar la placa, la página dice "Esta placa no está activa". Localmente: `firebase emulators:start --only hosting` sirve la página en http://127.0.0.1:5000/q/<id> (consulta la función ya desplegada).
 
+## C7. Carnet de vacunas en PDF (RF-18)
+
+La Edge Function `generar-carnet` dibuja el PDF con `pdf-lib` (`npm:pdf-lib@1.17.1`, Supabase lo descarga al desplegar), lo guarda en el bucket privado `documentos` y devuelve un enlace firmado de 15 minutos. Usa los secretos que ya existen (`FIREBASE_SERVICE_ACCOUNT`; `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` los pone Supabase).
+
+**Desplegar, en este orden:**
+1. Reglas de Firestore (agregan `pets/{petId}/documentos`): `firebase deploy --only firestore:rules --project mascoti-b27cf`
+2. Bucket `documentos` (SQL Editor o `supabase db query --linked -f`): `supabase/migrations/20261124000000_storage_documentos.sql`
+3. Edge Function (verifica el token de Firebase por su cuenta):
+   ```powershell
+   supabase functions deploy generar-carnet --project-ref tahnazumbqsupzpusrba --use-api --no-verify-jwt
+   ```
+4. La app (APK nuevo).
+
+**Probar:** con una mascota que tenga vacunas en su historial, Mascota → Documentos (o "Carnet · Vacunas y controles" en el home) → "Generar carnet PDF". Debe abrirse el PDF en el visor del teléfono; "Compartir" lo envía por WhatsApp o correo. En Supabase → Storage → `documentos` aparece `pets/<petId>/documentos/carnet-<fecha>.pdf` y en Firestore `pets/<petId>/documentos/carnet`.
+
 ## D. Todos: correr la app
 
 ```powershell
