@@ -59,9 +59,11 @@ class _SplashPageState extends ConsumerState<SplashPage> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: switch (session) {
+            // El detalle técnico (en inglés, de Firebase) no se muestra:
+            // solo va al registro de depuración.
             SessionError(:final message) => _Problem(
                 text: 'No pudimos cargar tu cuenta. Verifica tu conexión.',
-                detail: message,
+                debugDetail: message,
                 onRetry: _retry,
               ),
             _ when _slow => _Problem(
@@ -84,29 +86,21 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 }
 
 class _Problem extends ConsumerWidget {
-  const _Problem({required this.text, required this.onRetry, this.detail});
+  const _Problem({required this.text, required this.onRetry, this.debugDetail});
 
   final String text;
-  final String? detail;
+  final String? debugDetail;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final detail = this.detail;
+    if (debugDetail != null) debugPrint('Error de sesión: $debugDetail');
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(Icons.cloud_off, size: 48, color: AppColors.textMuted),
         const SizedBox(height: 12),
         Text(text, textAlign: TextAlign.center),
-        if (detail != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            detail,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-          ),
-        ],
         const SizedBox(height: 16),
         FilledButton(onPressed: onRetry, child: const Text('Reintentar')),
         TextButton(

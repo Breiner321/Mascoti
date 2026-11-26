@@ -37,4 +37,11 @@ void main() {
         findsOneWidget);
     expect(find.text('Reintentar'), findsOneWidget);
   });
+
+  testWidgets('el error técnico de Firebase no se muestra al usuario', (tester) async {
+    const raw = '[cloud_firestore/permission-denied] The caller does not have permission';
+    await pumpSplash(tester, const SessionError(raw));
+    expect(find.textContaining('permission'), findsNothing);
+    expect(find.text('No pudimos cargar tu cuenta. Verifica tu conexión.'), findsOneWidget);
+  });
 }
