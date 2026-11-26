@@ -1151,6 +1151,25 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
         { "typing.vet": serverTimestamp() }));
     });
 
+    it("la clínica, como la app: escribiendo…, enviar (borra su typing) y marcar leídos", async () => {
+      await crearChat();
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      await assertSucceeds(enviar("ana", "m1"));
+      await assertSucceeds(updateDoc(doc(vet2, `chats/${CHAT}`), { "noLeidos.vet2": 0 }));
+      await assertSucceeds(updateDoc(doc(vet2, `chats/${CHAT}`), { "typing.vet2": serverTimestamp() }));
+      await assertSucceeds(enviar("vet2", "m2", {}, { "typing.vet2": deleteField() }));
+      await assertSucceeds(updateDoc(doc(vet2, `chats/${CHAT}`), { "typing.vet2": deleteField() }));
+    });
+
+    it("un mensaje de más de 100 caracteres se envía con su vista previa recortada (…)", async () => {
+      await crearChat();
+      // Como ChatLimits.preview: 99 caracteres + "…".
+      const texto = "Hol" + "a".repeat(150);
+      const vistaPrevia = texto.substring(0, 99) + "…";
+      await assertSucceeds(enviar("vet2", "m1", { texto },
+        { lastMessage: { texto: vistaPrevia, tipo: "texto", senderUid: "vet2" } }));
+    });
+
     it("solo el receptor marca leido = true; nadie edita ni borra mensajes", async () => {
       await crearChat();
       await assertSucceeds(enviar("ana", "m1"));
