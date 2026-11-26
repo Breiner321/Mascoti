@@ -20,6 +20,7 @@ import 'agenda_calendar.dart';
 import 'clinic_providers.dart';
 import 'day_exceptions_view.dart';
 import 'upcoming_appointments_card.dart';
+import 'offline_write.dart';
 
 /// Agenda de la clínica (RF-06, mockup "Mi día"). Desde el Cambio 2 la
 /// clínica está disponible siempre dentro de su horario semanal: aquí solo
@@ -172,10 +173,11 @@ class _AgendaBodyState extends ConsumerState<_AgendaBody> {
   Future<void> _save(Iterable<ScheduleException> exceptions, String done) async {
     setState(() => _busy = true);
     try {
-      await ref.read(exceptionsRepositoryProvider).addAll(_clinicId, exceptions);
+      final confirmed =
+          await awaitWrite(ref.read(exceptionsRepositoryProvider).addAll(_clinicId, exceptions));
       if (!mounted) return;
       setState(_selection.clear);
-      _snack(done, success: true);
+      confirmed ? _snack(done, success: true) : _snack(offlineWriteMessage);
     } catch (_) {
       _snack('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
@@ -268,8 +270,11 @@ class _AgendaBodyState extends ConsumerState<_AgendaBody> {
     if (ok != true) return;
     setState(() => _busy = true);
     try {
-      await ref.read(exceptionsRepositoryProvider).delete(_clinicId, e.id);
-      if (mounted) _snack('Bloqueo eliminado', success: true);
+      final confirmed =
+          await awaitWrite(ref.read(exceptionsRepositoryProvider).delete(_clinicId, e.id));
+      if (mounted) {
+        confirmed ? _snack('Bloqueo eliminado', success: true) : _snack(offlineWriteMessage);
+      }
     } catch (_) {
       if (mounted) _snack('No se pudo eliminar. Revisa tu conexión e inténtalo de nuevo.');
     } finally {

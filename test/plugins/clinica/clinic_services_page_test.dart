@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +23,18 @@ class _FlakyRepository extends ServicesRepository {
     attempts++;
     if (attempts == 1) return Future.error(Exception('unavailable'));
     return super.save(clinicId, service, isNew: isNew);
+  }
+}
+
+/// Sin conexión: Firestore aplica la escritura en la caché del teléfono,
+/// pero su Future no termina hasta que vuelve la red.
+class _OfflineRepository extends ServicesRepository {
+  _OfflineRepository(FakeFirebaseFirestore firestore) : super(firestore: firestore);
+
+  @override
+  Future<void> deactivate(String clinicId, String serviceId) {
+    super.deactivate(clinicId, serviceId);
+    return Completer<void>().future;
   }
 }
 
@@ -181,6 +195,20 @@ void main() {
     expect((await firestore.doc('clinics/c1/services/a').get()).data()!['activo'], isFalse);
     expect(find.byType(ServiceCard), findsNothing);
     expect(find.text('Servicio eliminado'), findsOneWidget);
+  });
+
+  testWidgets('sin conexión: eliminar no se queda esperando y lo avisa', (tester) async {
+    await addService('a', 'Baño medicado');
+    await pumpPage(tester, repo: _OfflineRepository(firestore));
+
+    await tester.tap(find.byTooltip('Eliminar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin conexión: se guardará cuando vuelva la red.'), findsOneWidget);
+    expect(find.byType(ServiceCard), findsNothing);
   });
 
   testWidgets('deslizar y cancelar no elimina', (tester) async {

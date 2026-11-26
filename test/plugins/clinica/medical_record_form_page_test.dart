@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -21,6 +22,13 @@ class _FakeRecordsRepository extends MedicalRecordsRepository {
 
   int failUploads = 0;
   final uploads = <String>[];
+
+  /// Sin conexión: Firestore deja el lote en cola y su Future no termina.
+  bool offline = false;
+
+  @override
+  Future<void> createRecord(MedicalRecord record, {required String ownerUid}) =>
+      offline ? Completer<void>().future : super.createRecord(record, ownerUid: ownerUid);
 
   @override
   Future<RecordAttachment> uploadAttachment({
@@ -139,6 +147,19 @@ void main() {
     expect(vacunas.single['lote'], 'L-2026');
     expect(data['createdAt'], isNotNull);
     expect(find.text('Consulta guardada'), findsOneWidget);
+    expect(find.byType(MedicalRecordForm), findsNothing);
+  });
+
+  testWidgets('sin conexión: no se queda guardando, avisa y cierra el formulario', (tester) async {
+    repository.offline = true;
+    await pumpForm(tester);
+
+    await tester.enterText(field('Diagnóstico *'), 'Otitis externa');
+    await tester.tap(find.text('Guardar consulta'));
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin conexión: se guardará cuando vuelva la red.'), findsOneWidget);
     expect(find.byType(MedicalRecordForm), findsNothing);
   });
 
