@@ -33,7 +33,10 @@ Future<Uint8List> capturePng(RenderRepaintBoundary boundary, {double pixelRatio 
 }
 
 /// "placa_luna.png" (sin acentos ni espacios).
-String plateFileName(String petName) {
+String plateFileName(String petName) => 'placa_${fileSlug(petName)}.png';
+
+/// Nombre de la mascota apto para un archivo: "Ñoño Max" → "nono_max".
+String fileSlug(String petName) {
   const from = 'áéíóúüñÁÉÍÓÚÜÑ';
   const to = 'aeiouunAEIOUUN';
   final buffer = StringBuffer();
@@ -46,5 +49,5 @@ String plateFileName(String petName) {
       .toLowerCase()
       .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
       .replaceAll(RegExp(r'^_+|_+$'), '');
-  return 'placa_${clean.isEmpty ? 'mascota' : clean}.png';
+  return clean.isEmpty ? 'mascota' : clean;
 }

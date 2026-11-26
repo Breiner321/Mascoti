@@ -11,7 +11,9 @@ import 'package:mascoti/core/data/qr_tags_repository.dart';
 import 'package:mascoti/core/domain/pet.dart';
 import 'package:mascoti/core/domain/qr_tag.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
+import 'package:mascoti/plugins/mascotas/data/health_card_repository.dart';
 import 'package:mascoti/plugins/mascotas/presentation/documents_tab.dart';
+import 'package:mascoti/plugins/mascotas/presentation/health_card_providers.dart';
 import 'package:mascoti/plugins/mascotas/presentation/pets_providers.dart';
 import 'package:mascoti/plugins/mascotas/presentation/qr_share.dart';
 
@@ -52,6 +54,7 @@ void main() {
       overrides: [
         currentUserProvider.overrideWithValue(owner),
         qrTagsRepositoryProvider.overrideWithValue(QrTagsRepository(firestore: firestore)),
+        healthCardRepositoryProvider.overrideWithValue(HealthCardRepository(firestore: firestore)),
         // Sin red: la foto no carga (se ve la huella).
         petPhotoUrlProvider.overrideWith((ref, path) => Future.error('sin red')),
         qrImageSharerProvider.overrideWithValue((Uint8List png, String name) async {
@@ -74,10 +77,12 @@ void main() {
         'createdAt': DateTime(2026, 11, 20),
       });
 
-  testWidgets('la pestaña tiene la placa QR y el lugar del carnet', (tester) async {
+  testWidgets('la pestaña tiene la placa QR y, debajo, el carnet de vacunas', (tester) async {
     await pump(tester);
     expect(find.text('Placa QR'), findsOneWidget);
-    expect(find.text('Carnet de vacunas (PDF)'), findsOneWidget);
+    expect(find.text('Carnet de vacunas'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Carnet de vacunas')).dy,
+        greaterThan(tester.getTopLeft(find.text('Placa QR')).dy));
     expect(find.text('Crear placa QR'), findsOneWidget);
   });
 

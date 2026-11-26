@@ -23,6 +23,27 @@ export async function firmarSubida(bucket: string, path: string): Promise<{ toke
   return { token };
 }
 
+/** Sube (o reemplaza, x-upsert) un archivo generado en el servidor. */
+export async function subirArchivo(
+  bucket: string,
+  path: string,
+  bytes: Uint8Array,
+  tipo: string,
+): Promise<void> {
+  const { url, llave } = credenciales();
+  const respuesta = await fetch(`${url}/storage/v1/object/${bucket}/${ruta(path)}`, {
+    method: "POST",
+    headers: {
+      "apikey": llave,
+      "Authorization": `Bearer ${llave}`,
+      "Content-Type": tipo,
+      "x-upsert": "true",
+    },
+    body: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: tipo }),
+  });
+  if (!respuesta.ok) throw new Error(`Storage ${respuesta.status}: ${await respuesta.text()}`);
+}
+
 /** Enlace de lectura temporal. */
 export async function firmarLectura(bucket: string, path: string, segundos: number): Promise<string> {
   const { url, llave } = credenciales();
