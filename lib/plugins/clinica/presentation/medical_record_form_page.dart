@@ -14,7 +14,7 @@ import 'clinic_providers.dart';
 import 'date_form_field.dart';
 import 'medical_record_validators.dart';
 import 'vaccine_fields.dart';
-import 'offline_write.dart';
+import '../../../core/data/offline_write.dart';
 
 /// Nueva consulta ([recordId] null) o una consulta existente: la clínica
 /// autora la corrige durante 24 h; después (o si es de otra clínica) se

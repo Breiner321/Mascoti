@@ -24,11 +24,13 @@ enum PetSaveStage {
 }
 
 /// Resultado de guardar una mascota. Si la foto no se pudo subir, la mascota
-/// quedó guardada sin ella ([photoFailed]) y se puede reintentar.
+/// quedó guardada sin ella ([photoFailed]) y se puede reintentar. Sin
+/// conexión ([savedOffline]) el cambio queda en cola y se envía al volver la red.
 @immutable
 class PetSaveResult {
-  const PetSaveResult({required this.petId, this.photoFailed = false});
+  const PetSaveResult({required this.petId, this.photoFailed = false, this.savedOffline = false});
 
   final String petId;
   final bool photoFailed;
+  final bool savedOffline;
 }

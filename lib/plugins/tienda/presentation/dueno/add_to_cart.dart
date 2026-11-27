@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/auth_providers.dart';
+import '../../../../core/data/offline_write.dart';
 import '../../../../core/data/shop_providers.dart';
 import '../../../../core/data/shop_repository.dart';
 import '../../../../core/domain/cart_item.dart';
@@ -34,9 +35,18 @@ Future<bool> addProductToCart(
           onPressed: () => router.push(TiendaRoutes.cart)),
     ));
 
+  // Sin conexión Firestore deja el cambio en cola y su Future no termina:
+  // se avisa en vez de dejar el botón girando.
+  void queued() => messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(const SnackBar(content: Text(offlineWriteMessage)));
+
   try {
-    await repo.addToCart(uid, product, cantidad, replaceOtherClinic: false);
-    added();
+    if (await awaitWrite(repo.addToCart(uid, product, cantidad, replaceOtherClinic: false))) {
+      added();
+    } else {
+      queued();
+    }
     return true;
   } on CartFromOtherClinic {
     // Las pantallas que agregan (catálogo y producto) escuchan el carrito.
@@ -66,8 +76,11 @@ Future<bool> addProductToCart(
     );
     if (replace != true) return false;
     try {
-      await repo.addToCart(uid, product, cantidad, replaceOtherClinic: true);
-      added();
+      if (await awaitWrite(repo.addToCart(uid, product, cantidad, replaceOtherClinic: true))) {
+        added();
+      } else {
+        queued();
+      }
       return true;
     } on ShopFailure catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));

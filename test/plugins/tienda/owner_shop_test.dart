@@ -176,6 +176,22 @@ void main() {
       verify(() => shop.addToCart('ana', p, 2, replaceOtherClinic: false)).called(1);
     });
 
+    testWidgets('sin conexión "Agregar al carrito" no se queda girando', (tester) async {
+      // Firestore deja la escritura en cola: su Future no termina sin red.
+      when(() => shop.addToCart('ana', any(), any(), replaceOtherClinic: false))
+          .thenAnswer((_) => Completer<void>().future);
+      final p = product('p9', 'Collar', stock: 2);
+      await pump(tester, const ProductPage(productId: 'p9', clinicId: 'c1'), overrides: productOv(p));
+
+      await tester.tap(find.text('Agregar al carrito'));
+      await tester.pump(const Duration(seconds: 11));
+      await tester.pump();
+      expect(find.text('Sin conexión: se guardará cuando vuelva la red.'), findsOneWidget);
+      final button = tester.widget<FilledButton>(
+          find.ancestor(of: find.text('Agregar al carrito'), matching: find.byWidgetPredicate((w) => w is FilledButton)));
+      expect(button.onPressed, isNotNull);
+    });
+
     testWidgets('carrito de otra clínica: pregunta y vacía al aceptar', (tester) async {
       var calls = 0;
       when(() => shop.addToCart('ana', any(), any(), replaceOtherClinic: any(named: 'replaceOtherClinic')))

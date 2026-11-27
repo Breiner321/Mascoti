@@ -281,6 +281,27 @@ class _ResultsState extends ConsumerState<_Results> {
       _ => null,
     };
 
+    final loadError = Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('No pudimos cargar las clínicas. Verifica tu conexión.',
+                textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () {
+                ref.invalidate(nearbyClinicsProvider(allyQuery));
+                ref.invalidate(nearbyVetPlacesProvider(osmArea));
+              },
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -343,6 +364,11 @@ class _ResultsState extends ConsumerState<_Results> {
           child: switch (allies) {
             AsyncData() when vets.isEmpty && (osm?.isLoading ?? false) =>
               const Center(child: CircularProgressIndicator()),
+            // Sin red, Firestore responde con la caché (a veces vacía) en vez
+            // de fallar; si OpenStreetMap también falló, es la conexión y no
+            // que no haya clínicas: no se pide ampliar el radio.
+            AsyncData() when vets.isEmpty && osmFailure != null && !osmFailure.tooLarge =>
+              loadError,
             AsyncData() when vets.isEmpty => NoClinicsView(
                 radiusKm: filters.radiusKm,
                 onRadiusChanged: _setRadius,
@@ -371,25 +397,7 @@ class _ResultsState extends ConsumerState<_Results> {
                     ),
                 },
               ),
-            AsyncError() => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                          'No pudimos cargar las clínicas. Verifica tu conexión.',
-                          textAlign: TextAlign.center),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: () =>
-                            ref.invalidate(nearbyClinicsProvider(allyQuery)),
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            AsyncError() => loadError,
             _ => const Center(child: CircularProgressIndicator()),
           },
         ),

@@ -412,6 +412,20 @@ void main() {
       expect(osmAreas.length, before + 1);
     });
 
+    testWidgets('sin conexión y sin aliados en caché: avisa de la conexión, no "amplía el radio"',
+        (tester) async {
+      // Sin red, Firestore responde con la caché (vacía) en vez de fallar;
+      // la búsqueda de OpenStreetMap sí falla.
+      await pumpPage(tester, location: _medellin, placesError: VetPlacesFailure.unavailable);
+
+      expect(find.textContaining('No encontramos clínicas cerca'), findsNothing);
+      expect(find.text('No pudimos cargar las clínicas. Verifica tu conexión.'), findsOneWidget);
+      final before = osmAreas.length;
+      await tester.tap(find.widgetWithText(FilledButton, 'Reintentar'));
+      await tester.pumpAndSettle();
+      expect(osmAreas.length, before + 1);
+    });
+
     testWidgets('área muy grande: pide acercar el mapa, sin "Reintentar"', (tester) async {
       await pumpPage(
         tester,

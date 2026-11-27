@@ -42,6 +42,9 @@ class AccessibilityPage extends ConsumerWidget {
         ),
         section('Tema'),
         SegmentedButton<ThemeMode>(
+          // En pantallas angostas o con letra grande, "Sistema" no cabe en
+          // un tercio del ancho: se apilan las opciones en vez de partirla.
+          direction: _stackThemeOptions(context) ? Axis.vertical : Axis.horizontal,
           segments: const [
             ButtonSegment(
               value: ThemeMode.system,
@@ -115,4 +118,13 @@ class AccessibilityPage extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// true si las tres opciones del tema no caben en una fila sin partir el texto.
+bool _stackThemeOptions(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+  // Cada opción: ícono (18) + espacio + texto + márgenes del botón.
+  final labelWidth = 7 * 14 * 0.62 * scale; // "Sistema" en labelLarge
+  return (labelWidth + 18 + 8 + 24 + 8) * 3 > width - 32;
 }

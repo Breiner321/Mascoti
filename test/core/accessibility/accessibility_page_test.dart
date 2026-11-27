@@ -73,6 +73,18 @@ void main() {
       await expectAccessible(tester);
     });
 
+    testWidgets('teléfono angosto con letra grande: "Sistema" no se parte en dos líneas',
+        (tester) async {
+      tester.view.physicalSize = const Size(360, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      useLargeText(tester, scale: 1.3);
+      await pumpPage(tester);
+      expectNoOverflow(tester);
+      expect(tester.getSize(find.text('Sistema')).height,
+          tester.getSize(find.text('Claro')).height);
+    });
+
     testWidgets('texto al 200 % sin desbordes', (tester) async {
       useLargeText(tester);
       await pumpPage(tester);

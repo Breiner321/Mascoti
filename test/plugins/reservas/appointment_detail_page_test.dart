@@ -93,6 +93,22 @@ void main() {
     expect(find.text('Cita cancelada'), findsOneWidget);
   });
 
+  testWidgets('un error inesperado al cancelar avisa y deja volver a intentar', (tester) async {
+    when(() => repo.cancel('a1')).thenThrow(const FormatException('respuesta rara'));
+    await pumpDetail(
+      tester,
+      appointment('a1', inicio: inicio, estado: AppointmentStatus.confirmada),
+      now: BogotaTime.at(2026, 11, 5, 18),
+    );
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cancelar cita'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancelar cita'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No se pudo cancelar la cita. Intenta de nuevo.'), findsOneWidget);
+    expect(cancelButton(tester).onPressed, isNotNull);
+  });
+
   testWidgets('faltando menos de 2 horas el botón queda deshabilitado con la explicación',
       (tester) async {
     await pumpDetail(

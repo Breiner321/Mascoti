@@ -81,6 +81,9 @@ class _AppointmentDetailPageState extends ConsumerState<AppointmentDetailPage> {
       messenger.showSnackBar(const SnackBar(content: Text('Cita cancelada')));
     } on AppointmentFailure catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('No se pudo cancelar la cita. Intenta de nuevo.')));
     } finally {
       if (mounted) setState(() => _cancelling = false);
     }
