@@ -63,6 +63,15 @@ class _BookingConfirmPageState extends ConsumerState<BookingConfirmPage> {
         content: Text(e.message),
         action: e.canRetry ? SnackBarAction(label: 'Reintentar', onPressed: _submit) : null,
       ));
+    } catch (_) {
+      // Cualquier otro error (respuesta inesperada, sesión vencida…): avisar
+      // y volver a habilitar el botón, nunca dejarlo girando.
+      if (!mounted) return;
+      setState(() => _sending = false);
+      messenger.showSnackBar(SnackBar(
+        content: const Text('No se pudo solicitar la cita. Intenta de nuevo.'),
+        action: SnackBarAction(label: 'Reintentar', onPressed: _submit),
+      ));
     }
   }
 

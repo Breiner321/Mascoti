@@ -177,6 +177,27 @@ void main() {
         )).called(1);
   });
 
+  testWidgets('un error inesperado al solicitar avisa y no deja el botón girando', (tester) async {
+    when(() => appointments.request(
+          clinicId: any(named: 'clinicId'),
+          serviceId: any(named: 'serviceId'),
+          petId: any(named: 'petId'),
+          slotId: any(named: 'slotId'),
+          comentario: any(named: 'comentario'),
+        )).thenThrow(const FormatException('respuesta rara'));
+
+    await pumpBooking(tester);
+    await pickDayAndHour(tester, '9:00 a. m.');
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Solicitar Cita'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No se pudo solicitar la cita. Intenta de nuevo.'), findsOneWidget);
+    expect(find.text('Solicitar Cita'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
   testWidgets('al solicitar con éxito abre el detalle de la cita', (tester) async {
     when(() => appointments.request(
           clinicId: any(named: 'clinicId'),
