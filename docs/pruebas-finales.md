@@ -220,7 +220,7 @@ Activar **TalkBack** y recorrer: bienvenida, registro, inicio, tienda (catálogo
 - [ ] Buscador por dueño o mascota; filtro **Sin leer**.
 - [ ] Abrir conversación: marca leídos; "escribiendo…" aparece cuando el dueño escribe.
 - [ ] Enviar texto; el botón enviar está deshabilitado si está vacío; contador desde 1800 caracteres.
-- [ ] Enviar dos veces seguidas el mismo texto (p. ej. `hola` y `hola`) y dos mensajes largos parecidos: los dos se envían (requiere las reglas desplegadas después del 26/11).
+- [ ] Enviar dos veces seguidas el mismo texto (p. ej. `hola` y `hola`) y dos mensajes largos parecidos: los dos se envían.
 - [ ] Si un envío falla, aparece "No se pudo enviar el mensaje. Intenta de nuevo." y el texto vuelve al campo.
 - [ ] Notificaciones: el dueño recibe push del primer mensaje; los que lleguen en los 30 s siguientes se agrupan sin push nuevo (comportamiento esperado de `notificar-mensaje`).
 - [ ] Adjuntar **Foto o imagen** y **Documento PDF**; archivo > 10 MB o de otro tipo → mensaje.
@@ -265,7 +265,7 @@ Activar **TalkBack** y recorrer: bienvenida, registro, inicio, tienda (catálogo
 - `fix(clinica)`: RF-05, el aviso "Este servicio tiene N citas activas" nunca salía (el conteo devolvía siempre 0).
 - `fix(clinica)`: sin conexión, Perfil de atención, bloqueos de la Agenda, Registrar consulta y Eliminar servicio se quedaban "guardando" para siempre (la agenda quedaba deshabilitada). Ahora, a los 10 s siguen y avisan "Sin conexión: se guardará cuando vuelva la red." (Firestore envía el cambio al volver la red).
 - `fix(chat)`: si el servidor rechazaba un mensaje, desaparecía sin aviso y se perdía el texto. Ahora avisa y devuelve el texto al campo.
-- `fix(reglas)`: Firestore rechazaba el envío cuando el mismo remitente repetía un texto o mandaba dos mensajes largos con la misma vista previa (la regla exigía que `lastMessage` cambiara). **Hay que desplegar las reglas** (`firebase deploy --only firestore:rules`) para que llegue al proyecto.
+- `fix(reglas)`: Firestore rechazaba el envío cuando el mismo remitente repetía un texto o mandaba dos mensajes largos con la misma vista previa (la regla exigía que `lastMessage` cambiara). Reglas desplegadas en `mascoti-b27cf` el 26/11 y verificado en el emulador: la clínica envía `hola` dos veces seguidas y dos mensajes largos parecidos sin rechazo.
 
 ---
 
