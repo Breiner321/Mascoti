@@ -15,6 +15,7 @@ import 'package:mascoti/core/domain/product.dart';
 import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mascoti/plugins/tienda/presentation/dueno/cart_page.dart';
+import 'package:mascoti/plugins/tienda/presentation/dueno/checkout_page.dart';
 import 'package:mascoti/plugins/tienda/presentation/dueno/order_detail_page.dart';
 import 'package:mascoti/plugins/tienda/presentation/dueno/owner_shop_providers.dart';
 import 'package:mascoti/plugins/tienda/presentation/dueno/product_page.dart';
@@ -247,6 +248,27 @@ void main() {
     testWidgets('vacío', (tester) async {
       await pump(tester, const CartPage(), overrides: [cartProvider.overrideWith((ref) => Stream.value(const []))]);
       expect(find.text('Tu carrito está vacío.'), findsOneWidget);
+    });
+
+    testWidgets('confirmar compra: si el carrito no carga, error con Reintentar (no cargando para siempre)',
+        (tester) async {
+      await pump(tester, const CheckoutPage(), overrides: [
+        cartProvider.overrideWith((ref) => Stream.error(Exception('sin permiso'))),
+      ]);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('No pudimos cargar tu carrito.'), findsOneWidget);
+      expect(find.text('Reintentar'), findsOneWidget);
+    });
+
+    testWidgets('confirmar compra con el carrito vacío: "Ir a la tienda" no lanza excepciones',
+        (tester) async {
+      await pump(tester, const CheckoutPage(), overrides: [
+        cartProvider.overrideWith((ref) => Stream.value(const [])),
+      ]);
+      expect(find.text('Tu carrito está vacío.'), findsOneWidget);
+      // Desmontar la pantalla (como al salir de ella).
+      await tester.pumpWidget(const SizedBox());
+      expect(tester.takeException(), isNull);
     });
   });
 

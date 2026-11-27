@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -21,6 +22,13 @@ class _FakeRecordsRepository extends MedicalRecordsRepository {
 
   int failUploads = 0;
   final uploads = <String>[];
+
+  /// Sin conexión: Firestore deja el lote en cola y su Future no termina.
+  bool offline = false;
+
+  @override
+  Future<void> createRecord(MedicalRecord record, {required String ownerUid}) =>
+      offline ? Completer<void>().future : super.createRecord(record, ownerUid: ownerUid);
 
   @override
   Future<RecordAttachment> uploadAttachment({
@@ -142,6 +150,19 @@ void main() {
     expect(find.byType(MedicalRecordForm), findsNothing);
   });
 
+  testWidgets('sin conexión: no se queda guardando, avisa y cierra el formulario', (tester) async {
+    repository.offline = true;
+    await pumpForm(tester);
+
+    await tester.enterText(field('Diagnóstico *'), 'Otitis externa');
+    await tester.tap(find.text('Guardar consulta'));
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin conexión: se guardará cuando vuelva la red.'), findsOneWidget);
+    expect(find.byType(MedicalRecordForm), findsNothing);
+  });
+
   testWidgets('quitar una vacuna la saca del formulario', (tester) async {
     await pumpForm(tester);
     await tester.tap(find.text('Agregar vacuna'));
@@ -192,6 +213,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('El archivo supera el máximo de 10 MB.'), findsOneWidget);
+    expect(repository.uploads, isEmpty);
+    expect(find.text('Sin adjuntos'), findsOneWidget);
+  });
+
+  testWidgets('un Excel muestra el mensaje de tipos permitidos y no se sube', (tester) async {
+    await pumpForm(tester, picked: PickedFile(name: 'examenes.xlsx', bytes: Uint8List(2048)));
+
+    await tester.tap(find.text('Adjuntar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Solo se permiten imágenes JPG o PNG y archivos PDF.'), findsOneWidget);
     expect(repository.uploads, isEmpty);
     expect(find.text('Sin adjuntos'), findsOneWidget);
   });

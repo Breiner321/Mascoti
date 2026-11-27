@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import 'clinic_providers.dart';
 import 'service_card.dart';
 import 'service_form_sheet.dart';
+import 'offline_write.dart';
 
 /// Catálogo de servicios de la clínica (RF-05).
 class ClinicServicesPage extends ConsumerStatefulWidget {
@@ -72,15 +73,18 @@ class _ClinicServicesPageState extends ConsumerState<ClinicServicesPage> {
     );
     if (confirmed != true) return false;
 
+    final bool deleted;
     try {
-      await repo.deactivate(clinicId, service.id);
+      deleted = await awaitWrite(repo.deactivate(clinicId, service.id));
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('No se pudo eliminar el servicio. Intenta de nuevo.')),
       );
       return false;
     }
-    messenger.showSnackBar(const SnackBar(content: Text('Servicio eliminado')));
+    messenger.showSnackBar(
+      SnackBar(content: Text(deleted ? 'Servicio eliminado' : offlineWriteMessage)),
+    );
     return true;
   }
 

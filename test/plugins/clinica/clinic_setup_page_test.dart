@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +19,7 @@ import 'package:mascoti/plugins/clinica/clinica_plugin.dart';
 import 'package:mascoti/plugins/clinica/clinica_routes.dart';
 import 'package:mascoti/plugins/clinica/data/clinic_repository.dart';
 import 'package:mascoti/plugins/clinica/presentation/clinic_providers.dart';
+import 'package:mascoti/plugins/clinica/presentation/clock_time_input.dart';
 import 'package:mascoti/plugins/clinica/presentation/clinic_setup_page.dart';
 
 class _DeniedRepository extends ClinicRepository {
@@ -35,6 +38,21 @@ class _DeniedRepository extends ClinicRepository {
     calls++;
     throw const ClinicPermissionDenied();
   }
+}
+
+/// Sin conexión: Firestore deja la escritura en cola y su Future no termina.
+class _OfflineRepository extends ClinicRepository {
+  _OfflineRepository(FakeFirebaseFirestore firestore) : super(firestore: firestore);
+
+  @override
+  Future<void> saveCareProfile(
+    Clinic current, {
+    required List<AnimalType> tiposAnimales,
+    required bool atencionEmergencias,
+    required WeeklySchedule horarioSemanal,
+    required BookingSettings reservas,
+  }) =>
+      Completer<void>().future;
 }
 
 void main() {
@@ -114,6 +132,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Hora ('HH:MM', 24 h) del campo [label] del día [day] ('lun', 'dom'…).
+  Future<String> timeOf(WidgetTester tester, String day, String label) async {
+    final field = find.byKey(ValueKey('$day-$label'));
+    await scrollTo(tester, field);
+    return tester.widget<ClockTimeInput>(field).value;
+  }
+
   Future<bool> isEnabled(WidgetTester tester) async {
     await scrollToSave(tester);
     return tester.widget<FilledButton>(saveButton()).onPressed != null;
@@ -133,11 +158,15 @@ void main() {
     }
     expect(find.text('Atendemos emergencias'), findsOneWidget);
     // Clínica nueva: lunes a sábado de 8 a 18 con almuerzo; domingo cerrado.
-    // Se muestran en AM/PM; en Firestore siguen en 24 h.
-    expect(find.text('Abre 8:00 a. m.'), findsNWidgets(6));
-    expect(find.text('Cierra 6:00 p. m.'), findsNWidgets(6));
-    expect(find.text('Desde 12:00 p. m.'), findsNWidgets(6));
+    // Se escriben en AM/PM; en Firestore siguen en 24 h.
+    for (final day in ['lun', 'sab']) {
+      expect(await timeOf(tester, day, 'Abre'), '08:00', reason: day);
+      expect(await timeOf(tester, day, 'Cierra'), '18:00', reason: day);
+      expect(await timeOf(tester, day, 'Desde'), '12:00', reason: day);
+    }
+    await scrollTo(tester, find.widgetWithText(SwitchListTile, 'Domingo'));
     expect(find.text('Cerrado'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dom-Abre')), findsNothing);
     await tester.scrollUntilVisible(find.text('30 min'), 300, scrollable: find.byType(Scrollable).first);
     expect(find.text('30 días antes'), findsOneWidget);
     expect(find.text('2 horas'), findsOneWidget);
@@ -183,6 +212,44 @@ void main() {
     expect(find.text('Panel clínica'), findsOneWidget);
   });
 
+  testWidgets('sin conexión: no se queda guardando, avisa y abre el panel', (tester) async {
+    await pumpPage(tester, repo: _OfflineRepository(firestore));
+
+    await tester.tap(find.text('Gatos'));
+    await tester.pump();
+    await scrollToSave(tester);
+    await tester.tap(saveButton());
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin conexión: se guardará cuando vuelva la red.'), findsOneWidget);
+    expect(find.text('Panel clínica'), findsOneWidget);
+  });
+
+  testWidgets('la hora se escribe con hora, minutos y a. m./p. m. y se guarda en 24 h',
+      (tester) async {
+    await pumpPage(tester);
+    await tester.tap(find.text('Gatos'));
+    await tester.pump();
+
+    // Lunes: cierra a las 5:30 p. m. (antes 6:00 p. m.).
+    final cierra = find.byKey(const ValueKey('lun-Cierra'));
+    await scrollTo(tester, cierra);
+    await tester.tap(find.descendant(of: cierra, matching: find.text('6')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('5').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: cierra, matching: find.text('00')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('30').last);
+    await tester.pumpAndSettle();
+    expect(await timeOf(tester, 'lun', 'Cierra'), '17:30');
+
+    await tapSave(tester);
+    final data = (await firestore.doc('clinics/c1').get()).data()!;
+    expect((data['horarioSemanal'] as Map)['lun'], containsPair('cierre', '17:30'));
+  });
+
   testWidgets('edición posterior: carga lo guardado y no exige cerrar sesión',
       (tester) async {
     await firestore.doc('clinics/c1').update({
@@ -196,7 +263,9 @@ void main() {
         find.widgetWithText(CheckboxListTile, 'Aves'));
     expect(aves.value, isTrue);
     // Sin migrar: el horarioBase se ve como horario de todos los días.
-    expect(find.text('Abre 7:00 a. m.'), findsNWidgets(7));
+    for (final day in ['lun', 'dom']) {
+      expect(await timeOf(tester, day, 'Abre'), '07:00', reason: day);
+    }
     expect(await isEnabled(tester), isTrue);
     expect(find.text('Cerrar sesión'), findsNothing);
   });

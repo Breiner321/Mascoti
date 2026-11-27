@@ -1151,6 +1151,43 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
         { "typing.vet": serverTimestamp() }));
     });
 
+    it("la clínica, como la app: escribiendo…, enviar (borra su typing) y marcar leídos", async () => {
+      await crearChat();
+      const vet2 = env.authenticatedContext("vet2").firestore();
+      await assertSucceeds(enviar("ana", "m1"));
+      await assertSucceeds(updateDoc(doc(vet2, `chats/${CHAT}`), { "noLeidos.vet2": 0 }));
+      await assertSucceeds(updateDoc(doc(vet2, `chats/${CHAT}`), { "typing.vet2": serverTimestamp() }));
+      await assertSucceeds(enviar("vet2", "m2", {}, { "typing.vet2": deleteField() }));
+      await assertSucceeds(updateDoc(doc(vet2, `chats/${CHAT}`), { "typing.vet2": deleteField() }));
+    });
+
+    it("el mismo remitente repite un mensaje (o dos largos con la misma vista previa)", async () => {
+      await crearChat();
+      const largo = (fin: string) => ({ texto: "Hol" + "a".repeat(150) + fin });
+      const vistaPrevia = { lastMessage: { texto: "Hol" + "a".repeat(96) + "…", tipo: "texto", senderUid: "vet2" } };
+      await assertSucceeds(enviar("vet2", "m1"));
+      await assertSucceeds(enviar("vet2", "m2"));
+      await assertSucceeds(enviar("vet2", "m3", largo("!"), vistaPrevia));
+      await assertSucceeds(enviar("vet2", "m4", largo("?"), vistaPrevia));
+      // Sigue exigiendo un mensaje nuevo y el +1 al receptor.
+      await assertFails(enviar("vet2", "m4", {}, vistaPrevia));
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const chat = (await getDoc(doc(ctx.firestore(), `chats/${CHAT}`))).data()!;
+        if (chat.noLeidos.ana !== 4 || chat.lastMessageId !== "m4") {
+          throw new Error(`chat inesperado: ${JSON.stringify(chat.noLeidos)}`);
+        }
+      });
+    });
+
+    it("un mensaje de más de 100 caracteres se envía con su vista previa recortada (…)", async () => {
+      await crearChat();
+      // Como ChatLimits.preview: 99 caracteres + "…".
+      const texto = "Hol" + "a".repeat(150);
+      const vistaPrevia = texto.substring(0, 99) + "…";
+      await assertSucceeds(enviar("vet2", "m1", { texto },
+        { lastMessage: { texto: vistaPrevia, tipo: "texto", senderUid: "vet2" } }));
+    });
+
     it("solo el receptor marca leido = true; nadie edita ni borra mensajes", async () => {
       await crearChat();
       await assertSucceeds(enviar("ana", "m1"));

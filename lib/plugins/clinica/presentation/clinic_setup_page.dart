@@ -15,6 +15,7 @@ import '../data/clinic_repository.dart';
 import '../domain/agenda_rules.dart';
 import 'clinic_providers.dart';
 import 'weekly_schedule_editor.dart';
+import 'offline_write.dart';
 
 /// Perfil de atención de la clínica (RF-04): especies que atiende,
 /// emergencias (RF-10), horario semanal y reglas de reserva (Cambio 2).
@@ -165,7 +166,7 @@ class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
     if (!await _confirmConflicts() || !mounted) return;
     setState(() => _saving = true);
     try {
-      await ref.read(clinicRepositoryProvider).saveCareProfile(
+      final confirmed = await awaitWrite(ref.read(clinicRepositoryProvider).saveCareProfile(
             widget.clinic,
             tiposAnimales: [
               for (final t in AnimalType.values)
@@ -174,13 +175,15 @@ class _CareProfileFormState extends ConsumerState<_CareProfileForm> {
             atencionEmergencias: _emergencies,
             horarioSemanal: _schedule,
             reservas: _settings,
-          );
+          ));
       messenger.showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.success,
-          content: Text('Perfil actualizado',
-              style: TextStyle(color: AppColors.onPrimary)),
-        ),
+        confirmed
+            ? SnackBar(
+                backgroundColor: AppColors.success,
+                content: Text('Perfil actualizado',
+                    style: TextStyle(color: AppColors.onPrimary)),
+              )
+            : const SnackBar(content: Text(offlineWriteMessage)),
       );
       // Primera configuración: se habilita el panel. Edición: se vuelve atrás.
       if (wasFirstSetup) {
