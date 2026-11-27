@@ -269,6 +269,128 @@ Activar **TalkBack** y recorrer: bienvenida, registro, inicio, tienda (catálogo
 
 ---
 
+## Dev C — Dueño y accesibilidad
+
+Mascotas, historial médico, mapa, agendar y cancelar citas, chat, tienda y compra, carnet PDF y accesibilidad del lado del dueño.
+
+### Preparación
+
+- [ ] Cuenta de **dueño** con al menos 2 mascotas (una con foto y vacunas en su historial, otra sin nada).
+- [ ] Una **clínica** activa con horario, servicios, productos con stock (uno agotado) y que ya haya registrado una consulta con vacunas para una de las mascotas (o `npm run seed:historial`, ver `docs/datos-prueba.md`).
+- [ ] Desplegado lo del carnet (`docs/configuracion-inicial.md` C7): reglas, bucket `documentos` y la función `generar-carnet`. Si no está desplegado, el carnet mostrará el error con "Reintentar".
+
+### 1. Home del dueño
+
+- [ ] "Mi mascota" muestra la mascota más reciente; con varias, el selector cambia la activa.
+- [ ] "Próxima cita" muestra la próxima pendiente o confirmada; sin citas dice "Sin citas · Agendar" y abre Agendar.
+- [ ] "Carnet · Vacunas y controles" abre la pestaña **Documentos** de la mascota activa (cambiar de mascota con el selector y volver a tocarla).
+- [ ] Accesos "Mapa cercano", "Tienda", "Agendar cita" y "Emergencia" abren su pantalla; ninguno dice "Próximamente".
+- [ ] Servicios "Consulta", "Peluquería" y "Vacunas" abren Agendar con esa categoría elegida.
+- [ ] Sin mascotas: "Registra tu primera mascota" abre el formulario; la tarjeta "Carnet" se ve deshabilitada con "Registra una mascota para ver su carnet".
+- [ ] Deslizar hacia abajo recarga.
+
+### 2. Mascotas: registrar y editar
+
+- [ ] "Registrar mascota" vacío → "El nombre es obligatorio" y "Selecciona la especie".
+- [ ] Teléfono de emergencia de 9 dígitos → "El teléfono debe tener 10 dígitos".
+- [ ] Sexo "Otro (especifique)" pide el detalle; sin él no deja guardar.
+- [ ] Fecha de nacimiento: no deja elegir fechas futuras.
+- [ ] Alergias y condiciones se agregan como chips (sin repetidos) y se quitan con la X.
+- [ ] Foto con **cámara** y con **galería** → se ve comprimida en el avatar; "Comprimiendo foto…" mientras tanto.
+- [ ] Guardar → "Mascota registrada" y abre su perfil; la foto aparece.
+- [ ] Editar → los datos vienen precargados; guardar → "Cambios guardados".
+- [ ] **Sin conexión** (modo avión) al registrar → a los 10 s "Sin conexión: se guardará cuando vuelva la red." y abre el perfil (no se queda girando). Al volver la red, la mascota sigue ahí.
+- [ ] **Permiso de cámara negado** → mensaje en español, sin cerrarse la app.
+- [ ] Si falla la subida de la foto → "Error al subir la foto" con "Reintentar"; la mascota queda guardada.
+
+### 3. Perfil de la mascota e historial (RF-08)
+
+- [ ] Pestaña **Datos**: especie, raza, edad, alergias y condiciones (en chips), contacto de emergencia, código MSC-XXXX con "Copiar".
+- [ ] "Clínicas con acceso": quitar una → confirmación → "<clínica> ya no tiene acceso".
+- [ ] Pestaña **Historial médico**: más reciente arriba; tocar una tarjeta la expande (tratamiento, vacunas con lote y próxima dosis, adjuntos).
+- [ ] Adjunto de imagen → pantalla completa con zoom; adjunto PDF → se abre en el visor del teléfono.
+- [ ] Mascota sin historial → "Esta mascota aún no tiene historial médico registrado".
+- [ ] **Sin conexión** → mensaje de error con "Reintentar"; al volver la red, "Reintentar" carga.
+
+### 4. Carnet de vacunas en PDF (RF-18)
+
+- [ ] Pestaña **Documentos**: arriba "Placa QR" y debajo "Carnet de vacunas".
+- [ ] "Generar carnet PDF" → indicador con "Generando tu carnet…" → se abre el PDF en el visor del teléfono.
+- [ ] El PDF trae: "Mascoti" en morado, nombre, especie, raza, nacimiento, código de paciente, tabla (vacuna, lote, aplicada, próxima dosis, clínica) de la más antigua a la más reciente, fecha de emisión en hora de Colombia y "Documento informativo generado por Mascoti".
+- [ ] Mascota sin vacunas → el PDF dice "Esta mascota aún no tiene vacunas registradas en Mascoti."
+- [ ] Tarjeta: "Carnet listo · N vacunas", "Abrir PDF", "Compartir" (abre WhatsApp, correo, etc. con el archivo `carnet_<mascota>_<fecha>.pdf`), "Generar de nuevo".
+- [ ] Al volver a entrar se ve "Último carnet: <fecha>".
+- [ ] **Sin conexión** → mensaje "No se pudo conectar. Verifica tu conexión" con "Reintentar".
+- [ ] Esperar más de 15 min y tocar "Abrir PDF" → genera uno nuevo (el enlace vence).
+
+### 5. Mapa de clínicas (RF-09)
+
+- [ ] Pestaña **Mapa** pide permiso de ubicación; al aceptarlo centra el mapa en ti con los marcadores.
+- [ ] Filtros: tipo de animal, servicio, "24 horas" y distancia (5–50 km) cambian el mapa y la lista.
+- [ ] Tocar un marcador muestra la tarjeta; "Ver perfil" abre el perfil público con servicios, "Llamar", "Cómo llegar", "Agendar" y "Escribir a la clínica".
+- [ ] Veterinarias de OpenStreetMap aparecen sin "Aliado Mascoti"; las aliadas, con la huella.
+- [ ] **Sin permiso de ubicación** → "Activar ubicación" y búsqueda por dirección o ciudad; elegir una sugerencia centra el mapa allí.
+- [ ] Ubicación imprecisa (> 500 m) → aviso de precisión.
+- [ ] Sin resultados → mensaje para ampliar el radio.
+- [ ] **Sin conexión** → error con "Reintentar" (sin pantalla en blanco).
+
+### 6. Agendar y cancelar citas (RF-14)
+
+- [ ] Agendar desde el perfil de una clínica, desde el home o desde un servicio del home.
+- [ ] Sin clínica elegida → "Tus clínicas" o ir al mapa.
+- [ ] Servicios con precio; elegir mascota (con varias); el calendario solo deja días con horas libres.
+- [ ] Elegir hora, comentario opcional → "Continuar" → confirmación con el aviso "la clínica podrá ver el historial médico de <mascota>" → "Solicitar Cita" → abre el detalle "Pendiente".
+- [ ] Si otra persona toma la hora antes → "Este horario ya no está disponible, por favor selecciona otro" y vuelve al calendario.
+- [ ] **Sin conexión** en "Solicitar Cita" → mensaje con "Reintentar"; el botón no se queda girando.
+- [ ] "Citas": pestañas Próximas e Historial con el estado en texto (Pendiente, Confirmada, Rechazada con motivo…).
+- [ ] Detalle: "Llamar a la clínica", "Cómo llegar", "Escribir a la clínica".
+- [ ] "Cancelar cita" (más de 2 h antes) → confirmación → "Cita cancelada". Con menos de 2 h el botón está deshabilitado con la explicación.
+- [ ] Sin mascotas → "Para agendar una cita primero registra a tu mascota" con "Registrar mascota".
+
+### 7. Chat con la clínica (RF-15, RF-16)
+
+- [ ] "Escribir a la clínica" (perfil o cita) abre la conversación; "Mensajes" muestra la bandeja (más reciente arriba, no leídos).
+- [ ] Enviar texto: reloj → ✓ → ✓✓ cuando la clínica lo lee; separadores "Hoy" / "Ayer".
+- [ ] "escribiendo…" cuando la clínica escribe (dos dispositivos).
+- [ ] Contador al pasar de 1800 caracteres; enviar vacío está deshabilitado.
+- [ ] Adjuntar foto y PDF; abrir los recibidos.
+- [ ] "Llamar" desde la conversación.
+- [ ] **Sin conexión** → "Sin conexión, se enviará cuando vuelva la red", sin bloquear; al volver la red se envía.
+
+### 8. Tienda y compra (RF-12)
+
+- [ ] Pestaña **Tienda**: elegir clínica ("Tus clínicas" / "Cerca de ti"); cuadrícula con foto, nombre y precio; buscador y categorías.
+- [ ] Producto agotado → "Agotado" y sin botón de agregar.
+- [ ] Detalle: cantidad con − / + (no pasa del stock) → "Agregar al carrito" → "<producto> se agregó al carrito" con "Ver carrito".
+- [ ] Agregar de otra clínica → "Tu carrito tiene productos de <clínica>. ¿Vaciarlo y agregar este?".
+- [ ] Carrito (ícono del encabezado con contador): cambiar cantidades, quitar, subtotal; avisos de agotado, menos stock o cambio de precio.
+- [ ] Checkout: "Recoger en la clínica" o "Domicilio" (dirección con el buscador y teléfono del perfil) → "Pagar" → pantalla de pago de prueba → "Pagar $ …" → el pedido pasa a pagado. Probar también "Simular pago rechazado" → "Intentar de nuevo".
+- [ ] "Mis pedidos": Activos e Historial, línea de tiempo que cambia cuando la clínica avanza el pedido (dos dispositivos), "Escribir a la clínica" y "Llamar".
+- [ ] Cerrar el pago sin pagar → el pedido queda pendiente y dice que vence a los 15 min.
+- [ ] **Sin conexión** en "Agregar al carrito" → a los 10 s "Sin conexión: se guardará cuando vuelva la red." (no se queda girando).
+- [ ] **Sin conexión** en "Pagar" → mensaje con reintento.
+
+### 9. Sesión cerrada y datos ajenos
+
+- [ ] Cerrar sesión con una pantalla de detalle abierta → vuelve a la bienvenida; atrás no regresa.
+- [ ] Abrir un enlace o notificación de una cita o pedido que no es tuyo → "No encontramos…" (sin pantalla en blanco).
+- [ ] Notificación de una cita o mensaje con la sesión cerrada → pide iniciar sesión, sin cerrarse la app.
+
+### 10. Accesibilidad (Cambio 3)
+
+- [ ] **TalkBack**: recorrer home, perfil de la mascota (3 pestañas), formulario, mapa (filtros y tarjeta), agendar, mis citas, chat, tienda, carrito, checkout, pedidos y Documentos. Cada botón de ícono dice su nombre; las tarjetas de producto se leen completas ("Collar, 25.000 pesos, agotado"); los estados (cita, pedido, mensaje leído) se dicen con texto; la cantidad se anuncia con "Aumentar / Disminuir cantidad de <producto>".
+- [ ] TalkBack en el carnet: "Generando tu carnet…", "Carnet listo" y los errores se anuncian solos.
+- [ ] **Letra al 200 %** (Perfil → Accesibilidad o Ajustes del sistema): las mismas pantallas sin texto cortado ni superpuesto; el catálogo pasa a lista; diálogos y hojas inferiores hacen scroll.
+- [ ] **Modo oscuro**: todo legible (sin texto negro sobre fondo oscuro), mapa, chips de estado, burbujas del chat y tarjeta del carnet.
+- [ ] **Alto contraste**: home, tienda y chat.
+- [ ] Botones de al menos 48 dp (− / + de cantidad, chips de filtro, enviar en el chat).
+
+### Correcciones de la estabilización (Dev C)
+
+- `fix(reservas)`: un error inesperado al solicitar una cita dejaba "Solicitar Cita" girando para siempre; al cancelar no se mostraba ningún aviso. Ahora avisan y se puede reintentar.
+- `fix(mascotas)`: sin conexión, "Registrar mascota" / "Guardar cambios" se quedaban guardando para siempre. Ahora a los 10 s avisan "Sin conexión: se guardará cuando vuelva la red." y abren el perfil; la foto se agrega después. (`awaitWrite` pasó de `plugins/clinica` a `core/data` para usarla en ambos plugins.)
+- `fix(tienda)`: sin conexión, "Agregar al carrito" se quedaba girando. Ahora avisa a los 10 s.
+
 ---
 
 ## Limitaciones conocidas
