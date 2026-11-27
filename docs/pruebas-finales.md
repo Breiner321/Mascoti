@@ -390,6 +390,8 @@ Mascotas, historial médico, mapa, agendar y cancelar citas, chat, tienda y comp
 - `fix(reservas)`: un error inesperado al solicitar una cita dejaba "Solicitar Cita" girando para siempre; al cancelar no se mostraba ningún aviso. Ahora avisan y se puede reintentar.
 - `fix(mascotas)`: sin conexión, "Registrar mascota" / "Guardar cambios" se quedaban guardando para siempre. Ahora a los 10 s avisan "Sin conexión: se guardará cuando vuelva la red." y abren el perfil; la foto se agrega después. (`awaitWrite` pasó de `plugins/clinica` a `core/data` para usarla en ambos plugins.)
 - `fix(tienda)`: sin conexión, "Agregar al carrito" se quedaba girando. Ahora avisa a los 10 s.
+- `fix(core)`: en celulares angostos (360–412 dp) el botón **Perfil** del encabezado quedaba cortado fuera de la pantalla. Ahora se muestra solo la huella como logo.
+- `fix(core)`: en Accesibilidad, "Sistema" se partía en dos líneas; las opciones del tema se apilan cuando no caben.
 - `fix(directorio)`: sin conexión, el mapa decía "No encontramos clínicas cerca. Intenta ampliar el radio" (Firestore responde con la caché vacía). Ahora dice "No pudimos cargar las clínicas. Verifica tu conexión." con "Reintentar". El mapa se ve gris sin red porque los mosaicos de OpenStreetMap se descargan de internet (esperado).
 
 ---
