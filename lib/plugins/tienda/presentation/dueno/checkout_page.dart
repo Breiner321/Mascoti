@@ -31,12 +31,20 @@ class CheckoutPage extends ConsumerStatefulWidget {
 
 class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   final _formKey = GlobalKey<FormState>();
-  late final _phone = TextEditingController(
-      text: ref.read(currentUserProvider)?.telefono ?? '');
+  // Se crea en initState: si fuera `late` y el formulario nunca se mostró
+  // (carrito vacío, cargando o con error), se crearía en dispose() leyendo
+  // `ref` con el widget ya desmontado, y eso lanza una excepción.
+  late final TextEditingController _phone;
   final _details = TextEditingController();
   DeliveryType _tipo = DeliveryType.recoger;
   PlaceAddress? _address;
   bool _paying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _phone = TextEditingController(text: ref.read(currentUserProvider)?.telefono ?? '');
+  }
 
   @override
   void dispose() {
@@ -89,9 +97,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cart = ref.watch(cartProvider).value;
+    final cartState = ref.watch(cartProvider);
+    final cart = cartState.value;
     Widget scaffold(Widget body) => Scaffold(
         appBar: AppBar(title: const Text('Confirmar compra')), body: body);
+    if (cart == null && cartState.hasError) {
+      return scaffold(ShopMessage(
+        icon: Icons.cloud_off,
+        text: 'No pudimos cargar tu carrito.',
+        action: FilledButton(
+          onPressed: () => ref.invalidate(cartProvider),
+          child: const Text('Reintentar'),
+        ),
+      ));
+    }
     if (cart == null) {
       return scaffold(const Center(child: CircularProgressIndicator()));
     }
