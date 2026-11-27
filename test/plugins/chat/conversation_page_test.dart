@@ -168,6 +168,28 @@ void main() {
     expect(find.text(ConversationPage.offlineNotice), findsNothing);
   });
 
+  testWidgets('si el servidor rechaza el envío, lo avisa y devuelve el texto al campo',
+      (tester) async {
+    when(() => repo.sendText(
+          chat: any(named: 'chat'),
+          senderUid: any(named: 'senderUid'),
+          text: any(named: 'text'),
+        )).thenAnswer((_) => (
+          message: m('n', 'ana', 'Hola', null, pendiente: true),
+          delivered: Future<void>.error(Exception('permission-denied')),
+        ));
+    await pump(tester, messages: sample);
+
+    await tester.enterText(find.byType(TextField), 'Holaaaa');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Enviar'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text(ConversationPage.sendFailedNotice), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'Holaaaa');
+  });
+
   testWidgets('sin conexión: aviso no bloqueante hasta que el servidor confirma', (tester) async {
     final server = Completer<void>();
     when(() => repo.sendText(

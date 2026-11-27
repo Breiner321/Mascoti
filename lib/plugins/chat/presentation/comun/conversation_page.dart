@@ -34,6 +34,7 @@ class ConversationPage extends ConsumerStatefulWidget {
   final String chatId;
 
   static const offlineNotice = 'Sin conexión, se enviará cuando vuelva la red';
+  static const sendFailedNotice = 'No se pudo enviar el mensaje. Intenta de nuevo.';
   static const emptyText = 'Aún no hay mensajes. Escribe el primero.';
 
   @override
@@ -93,21 +94,29 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
       return;
     }
+    final text = _text.text;
     _text.clear();
     _typing.stop();
-    _watchDelivery(sent.delivered);
+    _watchDelivery(sent.delivered, text: text);
     // Bajar al último mensaje (la lista está invertida: 0 es el final).
     if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
   /// Si el servidor tarda, avisa sin bloquear; el aviso se va al confirmar.
-  void _watchDelivery(Future<void> delivered) {
+  /// Si lo rechaza, el mensaje desaparece de la lista: se avisa y [text]
+  /// vuelve al campo (si está vacío) para reintentarlo.
+  void _watchDelivery(Future<void> delivered, {String? text}) {
     _waiting++;
     var done = false;
     final timer = Timer(ref.read(offlineNoticeDelayProvider), () {
       if (!done && mounted) setState(() => _offline = true);
     });
-    delivered.then((_) {}, onError: (Object _) {}).whenComplete(() {
+    delivered.then((_) {}, onError: (Object _) {
+      if (!mounted) return;
+      if (text != null && _text.text.isEmpty) _text.text = text;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text(ConversationPage.sendFailedNotice)));
+    }).whenComplete(() {
       done = true;
       timer.cancel();
       _waiting--;

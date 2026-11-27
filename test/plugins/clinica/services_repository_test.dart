@@ -116,7 +116,22 @@ void main() {
     expect(await categorias(), ['consulta_general']);
   });
 
-  test('citas activas: 0 hasta que existan las citas (RF-14)', () async {
+  test('citas activas: cuenta solo pendientes y confirmadas del servicio y la clínica', () async {
     expect(await repo.activeAppointmentsCount('c1', 'a'), 0);
+
+    Future<void> cita(String clinicId, String serviceId, String estado) =>
+        firestore.collection('appointments').add({
+          'clinicId': clinicId,
+          'serviceId': serviceId,
+          'estado': estado,
+        });
+    await cita('c1', 'a', 'pendiente');
+    await cita('c1', 'a', 'confirmada');
+    await cita('c1', 'a', 'completada');
+    await cita('c1', 'a', 'cancelada');
+    await cita('c1', 'b', 'pendiente');
+    await cita('c2', 'a', 'confirmada');
+
+    expect(await repo.activeAppointmentsCount('c1', 'a'), 2);
   });
 }

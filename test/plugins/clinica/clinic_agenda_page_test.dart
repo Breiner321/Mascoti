@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +11,7 @@ import 'package:mascoti/core/auth/auth_providers.dart';
 import 'package:mascoti/core/auth/domain/app_user.dart';
 import 'package:mascoti/core/data/appointments_providers.dart';
 import 'package:mascoti/core/data/appointments_repository.dart';
+import 'package:mascoti/core/domain/schedule_exception.dart';
 import 'package:mascoti/core/format/bogota_time.dart';
 import 'package:mascoti/plugins/clinica/clinica_routes.dart';
 import 'package:mascoti/plugins/clinica/data/clinic_repository.dart';
@@ -19,6 +22,15 @@ import 'package:mascoti/plugins/clinica/presentation/clinic_agenda_page.dart';
 import 'package:mascoti/plugins/clinica/presentation/clinic_providers.dart';
 
 import '../../a11y.dart';
+
+/// Sin conexión: Firestore deja la escritura en cola y su Future no termina.
+class _OfflineExceptionsRepository extends ExceptionsRepository {
+  _OfflineExceptionsRepository(FakeFirebaseFirestore firestore) : super(firestore: firestore);
+
+  @override
+  Future<void> addAll(String clinicId, Iterable<ScheduleException> exceptions) =>
+      Completer<void>().future;
+}
 
 /// Agenda de la clínica por EXCEPCIONES (Cambio 2).
 void main() {
@@ -59,7 +71,7 @@ void main() {
         'activo': true,
       });
 
-  Future<void> pumpPage(WidgetTester tester) async {
+  Future<void> pumpPage(WidgetTester tester, {ExceptionsRepository? exceptionsRepo}) async {
     tester.view.physicalSize = const Size(1080, 6000);
     tester.view.devicePixelRatio = 2.5;
     addTearDown(tester.view.reset);
@@ -91,7 +103,7 @@ void main() {
           servicesRepositoryProvider.overrideWithValue(ServicesRepository(firestore: firestore)),
           slotsRepositoryProvider.overrideWithValue(SlotsRepository(firestore: firestore)),
           exceptionsRepositoryProvider
-              .overrideWithValue(ExceptionsRepository(firestore: firestore)),
+              .overrideWithValue(exceptionsRepo ?? ExceptionsRepository(firestore: firestore)),
           agendaClockProvider.overrideWithValue(() => now),
           appointmentsRepositoryProvider
               .overrideWithValue(AppointmentsRepository(firestore: firestore)),
@@ -185,6 +197,24 @@ void main() {
     expect(saved.every((e) => e['tipo'] == 'bloqueo' && e['fechaInicio'] == fecha), isTrue);
     expect(inFranja('10:00', 'Bloqueada · Capacitación'), findsOneWidget);
     expect(inFranja('09:00', 'Libre'), findsOneWidget);
+  });
+
+  testWidgets('sin conexión: bloquear no deja la agenda deshabilitada', (tester) async {
+    await addService();
+    await pumpPage(tester, exceptionsRepo: _OfflineExceptionsRepository(firestore));
+
+    await tester.tap(franja('09:30'));
+    await tester.pump();
+    await tester.tap(find.text('Bloquear 1 franja'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Bloquear'));
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin conexión: se guardará cuando vuelva la red.'), findsOneWidget);
+    final blockDay = tester.widget<ButtonStyleButton>(
+        find.ancestor(of: find.text('Bloquear día'), matching: find.bySubtype<ButtonStyleButton>()));
+    expect(blockDay.onPressed, isNotNull);
   });
 
   testWidgets('tocar una franja bloqueada permite quitar el bloqueo', (tester) async {

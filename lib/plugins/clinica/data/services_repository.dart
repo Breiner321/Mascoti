@@ -93,10 +93,21 @@ class ServicesRepository {
   }
 
   /// Citas 'pendiente' o 'confirmada' del servicio (flujo alternativo de
-  /// RF-05 al eliminar).
-  // TODO(RF-14, semana 4): contar en `appointments` donde clinicId y
-  // serviceId coinciden y estado ∈ {pendiente, confirmada}.
-  Future<int> activeAppointmentsCount(String clinicId, String serviceId) async => 0;
+  /// RF-05 al eliminar). Si la consulta falla devuelve 0: el aviso es
+  /// informativo y no debe impedir eliminar el servicio.
+  Future<int> activeAppointmentsCount(String clinicId, String serviceId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('appointments')
+          .where('clinicId', isEqualTo: clinicId)
+          .where('serviceId', isEqualTo: serviceId)
+          .where('estado', whereIn: ['pendiente', 'confirmada'])
+          .get();
+      return snapshot.docs.length;
+    } on FirebaseException {
+      return 0;
+    }
+  }
 
   Future<void> _guard(Future<void> write) async {
     try {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +37,21 @@ class _DeniedRepository extends ClinicRepository {
     calls++;
     throw const ClinicPermissionDenied();
   }
+}
+
+/// Sin conexión: Firestore deja la escritura en cola y su Future no termina.
+class _OfflineRepository extends ClinicRepository {
+  _OfflineRepository(FakeFirebaseFirestore firestore) : super(firestore: firestore);
+
+  @override
+  Future<void> saveCareProfile(
+    Clinic current, {
+    required List<AnimalType> tiposAnimales,
+    required bool atencionEmergencias,
+    required WeeklySchedule horarioSemanal,
+    required BookingSettings reservas,
+  }) =>
+      Completer<void>().future;
 }
 
 void main() {
@@ -180,6 +197,20 @@ void main() {
         {'duracionSlotMin': 60, 'anticipacionMaxDias': 30, 'anticipacionMinMin': 120});
     expect(data['estado'], 'activo');
     expect(find.text('Perfil actualizado'), findsOneWidget);
+    expect(find.text('Panel clínica'), findsOneWidget);
+  });
+
+  testWidgets('sin conexión: no se queda guardando, avisa y abre el panel', (tester) async {
+    await pumpPage(tester, repo: _OfflineRepository(firestore));
+
+    await tester.tap(find.text('Gatos'));
+    await tester.pump();
+    await scrollToSave(tester);
+    await tester.tap(saveButton());
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin conexión: se guardará cuando vuelva la red.'), findsOneWidget);
     expect(find.text('Panel clínica'), findsOneWidget);
   });
 
