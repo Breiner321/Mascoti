@@ -1161,6 +1161,24 @@ describe.skipIf(!conEmulador)("firestore.rules", () => {
       await assertSucceeds(updateDoc(doc(vet2, `chats/${CHAT}`), { "typing.vet2": deleteField() }));
     });
 
+    it("el mismo remitente repite un mensaje (o dos largos con la misma vista previa)", async () => {
+      await crearChat();
+      const largo = (fin: string) => ({ texto: "Hol" + "a".repeat(150) + fin });
+      const vistaPrevia = { lastMessage: { texto: "Hol" + "a".repeat(96) + "…", tipo: "texto", senderUid: "vet2" } };
+      await assertSucceeds(enviar("vet2", "m1"));
+      await assertSucceeds(enviar("vet2", "m2"));
+      await assertSucceeds(enviar("vet2", "m3", largo("!"), vistaPrevia));
+      await assertSucceeds(enviar("vet2", "m4", largo("?"), vistaPrevia));
+      // Sigue exigiendo un mensaje nuevo y el +1 al receptor.
+      await assertFails(enviar("vet2", "m4", {}, vistaPrevia));
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const chat = (await getDoc(doc(ctx.firestore(), `chats/${CHAT}`))).data()!;
+        if (chat.noLeidos.ana !== 4 || chat.lastMessageId !== "m4") {
+          throw new Error(`chat inesperado: ${JSON.stringify(chat.noLeidos)}`);
+        }
+      });
+    });
+
     it("un mensaje de más de 100 caracteres se envía con su vista previa recortada (…)", async () => {
       await crearChat();
       // Como ChatLimits.preview: 99 caracteres + "…".

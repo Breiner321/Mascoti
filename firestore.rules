@@ -785,7 +785,9 @@ service cloud.firestore {
         let d = request.resource.data;
         let other = otherParticipant(resource.data);
         let message = /databases/$(database)/documents/chats/$(chatId)/messages/$(d.lastMessageId);
-        return changedKeys().hasAll(['lastMessage', 'lastMessageId', 'lastMessageAt', 'noLeidos'])
+        // lastMessage puede quedar igual: el mismo remitente repite el texto
+        // o dos mensajes largos comparten la vista previa recortada.
+        return changedKeys().hasAll(['lastMessageId', 'lastMessageAt', 'noLeidos'])
           && changedKeys().hasOnly(['lastMessage', 'lastMessageId', 'lastMessageAt', 'noLeidos', 'typing'])
           && d.lastMessageId is string && d.lastMessageId.matches('^[A-Za-z0-9]{1,40}$')
           && !exists(message)
