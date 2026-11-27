@@ -14,6 +14,7 @@ import 'clinic_providers.dart';
 import 'date_form_field.dart';
 import 'medical_record_validators.dart';
 import 'vaccine_fields.dart';
+import 'offline_write.dart';
 
 /// Nueva consulta ([recordId] null) o una consulta existente: la clínica
 /// autora la corrige durante 24 h; después (o si es de otra clínica) se
@@ -278,9 +279,10 @@ class _MedicalRecordFormState extends ConsumerState<MedicalRecordForm> {
     final existing = _existing;
 
     setState(() => _saving = true);
+    final bool confirmed;
     try {
       if (existing == null) {
-        await repo.createRecord(
+        confirmed = await awaitWrite(repo.createRecord(
           MedicalRecord(
             id: _recordId,
             petId: widget.pet.id,
@@ -294,9 +296,9 @@ class _MedicalRecordFormState extends ConsumerState<MedicalRecordForm> {
             adjuntos: fields.adjuntos,
           ),
           ownerUid: widget.pet.ownerUid,
-        );
+        ));
       } else {
-        await repo.updateRecord(
+        confirmed = await awaitWrite(repo.updateRecord(
           existing.copyWith(
             fecha: fields.fecha,
             diagnostico: fields.diagnostico,
@@ -306,7 +308,7 @@ class _MedicalRecordFormState extends ConsumerState<MedicalRecordForm> {
           ),
           previous: existing,
           ownerUid: widget.pet.ownerUid,
-        );
+        ));
       }
     } on MedicalRecordFailure catch (e) {
       if (mounted) setState(() => _saving = false);
@@ -323,13 +325,15 @@ class _MedicalRecordFormState extends ConsumerState<MedicalRecordForm> {
       );
       return;
     }
-    messenger.showSnackBar(SnackBar(
-      backgroundColor: AppColors.success,
-      content: Text(
-        existing == null ? 'Consulta guardada' : 'Consulta actualizada',
-        style: TextStyle(color: AppColors.onPrimary),
-      ),
-    ));
+    messenger.showSnackBar(confirmed
+        ? SnackBar(
+            backgroundColor: AppColors.success,
+            content: Text(
+              existing == null ? 'Consulta guardada' : 'Consulta actualizada',
+              style: TextStyle(color: AppColors.onPrimary),
+            ),
+          )
+        : const SnackBar(content: Text(offlineWriteMessage)));
     if (mounted) Navigator.of(context).pop();
   }
 
