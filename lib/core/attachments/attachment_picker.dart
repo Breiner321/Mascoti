@@ -17,8 +17,11 @@ class PickedFile {
 class AttachmentPicker {
   const AttachmentPicker();
 
-  /// Imagen o PDF. null si el usuario cancela.
-  Future<PickedFile?> pick() => _pickFile(const ['jpg', 'jpeg', 'png', 'pdf']);
+  /// Cualquier archivo, para el historial: quien llama valida que sea
+  /// JPG, PNG o PDF y avisa si no lo es (con un filtro, el sistema
+  /// deshabilita los demás archivos sin explicar por qué). null si el
+  /// usuario cancela.
+  Future<PickedFile?> pick() => _pickFile(null);
 
   /// Solo un PDF. null si el usuario cancela.
   Future<PickedFile?> pickPdf() => _pickFile(const ['pdf']);
@@ -30,9 +33,9 @@ class AttachmentPicker {
     return PickedFile(name: file.name, bytes: await file.readAsBytes());
   }
 
-  Future<PickedFile?> _pickFile(List<String> extensions) async {
+  Future<PickedFile?> _pickFile(List<String>? extensions) async {
     final file = await FilePicker.pickFile(
-      type: FileType.custom,
+      type: extensions == null ? FileType.any : FileType.custom,
       allowedExtensions: extensions,
     );
     if (file == null) return null;

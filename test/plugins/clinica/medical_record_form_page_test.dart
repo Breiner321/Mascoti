@@ -217,6 +217,17 @@ void main() {
     expect(find.text('Sin adjuntos'), findsOneWidget);
   });
 
+  testWidgets('un Excel muestra el mensaje de tipos permitidos y no se sube', (tester) async {
+    await pumpForm(tester, picked: PickedFile(name: 'examenes.xlsx', bytes: Uint8List(2048)));
+
+    await tester.tap(find.text('Adjuntar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Solo se permiten imágenes JPG o PNG y archivos PDF.'), findsOneWidget);
+    expect(repository.uploads, isEmpty);
+    expect(find.text('Sin adjuntos'), findsOneWidget);
+  });
+
   MedicalRecord existingRecord(DateTime createdAt, {String clinicId = 'c1'}) => MedicalRecord(
         id: 'r1',
         petId: 'p1',
