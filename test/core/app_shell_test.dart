@@ -10,6 +10,7 @@ import 'package:mascoti/core/kernel/plugin_registry.dart';
 import 'package:mascoti/core/theme/app_theme.dart';
 import 'package:mascoti/core/widgets/app_shell.dart';
 
+import '../a11y.dart';
 import 'fake_plugins.dart';
 
 void main() {
@@ -56,6 +57,25 @@ void main() {
     await pumpShell(tester, user: owner, plugins: ['mascotas']);
     expect(find.text('Mascoti'), findsOneWidget);
     expect(find.byTooltip('Perfil'), findsOneWidget);
+  });
+
+  testWidgets('teléfono angosto con letra grande: el perfil se ve completo, sin desbordes',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 780);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    useLargeText(tester);
+    final handle = tester.ensureSemantics();
+    await pumpShell(tester, user: owner, plugins: ['mascotas', 'tienda', 'sos']);
+
+    expectNoOverflow(tester);
+    final profile = tester.getRect(find.byTooltip('Perfil'));
+    expect(profile.right, lessThanOrEqualTo(360));
+    expect(find.byTooltip('Carrito'), findsOneWidget);
+    expect(find.text('SOS'), findsOneWidget);
+    // El logo sigue anunciándose aunque se vea solo la huella.
+    expect(find.bySemanticsLabel('Mascoti'), findsOneWidget);
+    handle.dispose();
   });
 
   testWidgets('sin tienda ni sos no hay carrito ni SOS', (tester) async {

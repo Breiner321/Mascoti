@@ -92,15 +92,21 @@ class _ShellHeader extends StatelessWidget implements PreferredSizeWidget {
   /// el logo; el resto de la app sí llega a 200 % (Cambio 3).
   static const _maxHeaderTextScale = 1.3;
 
+  /// Por debajo de este ancho no caben el logo con la palabra "Mascoti" y
+  /// los cuatro botones (teléfonos de 360–412 dp): se muestra solo la huella
+  /// y el texto del encabezado no crece, para que "Perfil" no quede cortado.
+  static const _compactBelowWidth = 430.0;
+
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < _compactBelowWidth;
     return MediaQuery.withClampedTextScaling(
-      maxScaleFactor: _maxHeaderTextScale,
-      child: _build(context),
+      maxScaleFactor: compact ? 1.0 : _maxHeaderTextScale,
+      child: _build(context, compact: compact),
     );
   }
 
-  Widget _build(BuildContext context) {
+  Widget _build(BuildContext context, {required bool compact}) {
     return Material(
       color: AppColors.primary,
       shape: const RoundedRectangleBorder(
@@ -120,7 +126,7 @@ class _ShellHeader extends StatelessWidget implements PreferredSizeWidget {
                 children: [
                   Semantics(
                     sortKey: const OrdinalSortKey(1),
-                    child: const BrandLogo.wordmark(),
+                    child: compact ? const BrandLogo.mark(size: 40) : const BrandLogo.wordmark(),
                   ),
                   const Spacer(),
                   if (showCart)
