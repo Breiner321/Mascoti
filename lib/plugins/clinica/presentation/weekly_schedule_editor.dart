@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/domain/opening_hours.dart';
 import '../../../core/domain/weekly_schedule.dart';
-import '../../../core/format/time_format.dart';
 import '../../../core/theme/app_theme.dart';
+import 'clock_time_input.dart';
 
 /// Horario semanal de la clínica (Cambio 2): por cada día, abierto o
-/// cerrado, apertura, cierre y descanso opcional.
+/// cerrado, apertura, cierre y descanso opcional. Las horas se escriben con
+/// [ClockTimeInput] (hora, minutos y a. m. / p. m.), sin reloj.
 class WeeklyScheduleEditor extends StatelessWidget {
   const WeeklyScheduleEditor({
     super.key,
@@ -21,17 +21,6 @@ class WeeklyScheduleEditor extends StatelessWidget {
   final ValueChanged<WeeklySchedule> onChanged;
   final bool enabled;
 
-  Future<String?> _pick(BuildContext context, String current, String help) async {
-    final m = OpeningHours.minutesOf(current);
-    final picked = await TimeFormat.pick(
-      context,
-      initialTime: TimeOfDay(hour: m ~/ 60, minute: m % 60),
-      helpText: help,
-    );
-    if (picked == null) return null;
-    return OpeningHours.formatMinutes(picked.hour * 60 + picked.minute);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -42,8 +31,8 @@ class WeeklyScheduleEditor extends StatelessWidget {
           hours: schedule[day],
           error: schedule[day].validate(slotMinutes),
           enabled: enabled,
+          slotMinutes: slotMinutes,
           onChanged: (h) => onChanged(schedule.withDay(day, h)),
-          pick: (current, help) => _pick(context, current, help),
         ),
       ],
     );
@@ -56,28 +45,31 @@ class _DayRow extends StatelessWidget {
     required this.hours,
     required this.error,
     required this.enabled,
+    required this.slotMinutes,
     required this.onChanged,
-    required this.pick,
   });
 
   final Weekday day;
   final DayHours hours;
   final String? error;
   final bool enabled;
+  final int slotMinutes;
   final ValueChanged<DayHours> onChanged;
-  final Future<String?> Function(String current, String help) pick;
-
-  Future<void> _edit(String current, String help, DayHours Function(String) apply) async {
-    final value = await pick(current, help);
-    if (value != null) onChanged(apply(value));
-  }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    Widget time(String label, String value, DayHours Function(String) apply) => ActionChip(
-          label: Text('$label ${TimeFormat.hour(value)}'),
-          onPressed: enabled ? () => _edit(value, '$label · ${day.label}', apply) : null,
+    Widget time(String label, String value, DayHours Function(String) apply) => Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: ClockTimeInput(
+            key: ValueKey('${day.key}-$label'),
+            label: label,
+            semanticLabel: '$label el ${day.label}',
+            value: value,
+            stepMinutes: slotMinutes,
+            enabled: enabled,
+            onChanged: (v) => onChanged(apply(v)),
+          ),
         );
 
     return Padding(
@@ -93,18 +85,10 @@ class _DayRow extends StatelessWidget {
             onChanged: enabled ? (v) => onChanged(hours.copyWith(abierto: v)) : null,
           ),
           if (hours.abierto) ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                time('Abre', hours.apertura, (v) => hours.copyWith(apertura: v)),
-                time('Cierra', hours.cierre, (v) => hours.copyWith(cierre: v)),
-              ],
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            time('Abre', hours.apertura, (v) => hours.copyWith(apertura: v)),
+            time('Cierra', hours.cierre, (v) => hours.copyWith(cierre: v)),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 FilterChip(
                   label: const Text('Descanso'),
