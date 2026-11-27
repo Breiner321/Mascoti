@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/data/offline_write.dart';
 import '../../../core/domain/pet.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/pet_photo_service.dart';
@@ -180,7 +181,13 @@ class _PetFormState extends ConsumerState<_PetForm> {
         },
       );
       if (isNew) selection.select(pet.id);
-      if (result.photoFailed && photo != null) {
+      if (result.savedOffline) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(photo == null
+              ? offlineWriteMessage
+              : '$offlineWriteMessage Agrega la foto cuando tengas conexión.'),
+        ));
+      } else if (result.photoFailed && photo != null) {
         _showPhotoError(messenger, () => repository.uploadPhoto(pet, photo));
       } else {
         messenger.showSnackBar(

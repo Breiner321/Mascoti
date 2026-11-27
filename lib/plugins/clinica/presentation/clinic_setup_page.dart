@@ -15,7 +15,7 @@ import '../data/clinic_repository.dart';
 import '../domain/agenda_rules.dart';
 import 'clinic_providers.dart';
 import 'weekly_schedule_editor.dart';
-import 'offline_write.dart';
+import '../../../core/data/offline_write.dart';
 
 /// Perfil de atención de la clínica (RF-04): especies que atiende,
 /// emergencias (RF-10), horario semanal y reglas de reserva (Cambio 2).

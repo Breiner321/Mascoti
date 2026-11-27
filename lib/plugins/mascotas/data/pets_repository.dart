@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/data/offline_write.dart';
 import '../../../core/domain/clinic.dart';
 import '../../../core/domain/patient_code.dart';
 import '../../../core/domain/pet.dart';
@@ -19,11 +20,17 @@ class PetsRepository {
     FirebaseFirestore? firestore,
     StorageRepository? storage,
     String Function()? generateCode,
+    Future<bool> Function(Future<void> write)? waitForWrite,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _storage = storage,
-        _generateCode = generateCode ?? PatientCode.generate;
+        _generateCode = generateCode ?? PatientCode.generate,
+        _waitForWrite = waitForWrite ?? awaitWrite;
 
   final FirebaseFirestore _firestore;
+
+  /// true si el servidor confirmó la escritura; false si quedó en cola sin
+  /// conexión (Firestore la envía al volver la red). Ver [awaitWrite].
+  final Future<bool> Function(Future<void> write) _waitForWrite;
   final String Function() _generateCode;
 
   /// Intentos para encontrar un código de paciente libre. Con 923.521
@@ -85,8 +92,9 @@ class PetsRepository {
       data.remove(field);
     }
     final ref = _pets.doc(pet.id);
+    var confirmed = true;
     if (isNew) {
-      await _withNewCode(pet, (batch, code) {
+      await _withNewCode(pet, onQueued: () => confirmed = false, (batch, code) {
         batch.set(ref, {
           ...data,
           'codigoPaciente': code,
@@ -96,13 +104,17 @@ class PetsRepository {
       });
     } else {
       try {
-        await ref.update(data);
+        confirmed = await _waitForWrite(ref.update(data));
       } on FirebaseException catch (e) {
         if (e.code == 'permission-denied') throw const PetPermissionDenied();
         rethrow;
       }
     }
 
+    // Sin conexión la foto no se puede subir: queda pendiente para después.
+    if (!confirmed) {
+      return PetSaveResult(petId: pet.id, savedOffline: true, photoFailed: photo != null);
+    }
     if (photo == null) return PetSaveResult(petId: pet.id);
     final uploaded = await uploadPhoto(pet, photo, onStage: onStage);
     return PetSaveResult(petId: pet.id, photoFailed: !uploaded);
@@ -144,8 +156,9 @@ class PetsRepository {
   /// lote completo (el código solo se puede crear) y se prueba con otro.
   Future<String> _withNewCode(
     Pet pet,
-    void Function(WriteBatch batch, String code) write,
-  ) async {
+    void Function(WriteBatch batch, String code) write, {
+    VoidCallback? onQueued,
+  }) async {
     for (var attempt = 1; ; attempt++) {
       final code = _generateCode();
       final batch = _firestore.batch()
@@ -156,7 +169,10 @@ class PetsRepository {
         });
       write(batch, code);
       try {
-        await batch.commit();
+        // Sin conexión no se puede saber si el código está libre; con
+        // 923.521 códigos una colisión es casi imposible y, si pasa,
+        // Firestore descarta el lote al volver la red.
+        if (!await _waitForWrite(batch.commit())) onQueued?.call();
         return code;
       } on FirebaseException catch (e) {
         if (e.code != 'permission-denied') rethrow;

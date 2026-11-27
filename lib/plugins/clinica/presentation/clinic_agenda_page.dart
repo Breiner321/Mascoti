@@ -20,7 +20,7 @@ import 'agenda_calendar.dart';
 import 'clinic_providers.dart';
 import 'day_exceptions_view.dart';
 import 'upcoming_appointments_card.dart';
-import 'offline_write.dart';
+import '../../../core/data/offline_write.dart';
 
 /// Agenda de la clínica (RF-06, mockup "Mi día"). Desde el Cambio 2 la
 /// clínica está disponible siempre dentro de su horario semanal: aquí solo

@@ -29,6 +29,7 @@ void main() {
     WidgetTester tester, {
     String location = MascotasRoutes.newPet,
     PetPhoto? photo,
+    bool offline = false,
   }) async {
     tester.view.physicalSize = const Size(1080, 3200);
     tester.view.devicePixelRatio = 1;
@@ -58,7 +59,12 @@ void main() {
             const AppUser(uid: 'ana', email: '', displayName: 'Ana', role: UserRole.dueno),
           ),
           petsRepositoryProvider.overrideWithValue(
-            PetsRepository(firestore: firestore, storage: storage),
+            PetsRepository(
+              firestore: firestore,
+              storage: storage,
+              // Sin conexión: Firestore deja la escritura en cola.
+              waitForWrite: offline ? (write) async => false : null,
+            ),
           ),
           petPhotoPickerProvider.overrideWithValue(FakePhotoPicker(photo)),
         ],
@@ -161,6 +167,25 @@ void main() {
     await tester.tap(find.byTooltip('Quitar Pollo'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(InputChip, 'Pollo'), findsNothing);
+  });
+
+  testWidgets('sin conexión no se queda guardando: avisa y abre el perfil', (tester) async {
+    await pumpForm(tester, offline: true, photo: PetPhoto(bytes: tinyPng, png: true));
+    await tester.tap(find.text('Agregar foto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Elegir de la galería'));
+    await tester.pumpAndSettle();
+    await tester.enterText(field('Nombre *'), 'Luna');
+    await chooseSpecies(tester, 'Perro');
+
+    await tester.tap(find.text('Registrar mascota'));
+    await tester.pumpAndSettle();
+
+    expect(await pets(), hasLength(1));
+    expect(find.textContaining('Sin conexión: se guardará cuando vuelva la red.'), findsOneWidget);
+    expect(find.textContaining('Agrega la foto cuando tengas conexión.'), findsOneWidget);
+    expect(find.textContaining('perfil '), findsOneWidget);
+    expect(storage.uploads, isEmpty);
   });
 
   testWidgets('registra la mascota y abre su perfil', (tester) async {

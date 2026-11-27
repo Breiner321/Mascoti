@@ -7,7 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import 'clinic_providers.dart';
 import 'service_card.dart';
 import 'service_form_sheet.dart';
-import 'offline_write.dart';
+import '../../../core/data/offline_write.dart';
 
 /// Catálogo de servicios de la clínica (RF-05).
 class ClinicServicesPage extends ConsumerStatefulWidget {
