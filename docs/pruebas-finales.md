@@ -385,6 +385,10 @@ Mascotas, historial médico, mapa, agendar y cancelar citas, chat, tienda y comp
 - [ ] **Alto contraste**: home, tienda y chat.
 - [ ] Botones de al menos 48 dp (− / + de cantidad, chips de filtro, enviar en el chat).
 
+### Resultado (Dev C)
+
+Ejecutada el 27–28/11 en el emulador y en un celular real (dueño en el emulador, clínica en el celular): bloques 1 a 10 completos. Los errores encontrados están corregidos abajo; no quedan pendientes del lado del dueño.
+
 ### Correcciones de la estabilización (Dev C)
 
 - `fix(reservas)`: un error inesperado al solicitar una cita dejaba "Solicitar Cita" girando para siempre; al cancelar no se mostraba ningún aviso. Ahora avisan y se puede reintentar.
